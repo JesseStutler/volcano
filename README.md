@@ -184,3 +184,5 @@ If you have any question, feel free to reach out to us in the following ways:
 [Mailing List](https://groups.google.com/forum/#!forum/volcano-sh)
 
 Wechat: Add WeChat account `k8s2222` (华为云小助手2号) to let her pull you into the group.
+
+[Only for testing CI]
