@@ -176,6 +176,16 @@ type imageState struct {
 	nodes sets.String
 }
 
+type BindContext struct {
+	TaskInfo *schedulingapi.TaskInfo
+
+	EnablePlugins     []string
+	CycleState        *framework.CycleState
+	PreBindFns        []schedulingapi.PreBindFn
+	ReservedNodesFn   []schedulingapi.ReservedNodesFn
+	UnReservedNodesFn []schedulingapi.UnReservedNodesFn
+}
+
 // DefaultBinder with kube client and event recorder
 type DefaultBinder struct {
 	kubeclient kubernetes.Interface
@@ -1196,19 +1206,19 @@ func (sc *SchedulerCache) processSyncNode() bool {
 }
 
 // AddBindTask add task to be bind to a cache which consumes by go runtime
-func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
-	klog.V(5).Infof("add bind task %v/%v", taskInfo.Namespace, taskInfo.Name)
+func (sc *SchedulerCache) AddBindTask(bindContext *BindContext) error {
+	klog.V(5).Infof("add bind task %v/%v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name)
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
-	job, task, err := sc.findJobAndTask(taskInfo)
+	job, task, err := sc.findJobAndTask(bindContext.TaskInfo)
 	if err != nil {
 		return err
 	}
 
-	node, found := sc.Nodes[taskInfo.NodeName]
+	node, found := sc.Nodes[bindContext.TaskInfo.NodeName]
 	if !found {
 		return fmt.Errorf("failed to bind Task %v to host %v, host does not exist",
-			task.UID, taskInfo.NodeName)
+			task.UID, bindContext.TaskInfo.NodeName)
 	}
 
 	originalStatus := task.Status
@@ -1216,11 +1226,11 @@ func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
 		return err
 	}
 
-	err = taskInfo.SetPodResourceDecision()
+	err = bindContext.TaskInfo.SetPodResourceDecision()
 	if err != nil {
 		return fmt.Errorf("set task %v/%v resource decision failed, err %v", task.Namespace, task.Name, err)
 	}
-	task.NumaInfo = taskInfo.NumaInfo.Clone()
+	task.NumaInfo = bindContext.TaskInfo.NumaInfo.Clone()
 
 	// Add task to the node.
 	if err := node.AddTask(task); err != nil {
@@ -1235,7 +1245,7 @@ func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
 		return err
 	}
 
-	sc.BindFlowChannel <- taskInfo
+	sc.BindFlowChannel <- bindContext.TaskInfo
 
 	return nil
 }

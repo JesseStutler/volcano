@@ -501,7 +501,7 @@ func (ssn *Session) VictimTasks(tasks []*api.TaskInfo) map[*api.TaskInfo]bool {
 }
 
 // ReservedNodes invoke ReservedNodes function of the plugins
-func (ssn *Session) ReservedNodes() {
+func (ssn *Session) ReservedNodes(task *api.TaskInfo, node *api.NodeInfo) error {
 	for _, tier := range ssn.Tiers {
 		for _, plugin := range tier.Plugins {
 			if !isEnabled(plugin.EnabledReservedNodes) {
@@ -511,9 +511,12 @@ func (ssn *Session) ReservedNodes() {
 			if !found {
 				continue
 			}
-			fn()
+			if err := fn(task, node); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // JobOrderFn invoke joborder function of the plugins

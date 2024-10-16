@@ -41,7 +41,7 @@ type Cache interface {
 
 	// AddBindTask binds Task to the target host.
 	// TODO(jinzhej): clean up expire Tasks.
-	AddBindTask(task *api.TaskInfo) error
+	AddBindTask(bindContext *BindContext) error
 
 	// BindPodGroup Pod/PodGroup to cluster
 	BindPodGroup(job *api.JobInfo, cluster string) error

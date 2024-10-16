@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -101,6 +102,17 @@ type Session struct {
 	reservedNodesFns  map[string]api.ReservedNodesFn
 	victimTasksFns    map[string][]api.VictimTasksFn
 	jobStarvingFns    map[string]api.ValidateFn
+
+	// cycleStatesMap is used to temporarily store the scheduling status of each pod, its life cycle is same as Session.
+	// Because state needs to be passed between different extension points (not only used in PreFilter and Filter),
+	// in order to avoid different Pod scheduling states from being overwritten,
+	// the state needs to be temporarily stored in cycleStatesMap when an extension point is executed.
+	CycleStatesMap map[api.TaskID]*k8sframework.CycleState
+
+	// TODO: Do we need mutex to protect cycleStatesMap?
+	Mutex sync.Mutex
+
+	BindContextEnabledPlugins []string
 }
 
 func openSession(cache cache.Cache) *Session {
@@ -484,6 +496,14 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 }
 
 func (ssn *Session) dispatch(task *api.TaskInfo) error {
+
+	bindContext := &cache.BindContext{
+		TaskInfo:   task,
+		CycleState: ssn.CycleStatesMap[task.UID],
+		// TODO: need to pass PreBindFns, ReservedNodesFn, UnReservedNodesFn here.
+
+	}
+
 	if err := ssn.cache.AddBindTask(task); err != nil {
 		return err
 	}
