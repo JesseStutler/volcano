@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"strings"
 
+	utilFeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/features"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/framework"
+	"volcano.sh/volcano/pkg/scheduler/plugins/util/k8s"
 )
 
 const (
@@ -19,17 +24,17 @@ const (
 // Like this:
 //
 //	type dynamicResourcesPlugin struct {
-//		dynamicresources.DynamicResources
+//		*dynamicresources.DynamicResources
 //	}
+//
+// Since "classic" DRA, which also called control plane controller DRA will be withdrawn in v1.32, we only implement the new structed parameters DRA
+// related extension points, including PreEnqueue, PreFilter, Filter, Reserve, PreBind, Unreserve.
 type dynamicResourcesPlugin struct {
-	dynamicResources
-
-	// whether to enable using BindContext to pass CycleState, PreBindFn, ReservedNodesFn and UnReservedNodesFn
-	enableBindContext bool
+	*dynamicResources
 }
 
-func New() framework.Plugin {
-
+func New(arguments framework.Arguments) framework.Plugin {
+	return &dynamicResourcesPlugin{}
 }
 
 func (d *dynamicResourcesPlugin) Name() string {
@@ -47,7 +52,6 @@ func (d *dynamicResourcesPlugin) RegisterPrePredicateFn(ssn *framework.Session) 
 		}
 
 		// 2. Run Prefilter
-
 		// Init cycle state for pod to share it with other extension points
 		state := k8sframework.NewCycleState()
 		_, status = d.PreFilter(context.TODO(), state, task.Pod)
@@ -84,25 +88,64 @@ func (d *dynamicResourcesPlugin) RegisterPredicateFn(ssn *framework.Session) {
 	})
 }
 
-func (d *dynamicResourcesPlugin) RegisterPreBindFn(task *api.TaskInfo, node *api.NodeInfo) error {
+func (d *dynamicResourcesPlugin) RegisterPreBindFn(ssn *framework.Session) {
+	ssn.AddPreBindFns(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) error {
+		state, exist := ssn.CycleStatesMap[task.UID]
+		if !exist {
+			return api.NewFitError(task, node, "scheduling state is not exist")
+		}
+		status := d.PreBind(context.TODO(), state, task.Pod, node.Name)
+		switch status.Code() {
+		case k8sframework.Error:
+		case k8sframework.UnschedulableAndUnresolvable:
+		default:
+		}
 
+		return nil
+	})
 }
 
-func (d *dynamicResourcesPlugin) RegisterReserveNodesFn(task *api.TaskInfo, node *api.NodeInfo) error {
+func (d *dynamicResourcesPlugin) RegisterReservedNodesFn(ssn *framework.Session) {
+	ssn.AddReservedNodesFn(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) error {
+		state, exist := ssn.CycleStatesMap[task.UID]
+		if !exist {
+			return api.NewFitError(task, node, "scheduling state is not exist")
+		}
+		status := d.Reserve(context.TODO(), state, task.Pod, node.Name)
+		switch status.Code() {
+		case k8sframework.Error:
+		case k8sframework.UnschedulableAndUnresolvable:
+		default:
+		}
 
+		return nil
+	})
 }
 
-func (d *dynamicResourcesPlugin) RegisterUnReserveNodesFn(task *api.TaskInfo, node *api.NodeInfo) error {
-
+func (d *dynamicResourcesPlugin) RegisterUnreserveNodesFn(ssn *framework.Session) {
+	ssn.AddUnreserveNodesFns(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) {
+		state, exist := ssn.CycleStatesMap[task.UID]
+		if !exist {
+			klog.Errorf("scheduling is not exist in unreserve stage")
+		}
+		d.Unreserve(context.TODO(), state, task.Pod, node.Name)
+	})
 }
-
 func (d *dynamicResourcesPlugin) OnSessionOpen(ssn *framework.Session) {
-	// TODO: Init here
+	featureGates := feature.Features{
+		EnableDynamicResourceAllocation: utilFeature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation),
+	}
+	handle := k8s.NewFrameworkHandle(ssn.NodeMap, ssn.KubeClient(), ssn.InformerFactory())
+	plugin, _ := NewDRAPlugin(context.TODO(), nil, handle, featureGates)
+	draPlugin := plugin.(*dynamicResources)
+	d.dynamicResources = draPlugin
 
+	ssn.BindContextEnabledPlugins = append(ssn.BindContextEnabledPlugins, PluginName)
 	d.RegisterPrePredicateFn(ssn)
 	d.RegisterPredicateFn(ssn)
+	d.RegisterPreBindFn(ssn)
+	d.RegisterReservedNodesFn(ssn)
+	d.RegisterUnreserveNodesFn(ssn)
 }
 
-func (d *dynamicResourcesPlugin) OnSessionClose(ssn *framework.Session) {
-
-}
+func (d *dynamicResourcesPlugin) OnSessionClose(ssn *framework.Session) {}

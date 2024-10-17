@@ -150,6 +150,16 @@ func (ssn *Session) AddJobStarvingFns(name string, fn api.ValidateFn) {
 	ssn.jobStarvingFns[name] = fn
 }
 
+// AddPreBindFns add preBindFn function
+func (ssn *Session) AddPreBindFns(name string, fn api.PreBindFn) {
+	ssn.preBindFns[name] = fn
+}
+
+// AddUnreserveNodesFns add unreserveNodesFn function
+func (ssn *Session) AddUnreserveNodesFns(name string, fn api.UnReserveNodesFn) {
+	ssn.unreserveNodesFns[name] = fn
+}
+
 // Reclaimable invoke reclaimable function of the plugins
 func (ssn *Session) Reclaimable(reclaimer *api.TaskInfo, reclaimees []*api.TaskInfo) []*api.TaskInfo {
 	var victims []*api.TaskInfo
@@ -517,6 +527,25 @@ func (ssn *Session) ReservedNodes(task *api.TaskInfo, node *api.NodeInfo) error 
 		}
 	}
 	return nil
+}
+
+// UnReserveNodes invoke unreserveNodes function of the plugins
+func (ssn *Session) UnReserveNodes(task *api.TaskInfo, node *api.NodeInfo) {
+	// Execute the UnreserveNodesFn in the reverse order in which the ReservedNodesFn or PreBindFn was executed.
+	for i := len(ssn.Tiers) - 1; i >= 0; i-- {
+		tier := ssn.Tiers[i]
+		for j := len(tier.Plugins) - 1; j >= 0; j-- {
+			plugin := tier.Plugins[j]
+			if !isEnabled(plugin.EnabledUnreserveNodes) {
+				continue
+			}
+			fn, found := ssn.unreserveNodesFns[plugin.Name]
+			if !found {
+				continue
+			}
+			fn(task, node)
+		}
+	}
 }
 
 // JobOrderFn invoke joborder function of the plugins

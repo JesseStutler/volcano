@@ -100,10 +100,12 @@ type Session struct {
 	jobEnqueuedFns    map[string]api.JobEnqueuedFn
 	targetJobFns      map[string]api.TargetJobFn
 	reservedNodesFns  map[string]api.ReservedNodesFn
+	unreserveNodesFns map[string]api.UnReserveNodesFn
 	victimTasksFns    map[string][]api.VictimTasksFn
 	jobStarvingFns    map[string]api.ValidateFn
+	preBindFns        map[string]api.PreBindFn
 
-	// cycleStatesMap is used to temporarily store the scheduling status of each pod, its life cycle is same as Session.
+	// CycleStatesMap is used to temporarily store the scheduling status of each pod, its life cycle is same as Session.
 	// Because state needs to be passed between different extension points (not only used in PreFilter and Filter),
 	// in order to avoid different Pod scheduling states from being overwritten,
 	// the state needs to be temporarily stored in cycleStatesMap when an extension point is executed.
@@ -112,6 +114,9 @@ type Session struct {
 	// TODO: Do we need mutex to protect cycleStatesMap?
 	Mutex sync.Mutex
 
+	// In Bind, some plugins need to execute extension points such as PreBind and UnReserve, so when passing BindContext to execute Bind,
+	// BindContext needs to carry more information such as CycleState, PreBindFn, UnReserveNodesFn, etc.
+	// BindContextEnabledPlugins indicates the name of the plugins that needs to pass this information.
 	BindContextEnabledPlugins []string
 }
 
@@ -201,6 +206,9 @@ func openSession(cache cache.Cache) *Session {
 
 	klog.V(3).Infof("Open Session %v with <%d> Job and <%d> Queues",
 		ssn.UID, len(ssn.Jobs), len(ssn.Queues))
+
+	ssn.CycleStatesMap = make(map[api.TaskID]*k8sframework.CycleState)
+	ssn.BindContextEnabledPlugins = make([]string, 0)
 
 	return ssn
 }
@@ -496,15 +504,8 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 }
 
 func (ssn *Session) dispatch(task *api.TaskInfo) error {
-
-	bindContext := &cache.BindContext{
-		TaskInfo:   task,
-		CycleState: ssn.CycleStatesMap[task.UID],
-		// TODO: need to pass PreBindFns, ReservedNodesFn, UnReservedNodesFn here.
-
-	}
-
-	if err := ssn.cache.AddBindTask(task); err != nil {
+	bindContext := ssn.CreateBindContext(task)
+	if err := ssn.cache.AddBindTask(bindContext); err != nil {
 		return err
 	}
 
@@ -523,6 +524,22 @@ func (ssn *Session) dispatch(task *api.TaskInfo) error {
 
 	metrics.UpdateTaskScheduleDuration(metrics.Duration(task.Pod.CreationTimestamp.Time))
 	return nil
+}
+
+func (ssn *Session) CreateBindContext(task *api.TaskInfo) *cache.BindContext {
+	bindContext := &cache.BindContext{TaskInfo: task}
+	if len(ssn.BindContextEnabledPlugins) > 0 {
+		bindContext.CycleState = ssn.CycleStatesMap[task.UID]
+		bindContext.NodeInfo = ssn.Nodes[task.NodeName]
+		bindContext.PreBindFns = make([]api.PreBindFn, len(ssn.BindContextEnabledPlugins))
+		bindContext.UnReserveNodesFns = make([]api.UnReserveNodesFn, len(ssn.BindContextEnabledPlugins))
+
+		for _, plugin := range ssn.BindContextEnabledPlugins {
+			bindContext.PreBindFns = append(bindContext.PreBindFns, ssn.preBindFns[plugin])
+			bindContext.UnReserveNodesFns = append(bindContext.UnReserveNodesFns, ssn.unreserveNodesFns[plugin])
+		}
+	}
+	return bindContext
 }
 
 // Evict the task in the session

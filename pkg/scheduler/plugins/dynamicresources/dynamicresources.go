@@ -185,8 +185,8 @@ type dynamicResources struct {
 	inFlightAllocations sync.Map
 }
 
-// New initializes a new plugin and returns it.
-func New(ctx context.Context, plArgs runtime.Object, fh framework.Handle, fts feature.Features) (framework.Plugin, error) {
+// NewDRAPlugin initializes a new plugin and returns it.
+func NewDRAPlugin(ctx context.Context, plArgs runtime.Object, fh framework.Handle, fts feature.Features) (framework.Plugin, error) {
 	if !fts.EnableDynamicResourceAllocation {
 		// Disabled, won't do anything.
 		return &dynamicResources{}, nil

@@ -292,7 +292,17 @@ func (s *Statement) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 }
 
 func (s *Statement) allocate(task *api.TaskInfo) error {
-	if err := s.ssn.cache.AddBindTask(task); err != nil {
+	// Execute Reserve before Bind
+	err := s.ssn.ReservedNodes(task, s.ssn.Nodes[task.NodeName])
+	if err != nil {
+		klog.Errorf("Failed to reserve resources for task <%s/%s> on node %s", task.Namespace, task.Name, task.NodeName)
+		// Once meet error, clean up state associated with the reserved pod
+		s.ssn.UnReserveNodes(task, s.ssn.Nodes[task.NodeName])
+		return err
+	}
+
+	bindContext := s.ssn.CreateBindContext(task)
+	if err := s.ssn.cache.AddBindTask(bindContext); err != nil {
 		return err
 	}
 

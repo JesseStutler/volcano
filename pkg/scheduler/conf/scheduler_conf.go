@@ -87,6 +87,10 @@ type PluginOption struct {
 	EnabledOverused *bool `yaml:"enabledOverused"`
 	// EnabledAllocatable defines whether allocatable is enabled
 	EnabledAllocatable *bool `yaml:"enabledAllocatable"`
+	// EnabledPreBind defines whether preBindFn is enabled
+	EnabledPreBind *bool `yaml:"enabledPreBind"`
+	// EnabledUnreserveNodes defines whether unreserveNodesFn is enabled
+	EnabledUnreserveNodes *bool `yaml:"enabledUnreserveNodes"`
 	// Arguments defines the different arguments that can be given to different plugins
 	Arguments map[string]interface{} `yaml:"arguments"`
 }
