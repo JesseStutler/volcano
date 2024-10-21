@@ -111,7 +111,6 @@ type Session struct {
 	// the state needs to be temporarily stored in cycleStatesMap when an extension point is executed.
 	CycleStatesMap map[api.TaskID]*k8sframework.CycleState
 
-	// TODO: Do we need mutex to protect cycleStatesMap?
 	Mutex sync.Mutex
 
 	// In Bind, some plugins need to execute extension points such as PreBind and UnReserve, so when passing BindContext to execute Bind,

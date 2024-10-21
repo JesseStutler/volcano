@@ -28,7 +28,8 @@ const (
 //	}
 //
 // Since "classic" DRA, which also called control plane controller DRA will be withdrawn in v1.32, we only implement the new structed parameters DRA
-// related extension points, including PreEnqueue, PreFilter, Filter, Reserve, PreBind, Unreserve.
+// related extension points, including PreEnqueue, PreFilter, Filter, Reserve, PreBind, Unreserve, PostFilter.
+// TODO: PostFilter and Reserve have not been implemented yet
 type dynamicResourcesPlugin struct {
 	*dynamicResources
 }
@@ -122,7 +123,7 @@ func (d *dynamicResourcesPlugin) RegisterReservedNodesFn(ssn *framework.Session)
 	})
 }
 
-func (d *dynamicResourcesPlugin) RegisterUnreserveNodesFn(ssn *framework.Session) {
+func (d *dynamicResourcesPlugin) RegisterEventHandler(ssn *framework.Session) {
 	ssn.AddUnreserveNodesFns(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) {
 		state, exist := ssn.CycleStatesMap[task.UID]
 		if !exist {
@@ -131,6 +132,7 @@ func (d *dynamicResourcesPlugin) RegisterUnreserveNodesFn(ssn *framework.Session
 		d.Unreserve(context.TODO(), state, task.Pod, node.Name)
 	})
 }
+
 func (d *dynamicResourcesPlugin) OnSessionOpen(ssn *framework.Session) {
 	featureGates := feature.Features{
 		EnableDynamicResourceAllocation: utilFeature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation),
