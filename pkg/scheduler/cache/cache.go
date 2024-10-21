@@ -49,7 +49,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	"stathat.com/c/consistent"
 
 	batch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
@@ -66,6 +66,7 @@ import (
 	"volcano.sh/volcano/pkg/features"
 	schedulingapi "volcano.sh/volcano/pkg/scheduler/api"
 	volumescheduling "volcano.sh/volcano/pkg/scheduler/capabilities/volumebinding"
+	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/metrics/source"
 	commonutil "volcano.sh/volcano/pkg/util"
@@ -181,11 +182,11 @@ type BindContext struct {
 
 	// If BindContextEnabledPlugins is not empty in session, we need to carry out this information
 	// CycleState it the scheduling context of the task
-	CycleState *framework.CycleState
+	CycleState *k8sframework.CycleState
 	// Before the Bind task, we need to execute PreBind. If PreBind fails, we need to execute UnReserve to rollback.
-	NodeInfo          *schedulingapi.NodeInfo
-	PreBindFns        []schedulingapi.PreBindFn
-	UnReserveNodesFns []schedulingapi.UnReserveNodesFn
+	NodeInfo      *schedulingapi.NodeInfo
+	PreBindFns    []schedulingapi.PreBindFn
+	EventHandlers []*framework.EventHandler
 }
 
 // DefaultBinder with kube client and event recorder
@@ -1283,17 +1284,20 @@ func (sc *SchedulerCache) BindTask() {
 	klog.V(5).Infof("batch bind task count %d", len(sc.bindCache))
 	var tmpBindCache []*BindContext = make([]*BindContext, len(sc.bindCache))
 	copy(tmpBindCache, sc.bindCache)
+	// Currently, bindContexts only contain 1 element.
 	go func(bindContexts []*BindContext) {
 		successfulContexts := make([]*BindContext, 0)
 		for _, bindContext := range bindContexts {
 			for _, preBindFn := range bindContext.PreBindFns {
 				err := preBindFn(bindContext.TaskInfo, bindContext.NodeInfo)
 				if err != nil {
-					klog.Errorf("task %s/%s bind resourceclaim failed: %v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
-					// Execute the UnreserveNodesFn in the reverse order in which the PreBindFns was executed.
-					for i := len(bindContext.UnReserveNodesFns) - 1; i >= 0; i-- {
-						unReserveFn := bindContext.UnReserveNodesFns[i]
-						unReserveFn(bindContext.TaskInfo, bindContext.NodeInfo)
+					klog.Errorf("task %s/%s execute prebind failed: %v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
+					for _, eh := range bindContext.EventHandlers {
+						if eh.DeallocateFunc != nil {
+							eh.DeallocateFunc(&framework.Event{
+								Task: bindContext.TaskInfo,
+							})
+						}
 					}
 					sc.resyncTask(bindContext.TaskInfo)
 					break
@@ -1596,8 +1600,8 @@ func (sc *SchedulerCache) setMetricsData(usageInfo map[string]*source.NodeMetric
 }
 
 // createImageStateSummary returns a summarizing snapshot of the given image's state.
-func (sc *SchedulerCache) createImageStateSummary(state *imageState) *framework.ImageStateSummary {
-	return &framework.ImageStateSummary{
+func (sc *SchedulerCache) createImageStateSummary(state *imageState) *k8sframework.ImageStateSummary {
+	return &k8sframework.ImageStateSummary{
 		Size:     state.size,
 		NumNodes: len(state.nodes),
 	}

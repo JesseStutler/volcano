@@ -100,7 +100,6 @@ type Session struct {
 	jobEnqueuedFns    map[string]api.JobEnqueuedFn
 	targetJobFns      map[string]api.TargetJobFn
 	reservedNodesFns  map[string]api.ReservedNodesFn
-	unreserveNodesFns map[string]api.UnReserveNodesFn
 	victimTasksFns    map[string][]api.VictimTasksFn
 	jobStarvingFns    map[string]api.ValidateFn
 	preBindFns        map[string]api.PreBindFn
@@ -531,11 +530,9 @@ func (ssn *Session) CreateBindContext(task *api.TaskInfo) *cache.BindContext {
 		bindContext.CycleState = ssn.CycleStatesMap[task.UID]
 		bindContext.NodeInfo = ssn.Nodes[task.NodeName]
 		bindContext.PreBindFns = make([]api.PreBindFn, len(ssn.BindContextEnabledPlugins))
-		bindContext.UnReserveNodesFns = make([]api.UnReserveNodesFn, len(ssn.BindContextEnabledPlugins))
 
 		for _, plugin := range ssn.BindContextEnabledPlugins {
 			bindContext.PreBindFns = append(bindContext.PreBindFns, ssn.preBindFns[plugin])
-			bindContext.UnReserveNodesFns = append(bindContext.UnReserveNodesFns, ssn.unreserveNodesFns[plugin])
 		}
 	}
 	return bindContext

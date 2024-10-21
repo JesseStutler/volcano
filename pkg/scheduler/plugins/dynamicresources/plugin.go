@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	utilFeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/features"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
@@ -106,30 +105,27 @@ func (d *dynamicResourcesPlugin) RegisterPreBindFn(ssn *framework.Session) {
 	})
 }
 
-func (d *dynamicResourcesPlugin) RegisterReservedNodesFn(ssn *framework.Session) {
-	ssn.AddReservedNodesFn(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) error {
-		state, exist := ssn.CycleStatesMap[task.UID]
-		if !exist {
-			return api.NewFitError(task, node, "scheduling state is not exist")
-		}
-		status := d.Reserve(context.TODO(), state, task.Pod, node.Name)
-		switch status.Code() {
-		case k8sframework.Error:
-		case k8sframework.UnschedulableAndUnresolvable:
-		default:
-		}
-
-		return nil
-	})
-}
-
 func (d *dynamicResourcesPlugin) RegisterEventHandler(ssn *framework.Session) {
-	ssn.AddUnreserveNodesFns(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) {
-		state, exist := ssn.CycleStatesMap[task.UID]
-		if !exist {
-			klog.Errorf("scheduling is not exist in unreserve stage")
-		}
-		d.Unreserve(context.TODO(), state, task.Pod, node.Name)
+	ssn.AddEventHandler(&framework.EventHandler{
+		AllocateFunc: func(event *framework.Event) {
+			state, exist := ssn.CycleStatesMap[event.Task.UID]
+			if !exist {
+				event.Err = fmt.Errorf("scheduling context of task <%s/%s> is not exist", event.Task.Namespace, event.Task.Name)
+			}
+			status := d.Reserve(context.TODO(), state, event.Task.Pod, event.Task.Name)
+			switch status.Code() {
+			case k8sframework.Error:
+			case k8sframework.UnschedulableAndUnresolvable:
+			default:
+			}
+		},
+		DeallocateFunc: func(event *framework.Event) {
+			state, exist := ssn.CycleStatesMap[event.Task.UID]
+			if !exist {
+				event.Err = fmt.Errorf("scheduling context of task <%s/%s> is not exist", event.Task.Namespace, event.Task.Name)
+			}
+			d.Unreserve(context.TODO(), state, event.Task.Pod, event.Task.Name)
+		},
 	})
 }
 
@@ -146,8 +142,7 @@ func (d *dynamicResourcesPlugin) OnSessionOpen(ssn *framework.Session) {
 	d.RegisterPrePredicateFn(ssn)
 	d.RegisterPredicateFn(ssn)
 	d.RegisterPreBindFn(ssn)
-	d.RegisterReservedNodesFn(ssn)
-	d.RegisterUnreserveNodesFn(ssn)
+	d.RegisterEventHandler(ssn)
 }
 
 func (d *dynamicResourcesPlugin) OnSessionClose(ssn *framework.Session) {}
