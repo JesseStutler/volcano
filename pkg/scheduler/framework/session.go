@@ -108,9 +108,8 @@ type Session struct {
 	// Because state needs to be passed between different extension points (not only used in PreFilter and Filter),
 	// in order to avoid different Pod scheduling states from being overwritten,
 	// the state needs to be temporarily stored in cycleStatesMap when an extension point is executed.
-	CycleStatesMap map[api.TaskID]*k8sframework.CycleState
-
-	Mutex sync.Mutex
+	// The key is task's UID, value is the CycleState.
+	CycleStatesMap sync.Map
 
 	// In Bind, some plugins need to execute extension points such as PreBind and UnReserve, so when passing BindContext to execute Bind,
 	// BindContext needs to carry more information such as CycleState, PreBindFn, UnReserveNodesFn, etc.
@@ -205,7 +204,6 @@ func openSession(cache cache.Cache) *Session {
 	klog.V(3).Infof("Open Session %v with <%d> Job and <%d> Queues",
 		ssn.UID, len(ssn.Jobs), len(ssn.Queues))
 
-	ssn.CycleStatesMap = make(map[api.TaskID]*k8sframework.CycleState)
 	ssn.BindContextEnabledPlugins = make([]string, 0)
 
 	return ssn
@@ -527,13 +525,16 @@ func (ssn *Session) dispatch(task *api.TaskInfo) error {
 func (ssn *Session) CreateBindContext(task *api.TaskInfo) *cache.BindContext {
 	bindContext := &cache.BindContext{TaskInfo: task}
 	if len(ssn.BindContextEnabledPlugins) > 0 {
-		bindContext.CycleState = ssn.CycleStatesMap[task.UID]
+		v, _ := ssn.CycleStatesMap.Load(task.UID)
+		state := v.(*k8sframework.CycleState)
+		bindContext.CycleState = state
 		bindContext.NodeInfo = ssn.Nodes[task.NodeName]
 		bindContext.PreBindFns = make([]api.PreBindFn, len(ssn.BindContextEnabledPlugins))
-
 		for _, plugin := range ssn.BindContextEnabledPlugins {
 			bindContext.PreBindFns = append(bindContext.PreBindFns, ssn.preBindFns[plugin])
 		}
+		bindContext.EventHandlers = ssn.eventHandlers
+
 	}
 	return bindContext
 }

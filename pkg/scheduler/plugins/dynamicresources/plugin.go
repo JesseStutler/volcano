@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilFeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/features"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
@@ -28,7 +29,7 @@ const (
 //
 // Since "classic" DRA, which also called control plane controller DRA will be withdrawn in v1.32, we only implement the new structed parameters DRA
 // related extension points, including PreEnqueue, PreFilter, Filter, Reserve, PreBind, Unreserve, PostFilter.
-// TODO: PostFilter and Reserve have not been implemented yet
+// TODO: PostFilter has not been implemented yet
 type dynamicResourcesPlugin struct {
 	*dynamicResources
 }
@@ -54,14 +55,18 @@ func (d *dynamicResourcesPlugin) RegisterPrePredicateFn(ssn *framework.Session) 
 		// 2. Run Prefilter
 		// Init cycle state for pod to share it with other extension points
 		state := k8sframework.NewCycleState()
+		state.SkipFilterPlugins = sets.New[string]()
 		_, status = d.PreFilter(context.TODO(), state, task.Pod)
-		// TODO: complete the error return status here
 		switch status.Code() {
-		case k8sframework.Error:
-		case k8sframework.UnschedulableAndUnresolvable:
+		case k8sframework.Skip:
+			// If PreFilter returns skip, then Filter needs to skip.
+			state.SkipFilterPlugins.Insert(d.Name())
+		case k8sframework.Error, k8sframework.UnschedulableAndUnresolvable:
+			return status.AsError()
 		default:
-			ssn.CycleStatesMap[task.UID] = state
 		}
+		// In PrePredicate, needs to initialize the cycleState and then store into CycleStatsMap
+		ssn.CycleStatesMap.Store(task.UID, state)
 
 		return nil
 	})
@@ -69,9 +74,13 @@ func (d *dynamicResourcesPlugin) RegisterPrePredicateFn(ssn *framework.Session) 
 
 func (d *dynamicResourcesPlugin) RegisterPredicateFn(ssn *framework.Session) {
 	ssn.AddPredicateFn(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) error {
-		state, exist := ssn.CycleStatesMap[task.UID]
+		v, exist := ssn.CycleStatesMap.Load(task.UID)
 		if !exist {
 			return api.NewFitError(task, node, "scheduling state is not exist")
+		}
+		state := v.(*k8sframework.CycleState)
+		if state.SkipFilterPlugins.Has(d.Name()) {
+			return nil
 		}
 		nodeInfo, exist := ssn.NodeMap[node.Name]
 		if !exist {
@@ -79,8 +88,8 @@ func (d *dynamicResourcesPlugin) RegisterPredicateFn(ssn *framework.Session) {
 		}
 		status := d.Filter(context.TODO(), state, task.Pod, nodeInfo)
 		switch status.Code() {
-		case k8sframework.Error:
-		case k8sframework.UnschedulableAndUnresolvable:
+		case k8sframework.Error, k8sframework.UnschedulableAndUnresolvable:
+			return status.AsError()
 		default:
 		}
 
@@ -90,14 +99,15 @@ func (d *dynamicResourcesPlugin) RegisterPredicateFn(ssn *framework.Session) {
 
 func (d *dynamicResourcesPlugin) RegisterPreBindFn(ssn *framework.Session) {
 	ssn.AddPreBindFns(d.Name(), func(task *api.TaskInfo, node *api.NodeInfo) error {
-		state, exist := ssn.CycleStatesMap[task.UID]
+		v, exist := ssn.CycleStatesMap.Load(task.UID)
 		if !exist {
 			return api.NewFitError(task, node, "scheduling state is not exist")
 		}
+		state := v.(*k8sframework.CycleState)
 		status := d.PreBind(context.TODO(), state, task.Pod, node.Name)
 		switch status.Code() {
-		case k8sframework.Error:
-		case k8sframework.UnschedulableAndUnresolvable:
+		case k8sframework.Error, k8sframework.UnschedulableAndUnresolvable:
+			return status.AsError()
 		default:
 		}
 
@@ -108,22 +118,24 @@ func (d *dynamicResourcesPlugin) RegisterPreBindFn(ssn *framework.Session) {
 func (d *dynamicResourcesPlugin) RegisterEventHandler(ssn *framework.Session) {
 	ssn.AddEventHandler(&framework.EventHandler{
 		AllocateFunc: func(event *framework.Event) {
-			state, exist := ssn.CycleStatesMap[event.Task.UID]
+			v, exist := ssn.CycleStatesMap.Load(event.Task.UID)
 			if !exist {
 				event.Err = fmt.Errorf("scheduling context of task <%s/%s> is not exist", event.Task.Namespace, event.Task.Name)
 			}
+			state := v.(*k8sframework.CycleState)
 			status := d.Reserve(context.TODO(), state, event.Task.Pod, event.Task.Name)
 			switch status.Code() {
-			case k8sframework.Error:
-			case k8sframework.UnschedulableAndUnresolvable:
+			case k8sframework.Error, k8sframework.UnschedulableAndUnresolvable:
+				event.Err = status.AsError()
 			default:
 			}
 		},
 		DeallocateFunc: func(event *framework.Event) {
-			state, exist := ssn.CycleStatesMap[event.Task.UID]
+			v, exist := ssn.CycleStatesMap.Load(event.Task.UID)
 			if !exist {
 				event.Err = fmt.Errorf("scheduling context of task <%s/%s> is not exist", event.Task.Namespace, event.Task.Name)
 			}
+			state := v.(*k8sframework.CycleState)
 			d.Unreserve(context.TODO(), state, event.Task.Pod, event.Task.Name)
 		},
 	})

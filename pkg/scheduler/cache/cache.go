@@ -1304,7 +1304,7 @@ func (sc *SchedulerCache) BindTask() {
 				}
 			}
 
-			// TODO: Need to refactor the volumebinding here, move the logic into PreBindFn and UnreserveNodesFn
+			// TODO: Need to refactor the volumebinding here, move the logic into PreBindFn and DeallocationFunc
 			if err := sc.VolumeBinder.BindVolumes(bindContext.TaskInfo, bindContext.TaskInfo.PodVolumes); err != nil {
 				klog.Errorf("task %s/%s bind Volumes failed: %#v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
 				sc.VolumeBinder.RevertVolumes(bindContext.TaskInfo, bindContext.TaskInfo.PodVolumes)
@@ -1321,7 +1321,9 @@ func (sc *SchedulerCache) BindTask() {
 		}
 		sc.Bind(bindTasks)
 	}(tmpBindCache)
-	sc.bindCache = sc.bindCache[0:0]
+	// The slice here needs to point to a new underlying array, otherwise bindCache may not be able to trigger garbage collection immediately
+	// if it is not expanded, causing memory leaks.
+	sc.bindCache = make([]*BindContext, 0)
 }
 
 // Snapshot returns the complete snapshot of the cluster from cache
