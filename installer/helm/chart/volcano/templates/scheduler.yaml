@@ -180,6 +180,7 @@ spec:
             - --enable-healthz=true
             - --enable-metrics=true
             - --leader-elect={{ .Values.custom.leader_elect_enable }}
+            - --feature-gates={{ .Values.custom.feature_gates }}
             {{- if .Values.custom.leader_elect_enable }}
             - --leader-elect-resource-namespace={{ .Release.Namespace }}
             {{- end }}
