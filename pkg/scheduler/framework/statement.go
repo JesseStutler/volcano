@@ -143,7 +143,7 @@ func (s *Statement) unevict(reclaimee *api.TaskInfo) error {
 }
 
 // Pipeline the task for the node
-func (s *Statement) Pipeline(task *api.TaskInfo, hostname string) error {
+func (s *Statement) Pipeline(task *api.TaskInfo, hostname string, evictionOccurred bool) error {
 	errInfos := make([]error, 0)
 	job, found := s.ssn.Jobs[task.Job]
 	if found {
@@ -160,6 +160,7 @@ func (s *Statement) Pipeline(task *api.TaskInfo, hostname string) error {
 	}
 
 	task.NodeName = hostname
+	task.EvictionOccurred = evictionOccurred
 
 	if node, found := s.ssn.Nodes[hostname]; found {
 		if err := node.AddTask(task); err != nil {
