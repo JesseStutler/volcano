@@ -74,7 +74,7 @@ type Session struct {
 	NodeList       []*api.NodeInfo
 
 	plugins           map[string]Plugin
-	eventHandlers     []*EventHandler
+	eventHandlers     []*util.EventHandler
 	jobOrderFns       map[string]api.CompareFn
 	queueOrderFns     map[string]api.CompareFn
 	taskOrderFns      map[string]api.CompareFn
@@ -416,7 +416,7 @@ func (ssn *Session) Pipeline(task *api.TaskInfo, hostname string) error {
 
 	for _, eh := range ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eh.AllocateFunc(&Event{
+			eh.AllocateFunc(&util.Event{
 				Task: task,
 			})
 		}
@@ -478,7 +478,7 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 	// Callbacks
 	for _, eh := range ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eh.AllocateFunc(&Event{
+			eh.AllocateFunc(&util.Event{
 				Task: task,
 			})
 		}
@@ -570,7 +570,7 @@ func (ssn *Session) Evict(reclaimee *api.TaskInfo, reason string) error {
 
 	for _, eh := range ssn.eventHandlers {
 		if eh.DeallocateFunc != nil {
-			eh.DeallocateFunc(&Event{
+			eh.DeallocateFunc(&util.Event{
 				Task: reclaimee,
 			})
 		}
@@ -610,7 +610,7 @@ func (ssn *Session) UpdatePodGroupCondition(jobInfo *api.JobInfo, cond *scheduli
 }
 
 // AddEventHandler add event handlers
-func (ssn *Session) AddEventHandler(eh *EventHandler) {
+func (ssn *Session) AddEventHandler(eh *util.EventHandler) {
 	ssn.eventHandlers = append(ssn.eventHandlers, eh)
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"volcano.sh/volcano/pkg/scheduler/util"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilFeature "k8s.io/apiserver/pkg/util/feature"
@@ -116,27 +117,27 @@ func (d *dynamicResourcesPlugin) RegisterPreBindFn(ssn *framework.Session) {
 }
 
 func (d *dynamicResourcesPlugin) RegisterEventHandler(ssn *framework.Session) {
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&util.EventHandler{
+		AllocateFunc: func(event *util.Event) {
 			v, exist := ssn.CycleStatesMap.Load(event.Task.UID)
 			if !exist {
 				event.Err = fmt.Errorf("scheduling context of task <%s/%s> is not exist", event.Task.Namespace, event.Task.Name)
 			}
 			state := v.(*k8sframework.CycleState)
-			status := d.Reserve(context.TODO(), state, event.Task.Pod, event.Task.Name)
+			status := d.Reserve(context.TODO(), state, event.Task.Pod, event.Task.Pod.Spec.NodeName)
 			switch status.Code() {
 			case k8sframework.Error, k8sframework.UnschedulableAndUnresolvable:
 				event.Err = status.AsError()
 			default:
 			}
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *util.Event) {
 			v, exist := ssn.CycleStatesMap.Load(event.Task.UID)
 			if !exist {
 				event.Err = fmt.Errorf("scheduling context of task <%s/%s> is not exist", event.Task.Namespace, event.Task.Name)
 			}
 			state := v.(*k8sframework.CycleState)
-			d.Unreserve(context.TODO(), state, event.Task.Pod, event.Task.Name)
+			d.Unreserve(context.TODO(), state, event.Task.Pod, event.Task.Pod.Spec.NodeName)
 		},
 	})
 }

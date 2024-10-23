@@ -18,6 +18,7 @@ package proportion
 
 import (
 	"math"
+	util2 "volcano.sh/volcano/pkg/scheduler/util"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -361,8 +362,8 @@ func (pp *proportionPlugin) OnSessionOpen(ssn *framework.Session) {
 	})
 
 	// Register event handlers.
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&util2.EventHandler{
+		AllocateFunc: func(event *util2.Event) {
 			job := ssn.Jobs[event.Task.Job]
 			attr := pp.queueOpts[job.Queue]
 			attr.allocated.Add(event.Task.Resreq)
@@ -373,7 +374,7 @@ func (pp *proportionPlugin) OnSessionOpen(ssn *framework.Session) {
 			klog.V(4).Infof("Proportion AllocateFunc: task <%v/%v>, resreq <%v>,  share <%v>",
 				event.Task.Namespace, event.Task.Name, event.Task.Resreq, attr.share)
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *util2.Event) {
 			job := ssn.Jobs[event.Task.Job]
 			attr := pp.queueOpts[job.Queue]
 			attr.allocated.Sub(event.Task.Resreq)

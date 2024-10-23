@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"volcano.sh/volcano/pkg/scheduler/util"
 
 	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
@@ -66,7 +67,6 @@ import (
 	"volcano.sh/volcano/pkg/features"
 	schedulingapi "volcano.sh/volcano/pkg/scheduler/api"
 	volumescheduling "volcano.sh/volcano/pkg/scheduler/capabilities/volumebinding"
-	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/metrics/source"
 	commonutil "volcano.sh/volcano/pkg/util"
@@ -186,7 +186,7 @@ type BindContext struct {
 	// Before the Bind task, we need to execute PreBind. If PreBind fails, we need to execute UnReserve to rollback.
 	NodeInfo      *schedulingapi.NodeInfo
 	PreBindFns    []schedulingapi.PreBindFn
-	EventHandlers []*framework.EventHandler
+	EventHandlers []*util.EventHandler
 }
 
 // DefaultBinder with kube client and event recorder
@@ -1294,7 +1294,7 @@ func (sc *SchedulerCache) BindTask() {
 					klog.Errorf("task %s/%s execute prebind failed: %v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
 					for _, eh := range bindContext.EventHandlers {
 						if eh.DeallocateFunc != nil {
-							eh.DeallocateFunc(&framework.Event{
+							eh.DeallocateFunc(&util.Event{
 								Task: bindContext.TaskInfo,
 							})
 						}

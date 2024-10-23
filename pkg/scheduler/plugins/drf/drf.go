@@ -21,6 +21,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	util2 "volcano.sh/volcano/pkg/scheduler/util"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -345,8 +346,8 @@ func (drf *drfPlugin) OnSessionOpen(ssn *framework.Session) {
 	ssn.AddJobOrderFn(drf.Name(), jobOrderFn)
 
 	// Register event handlers.
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&util2.EventHandler{
+		AllocateFunc: func(event *util2.Event) {
 			attr := drf.jobAttrs[event.Task.Job]
 			attr.allocated.Add(event.Task.Resreq)
 
@@ -364,7 +365,7 @@ func (drf *drfPlugin) OnSessionOpen(ssn *framework.Session) {
 			klog.V(4).Infof("DRF AllocateFunc: task <%v/%v>, resreq <%v>,  share <%v>, namespace share <%v>",
 				event.Task.Namespace, event.Task.Name, event.Task.Resreq, attr.share, nsShare)
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *util2.Event) {
 			attr := drf.jobAttrs[event.Task.Job]
 			attr.allocated.Sub(event.Task.Resreq)
 

@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	"volcano.sh/volcano/pkg/scheduler/util"
 
 	"k8s.io/klog/v2"
 
@@ -81,7 +82,7 @@ func (s *Statement) Evict(reclaimee *api.TaskInfo, reason string) error {
 
 	for _, eh := range s.ssn.eventHandlers {
 		if eh.DeallocateFunc != nil {
-			eh.DeallocateFunc(&Event{
+			eh.DeallocateFunc(&util.Event{
 				Task: reclaimee,
 			})
 		}
@@ -132,7 +133,7 @@ func (s *Statement) unevict(reclaimee *api.TaskInfo) error {
 
 	for _, eh := range s.ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eh.AllocateFunc(&Event{
+			eh.AllocateFunc(&util.Event{
 				Task: reclaimee,
 			})
 		}
@@ -177,7 +178,7 @@ func (s *Statement) Pipeline(task *api.TaskInfo, hostname string) error {
 
 	for _, eh := range s.ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eventInfo := &Event{
+			eventInfo := &util.Event{
 				Task: task,
 			}
 			eh.AllocateFunc(eventInfo)
@@ -230,7 +231,7 @@ func (s *Statement) UnPipeline(task *api.TaskInfo) error {
 
 	for _, eh := range s.ssn.eventHandlers {
 		if eh.DeallocateFunc != nil {
-			eventInfo := &Event{
+			eventInfo := &util.Event{
 				Task: task,
 			}
 			eh.DeallocateFunc(eventInfo)
@@ -300,7 +301,7 @@ func (s *Statement) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 	// Callbacks
 	for _, eh := range s.ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eventInfo := &Event{
+			eventInfo := &util.Event{
 				Task: task,
 			}
 			eh.AllocateFunc(eventInfo)
@@ -380,7 +381,7 @@ func (s *Statement) unallocate(task *api.TaskInfo) error {
 
 	for _, eh := range s.ssn.eventHandlers {
 		if eh.DeallocateFunc != nil {
-			eh.DeallocateFunc(&Event{
+			eh.DeallocateFunc(&util.Event{
 				Task: task,
 			})
 		}

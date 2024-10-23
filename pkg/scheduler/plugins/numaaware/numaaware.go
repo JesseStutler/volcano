@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	util2 "volcano.sh/volcano/pkg/scheduler/util"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -82,8 +83,8 @@ func (pp *numaPlugin) OnSessionOpen(ssn *framework.Session) {
 	numaNodes := api.GenerateNumaNodes(ssn.Nodes)
 	pp.nodeResSets = api.GenerateNodeResNumaSets(ssn.Nodes)
 
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&util2.EventHandler{
+		AllocateFunc: func(event *util2.Event) {
 			node := pp.nodeResSets[event.Task.NodeName]
 			if _, ok := pp.assignRes[event.Task.UID]; !ok {
 				return
@@ -97,7 +98,7 @@ func (pp *numaPlugin) OnSessionOpen(ssn *framework.Session) {
 			node.Allocate(resNumaSets)
 			pp.taskBindNodeMap[event.Task.UID] = event.Task.NodeName
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *util2.Event) {
 			node := pp.nodeResSets[event.Task.NodeName]
 			if _, ok := pp.assignRes[event.Task.UID]; !ok {
 				return

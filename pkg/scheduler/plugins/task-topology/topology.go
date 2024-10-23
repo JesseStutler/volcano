@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"volcano.sh/volcano/pkg/scheduler/util"
 
 	"k8s.io/klog/v2"
 	k8sFramework "k8s.io/kubernetes/pkg/scheduler/framework"
@@ -204,7 +205,7 @@ func (p *taskTopologyPlugin) NodeOrderFn(task *api.TaskInfo, node *api.NodeInfo)
 	return fScore, nil
 }
 
-func (p *taskTopologyPlugin) AllocateFunc(event *framework.Event) {
+func (p *taskTopologyPlugin) AllocateFunc(event *util.Event) {
 	task := event.Task
 
 	jobManager, hasManager := p.managers[task.Job]
@@ -346,7 +347,7 @@ func (p *taskTopologyPlugin) OnSessionOpen(ssn *framework.Session) {
 
 	ssn.AddNodeOrderFn(p.Name(), p.NodeOrderFn)
 
-	ssn.AddEventHandler(&framework.EventHandler{
+	ssn.AddEventHandler(&util.EventHandler{
 		AllocateFunc: p.AllocateFunc,
 	})
 
