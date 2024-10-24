@@ -64,25 +64,25 @@ func createQueueCommand(ctx context.Context, config *rest.Config, action busv1al
 	return nil
 }
 
-type podGroupStatistics struct {
-	inqueue   int
-	pending   int
-	running   int
-	unknown   int
-	completed int
+type PodGroupStatistics struct {
+	Inqueue   int
+	Pending   int
+	Running   int
+	Unknown   int
+	Completed int
 }
 
-func (pgStats *podGroupStatistics) statPodGroupCountsForQueue(pg *v1beta1.PodGroup) {
+func (pgStats *PodGroupStatistics) StatPodGroupCountsForQueue(pg *v1beta1.PodGroup) {
 	switch pg.Status.Phase {
 	case v1beta1.PodGroupInqueue:
-		pgStats.inqueue++
+		pgStats.Inqueue++
 	case v1beta1.PodGroupPending:
-		pgStats.pending++
+		pgStats.Pending++
 	case v1beta1.PodGroupRunning:
-		pgStats.running++
+		pgStats.Running++
 	case v1beta1.PodGroupUnknown:
-		pgStats.unknown++
+		pgStats.Unknown++
 	case v1beta1.PodGroupCompleted:
-		pgStats.completed++
+		pgStats.Completed++
 	}
 }

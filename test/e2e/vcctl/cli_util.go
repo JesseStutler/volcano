@@ -17,12 +17,15 @@ limitations under the License.
 package vcctl
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
 
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	queuecli "volcano.sh/volcano/pkg/cli/queue"
 	e2eutil "volcano.sh/volcano/test/e2e/util"
 )
 
@@ -95,4 +98,16 @@ func RunCliCommandWithoutKubeConfig(command []string) string {
 	Expect(err).NotTo(HaveOccurred(),
 		fmt.Sprintf("Command %s failed to execute: %s", strings.Join(command, ""), err))
 	return string(output)
+}
+
+func GetPodGroupStatistics(ctx *e2eutil.TestContext, namespace, queue string) *queuecli.PodGroupStatistics {
+	pgList, err := ctx.Vcclient.SchedulingV1beta1().PodGroups(namespace).List(context.TODO(), metav1.ListOptions{})
+	Expect(err).NotTo(HaveOccurred(), "List podgroups failed")
+	pgStats := &queuecli.PodGroupStatistics{}
+	for _, pg := range pgList.Items {
+		if pg.Spec.Queue == queue {
+			pgStats.StatPodGroupCountsForQueue(&pg)
+		}
+	}
+	return pgStats
 }

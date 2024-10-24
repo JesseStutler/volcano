@@ -71,10 +71,10 @@ func GetQueue(ctx context.Context) error {
 		return fmt.Errorf("failed to list podgroup for queue %s with err: %v", getQueueFlags.Name, err)
 	}
 
-	pgStats := &podGroupStatistics{}
+	pgStats := &PodGroupStatistics{}
 	for _, pg := range pgList.Items {
 		if pg.Spec.Queue == getQueueFlags.Name {
-			pgStats.statPodGroupCountsForQueue(&pg)
+			pgStats.StatPodGroupCountsForQueue(&pg)
 		}
 	}
 
@@ -84,7 +84,7 @@ func GetQueue(ctx context.Context) error {
 }
 
 // PrintQueue prints queue information.
-func PrintQueue(queue *v1beta1.Queue, pgStats *podGroupStatistics, writer io.Writer) {
+func PrintQueue(queue *v1beta1.Queue, pgStats *PodGroupStatistics, writer io.Writer) {
 	_, err := fmt.Fprintf(writer, "%-25s%-8s%-8s%-8s%-8s%-8s%-8s%-8s\n",
 		Name, Weight, State, Inqueue, Pending, Running, Unknown, Completed)
 	if err != nil {
@@ -92,8 +92,8 @@ func PrintQueue(queue *v1beta1.Queue, pgStats *podGroupStatistics, writer io.Wri
 	}
 
 	_, err = fmt.Fprintf(writer, "%-25s%-8d%-8s%-8d%-8d%-8d%-8d%-8d\n",
-		queue.Name, queue.Spec.Weight, queue.Status.State, pgStats.inqueue,
-		pgStats.pending, pgStats.running, pgStats.unknown, pgStats.completed)
+		queue.Name, queue.Spec.Weight, queue.Status.State, pgStats.Inqueue,
+		pgStats.Pending, pgStats.Running, pgStats.Unknown, pgStats.Completed)
 	if err != nil {
 		fmt.Printf("Failed to print queue command result: %s.\n", err)
 	}
