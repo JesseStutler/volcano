@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	. "github.com/onsi/gomega"
-
 	e2eutil "volcano.sh/volcano/test/e2e/util"
 )
 
