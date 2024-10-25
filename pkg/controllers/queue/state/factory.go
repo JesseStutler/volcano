@@ -31,15 +31,11 @@ type State interface {
 type UpdateQueueStatusFn func(status *v1beta1.QueueStatus, podGroupList []string)
 
 // QueueActionFn will open, close or sync queue.
-type QueueActionFn func(queue *v1beta1.Queue, fn UpdateQueueStatusFn) error
+type QueueActionFn func(queue *v1beta1.Queue, action v1alpha1.Action, fn UpdateQueueStatusFn) error
 
 var (
 	// SyncQueue will sync queue status.
 	SyncQueue QueueActionFn
-	// OpenQueue will set state of queue to open
-	OpenQueue QueueActionFn
-	// CloseQueue will set state of queue to close
-	CloseQueue QueueActionFn
 )
 
 // NewState gets the state from queue status.

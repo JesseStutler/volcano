@@ -34,12 +34,13 @@ import (
 	"volcano.sh/volcano/pkg/controllers/queue/state"
 )
 
-func (c *queuecontroller) syncQueue(queue *schedulingv1beta1.Queue, updateStateFn state.UpdateQueueStatusFn) error {
+// syncQueue will record the number of podgroups of each state in the queues as metrics and update the state of the queue if updateStateFn is not nil.
+func (c *queuecontroller) syncQueue(queue *schedulingv1beta1.Queue, action v1alpha1.Action, updateStateFn state.UpdateQueueStatusFn) error {
 	klog.V(4).Infof("Begin to sync queue %s.", queue.Name)
 	defer klog.V(4).Infof("End sync queue %s.", queue.Name)
 
 	podGroups := c.getPodGroups(queue.Name)
-	queueStatus := schedulingv1beta1.QueueStatus{}
+	newQueueStatus := schedulingv1beta1.QueueStatus{}
 
 	for _, pgKey := range podGroups {
 		// Ignore error here, tt can not occur.
@@ -60,134 +61,51 @@ func (c *queuecontroller) syncQueue(queue *schedulingv1beta1.Queue, updateStateF
 
 		switch pg.Status.Phase {
 		case schedulingv1beta1.PodGroupPending:
-			queueStatus.Pending++
+			newQueueStatus.Pending++
 		case schedulingv1beta1.PodGroupRunning:
-			queueStatus.Running++
+			newQueueStatus.Running++
 		case schedulingv1beta1.PodGroupUnknown:
-			queueStatus.Unknown++
+			newQueueStatus.Unknown++
 		case schedulingv1beta1.PodGroupInqueue:
-			queueStatus.Inqueue++
+			newQueueStatus.Inqueue++
 		case schedulingv1beta1.PodGroupCompleted:
-			queueStatus.Completed++
+			newQueueStatus.Completed++
 		}
 	}
 
 	// Update the metrics
-	metrics.UpdatePgPendingPhaseNum(queue.Name, float64(queueStatus.Pending))
-	metrics.UpdatePgRunningPhaseNum(queue.Name, float64(queueStatus.Running))
-	metrics.UpdatePgUnknownPhaseNum(queue.Name, float64(queueStatus.Unknown))
-	metrics.UpdatePgInqueuePhaseNum(queue.Name, float64(queueStatus.Inqueue))
-	metrics.UpdatePgCompletedPhaseNum(queue.Name, float64(queueStatus.Completed))
+	metrics.UpdatePgPendingPhaseNum(queue.Name, float64(newQueueStatus.Pending))
+	metrics.UpdatePgRunningPhaseNum(queue.Name, float64(newQueueStatus.Running))
+	metrics.UpdatePgUnknownPhaseNum(queue.Name, float64(newQueueStatus.Unknown))
+	metrics.UpdatePgInqueuePhaseNum(queue.Name, float64(newQueueStatus.Inqueue))
+	metrics.UpdatePgCompletedPhaseNum(queue.Name, float64(newQueueStatus.Completed))
 
 	if updateStateFn != nil {
-		updateStateFn(&queueStatus, podGroups)
+		updateStateFn(&newQueueStatus, podGroups)
 	} else {
-		queueStatus.State = queue.Status.State
+		newQueueStatus.State = queue.Status.State
 	}
 
-	queueStatus.Allocated = queue.Status.Allocated.DeepCopy()
+	newQueueStatus.Allocated = queue.Status.Allocated.DeepCopy()
 	// queue.status.allocated will be updated after every session close in volcano scheduler, we should not depend on it because session may be time-consuming,
 	// and queue.status.allocated can't be updated timely. We initialize queue.status.allocated and update it here explicitly
 	// to avoid update queue err because update will fail when queue.status.allocated is nil.
-	if queueStatus.Allocated == nil {
-		queueStatus.Allocated = v1.ResourceList{}
+	if newQueueStatus.Allocated == nil {
+		newQueueStatus.Allocated = v1.ResourceList{}
 	}
 
 	// ignore update when status does not change
-	if equality.Semantic.DeepEqual(queueStatus, queue.Status) {
+	if equality.Semantic.DeepEqual(newQueueStatus, queue.Status) {
 		return nil
 	}
 
-	queueStatusApply := v1beta1apply.QueueStatus().WithState(queueStatus.State).WithAllocated(queueStatus.Allocated)
+	queueStatusApply := v1beta1apply.QueueStatus().WithState(newQueueStatus.State).WithAllocated(newQueueStatus.Allocated)
 	queueApply := v1beta1apply.Queue(queue.Name).WithStatus(queueStatusApply)
 	if _, err := c.vcClient.SchedulingV1beta1().Queues().ApplyStatus(context.TODO(), queueApply, metav1.ApplyOptions{FieldManager: controllerName}); err != nil {
-		klog.Errorf("Failed to apply status of Queue %s: %v.", queue.Name, err)
+		errMsg := fmt.Sprintf("Update queue state from %s to %s failed for %v", queue.Status.State, newQueueStatus.State, err)
+		c.recorder.Event(queue, v1.EventTypeWarning, string(action), errMsg)
+		klog.Errorf(errMsg)
 		return err
-	}
-
-	return nil
-}
-
-func (c *queuecontroller) openQueue(queue *schedulingv1beta1.Queue, updateStateFn state.UpdateQueueStatusFn) error {
-	klog.V(4).Infof("Begin to open queue %s.", queue.Name)
-
-	newQueue := queue.DeepCopy()
-	newQueue.Status.State = schedulingv1beta1.QueueStateOpen
-
-	if queue.Status.State != newQueue.Status.State {
-		if _, err := c.vcClient.SchedulingV1beta1().Queues().Update(context.TODO(), newQueue, metav1.UpdateOptions{}); err != nil {
-			c.recorder.Event(newQueue, v1.EventTypeWarning, string(v1alpha1.OpenQueueAction),
-				fmt.Sprintf("Open queue failed for %v", err))
-			return err
-		}
-
-		c.recorder.Event(newQueue, v1.EventTypeNormal, string(v1alpha1.OpenQueueAction), "Open queue succeed")
-	} else {
-		return nil
-	}
-
-	q, err := c.vcClient.SchedulingV1beta1().Queues().Get(context.TODO(), newQueue.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	newQueue = q.DeepCopy()
-	if updateStateFn != nil {
-		updateStateFn(&newQueue.Status, nil)
-	} else {
-		return fmt.Errorf("internal error, update state function should be provided")
-	}
-
-	if queue.Status.State != newQueue.Status.State {
-		if _, err := c.vcClient.SchedulingV1beta1().Queues().UpdateStatus(context.TODO(), newQueue, metav1.UpdateOptions{}); err != nil {
-			c.recorder.Event(newQueue, v1.EventTypeWarning, string(v1alpha1.OpenQueueAction),
-				fmt.Sprintf("Update queue status from %s to %s failed for %v",
-					queue.Status.State, newQueue.Status.State, err))
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *queuecontroller) closeQueue(queue *schedulingv1beta1.Queue, updateStateFn state.UpdateQueueStatusFn) error {
-	klog.V(4).Infof("Begin to close queue %s.", queue.Name)
-
-	newQueue := queue.DeepCopy()
-	newQueue.Status.State = schedulingv1beta1.QueueStateClosed
-
-	if queue.Status.State != newQueue.Status.State {
-		if _, err := c.vcClient.SchedulingV1beta1().Queues().Update(context.TODO(), newQueue, metav1.UpdateOptions{}); err != nil {
-			c.recorder.Event(newQueue, v1.EventTypeWarning, string(v1alpha1.CloseQueueAction),
-				fmt.Sprintf("Close queue failed for %v", err))
-			return err
-		}
-
-		c.recorder.Event(newQueue, v1.EventTypeNormal, string(v1alpha1.CloseQueueAction), "Close queue succeed")
-	} else {
-		return nil
-	}
-
-	q, err := c.vcClient.SchedulingV1beta1().Queues().Get(context.TODO(), newQueue.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	newQueue = q.DeepCopy()
-	podGroups := c.getPodGroups(newQueue.Name)
-	if updateStateFn != nil {
-		updateStateFn(&newQueue.Status, podGroups)
-	} else {
-		return fmt.Errorf("internal error, update state function should be provided")
-	}
-
-	if queue.Status.State != newQueue.Status.State {
-		if _, err := c.vcClient.SchedulingV1beta1().Queues().UpdateStatus(context.TODO(), newQueue, metav1.UpdateOptions{}); err != nil {
-			c.recorder.Event(newQueue, v1.EventTypeWarning, string(v1alpha1.CloseQueueAction),
-				fmt.Sprintf("Update queue status from %s to %s failed for %v",
-					queue.Status.State, newQueue.Status.State, err))
-			return err
-		}
 	}
 
 	return nil

@@ -160,8 +160,6 @@ func (c *queuecontroller) Initialize(opt *framework.ControllerOption) error {
 	}
 
 	queuestate.SyncQueue = c.syncQueue
-	queuestate.OpenQueue = c.openQueue
-	queuestate.CloseQueue = c.closeQueue
 
 	c.syncHandler = c.handleQueue
 	c.syncCommandHandler = c.handleCommand
