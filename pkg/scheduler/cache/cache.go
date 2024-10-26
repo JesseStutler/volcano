@@ -50,7 +50,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
+	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	"stathat.com/c/consistent"
 
 	batch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
@@ -68,6 +68,7 @@ import (
 	volumescheduling "volcano.sh/volcano/pkg/scheduler/capabilities/volumebinding"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/metrics/source"
+	"volcano.sh/volcano/pkg/scheduler/util"
 	commonutil "volcano.sh/volcano/pkg/util"
 )
 
@@ -145,8 +146,8 @@ type SchedulerCache struct {
 	informerFactory   informers.SharedInformerFactory
 	vcInformerFactory vcinformer.SharedInformerFactory
 
-	BindFlowChannel chan *schedulingapi.TaskInfo
-	bindCache       []*schedulingapi.TaskInfo
+	BindFlowChannel chan *BindContext
+	bindCache       []*BindContext
 	batchNum        int
 
 	// A map from image name to its imageState.
@@ -174,6 +175,18 @@ type imageState struct {
 	size int64
 	// A set of node names for nodes having this image present
 	nodes sets.Set[string]
+}
+
+type BindContext struct {
+	TaskInfo *schedulingapi.TaskInfo
+
+	// If BindContextEnabledPlugins is not empty in session, we need to carry out this information
+	// CycleState it the scheduling context of the task
+	CycleState *k8sframework.CycleState
+	// Before the Bind task, we need to execute PreBind. If PreBind fails, we need to execute UnReserve to rollback.
+	NodeInfo      *schedulingapi.NodeInfo
+	PreBindFns    []schedulingapi.PreBindFn
+	EventHandlers []*util.EventHandler
 }
 
 // DefaultBinder with kube client and event recorder
@@ -450,7 +463,7 @@ func (sc *SchedulerCache) updateNodeSelectors(nodeSelectors []string) {
 
 // setBatchBindParallel configure the parallel when binding tasks to apiserver
 func (sc *SchedulerCache) setBatchBindParallel() {
-	sc.BindFlowChannel = make(chan *schedulingapi.TaskInfo, 5000)
+	sc.BindFlowChannel = make(chan *BindContext, 5000)
 	var batchNum int
 	batchNum, err := strconv.Atoi(os.Getenv("BATCH_BIND_NUM"))
 	if err == nil && batchNum > 0 {
@@ -1196,19 +1209,19 @@ func (sc *SchedulerCache) processSyncNode() bool {
 }
 
 // AddBindTask add task to be bind to a cache which consumes by go runtime
-func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
-	klog.V(5).Infof("add bind task %v/%v", taskInfo.Namespace, taskInfo.Name)
+func (sc *SchedulerCache) AddBindTask(bindContext *BindContext) error {
+	klog.V(5).Infof("add bind task %v/%v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name)
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
-	job, task, err := sc.findJobAndTask(taskInfo)
+	job, task, err := sc.findJobAndTask(bindContext.TaskInfo)
 	if err != nil {
 		return err
 	}
 
-	node, found := sc.Nodes[taskInfo.NodeName]
+	node, found := sc.Nodes[bindContext.TaskInfo.NodeName]
 	if !found {
 		return fmt.Errorf("failed to bind Task %v to host %v, host does not exist",
-			task.UID, taskInfo.NodeName)
+			task.UID, bindContext.TaskInfo.NodeName)
 	}
 
 	originalStatus := task.Status
@@ -1216,11 +1229,11 @@ func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
 		return err
 	}
 
-	err = taskInfo.SetPodResourceDecision()
+	err = bindContext.TaskInfo.SetPodResourceDecision()
 	if err != nil {
 		return fmt.Errorf("set task %v/%v resource decision failed, err %v", task.Namespace, task.Name, err)
 	}
-	task.NumaInfo = taskInfo.NumaInfo.Clone()
+	task.NumaInfo = bindContext.TaskInfo.NumaInfo.Clone()
 
 	// Add task to the node.
 	if err := node.AddTask(task); err != nil {
@@ -1235,7 +1248,7 @@ func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
 		return err
 	}
 
-	sc.BindFlowChannel <- taskInfo
+	sc.BindFlowChannel <- bindContext
 
 	return nil
 }
@@ -1243,12 +1256,12 @@ func (sc *SchedulerCache) AddBindTask(taskInfo *schedulingapi.TaskInfo) error {
 func (sc *SchedulerCache) processBindTask() {
 	for {
 		select {
-		case taskInfo, ok := <-sc.BindFlowChannel:
+		case bindContext, ok := <-sc.BindFlowChannel:
 			if !ok {
 				return
 			}
 
-			sc.bindCache = append(sc.bindCache, taskInfo)
+			sc.bindCache = append(sc.bindCache, bindContext)
 			if len(sc.bindCache) == sc.batchNum {
 				sc.BindTask()
 			}
@@ -1269,26 +1282,48 @@ func (sc *SchedulerCache) processBindTask() {
 // BindTask do k8s binding with a goroutine
 func (sc *SchedulerCache) BindTask() {
 	klog.V(5).Infof("batch bind task count %d", len(sc.bindCache))
-	var tmpBindCache []*schedulingapi.TaskInfo = make([]*schedulingapi.TaskInfo, len(sc.bindCache))
+	var tmpBindCache []*BindContext = make([]*BindContext, len(sc.bindCache))
 	copy(tmpBindCache, sc.bindCache)
-	go func(tasks []*schedulingapi.TaskInfo) {
-		successfulTasks := make([]*schedulingapi.TaskInfo, 0)
-		for _, task := range tasks {
-			if err := sc.VolumeBinder.BindVolumes(task, task.PodVolumes); err != nil {
-				klog.Errorf("task %s/%s bind Volumes failed: %#v", task.Namespace, task.Name, err)
-				sc.VolumeBinder.RevertVolumes(task, task.PodVolumes)
-				sc.resyncTask(task)
+	// Currently, bindContexts only contain 1 element.
+	go func(bindContexts []*BindContext) {
+		successfulContexts := make([]*BindContext, 0)
+		for _, bindContext := range bindContexts {
+			for _, preBindFn := range bindContext.PreBindFns {
+				err := preBindFn(bindContext.TaskInfo, bindContext.NodeInfo)
+				if err != nil {
+					klog.Errorf("task %s/%s execute prebind failed: %v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
+					for _, eh := range bindContext.EventHandlers {
+						if eh.DeallocateFunc != nil {
+							eh.DeallocateFunc(&util.Event{
+								Task: bindContext.TaskInfo,
+							})
+						}
+					}
+					sc.resyncTask(bindContext.TaskInfo)
+					break
+				}
+			}
+
+			// TODO: Need to refactor the volumebinding here, move the logic into PreBindFn and DeallocationFunc
+			if err := sc.VolumeBinder.BindVolumes(bindContext.TaskInfo, bindContext.TaskInfo.PodVolumes); err != nil {
+				klog.Errorf("task %s/%s bind Volumes failed: %#v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
+				sc.VolumeBinder.RevertVolumes(bindContext.TaskInfo, bindContext.TaskInfo.PodVolumes)
+				sc.resyncTask(bindContext.TaskInfo)
 			} else {
-				successfulTasks = append(successfulTasks, task)
-				klog.V(5).Infof("task %s/%s bind Volumes done", task.Namespace, task.Name)
+				successfulContexts = append(successfulContexts, bindContext)
+				klog.V(5).Infof("task %s/%s bind Volumes done", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name)
 			}
 		}
 
-		bindTasks := make([]*schedulingapi.TaskInfo, len(successfulTasks))
-		copy(bindTasks, successfulTasks)
+		bindTasks := make([]*schedulingapi.TaskInfo, len(successfulContexts))
+		for _, task := range successfulContexts {
+			bindTasks = append(bindTasks, task.TaskInfo)
+		}
 		sc.Bind(bindTasks)
 	}(tmpBindCache)
-	sc.bindCache = sc.bindCache[0:0]
+	// The slice here needs to point to a new underlying array, otherwise bindCache may not be able to trigger garbage collection immediately
+	// if it is not expanded, causing memory leaks.
+	sc.bindCache = make([]*BindContext, 0)
 }
 
 // Snapshot returns the complete snapshot of the cluster from cache
@@ -1567,8 +1602,8 @@ func (sc *SchedulerCache) setMetricsData(usageInfo map[string]*source.NodeMetric
 }
 
 // createImageStateSummary returns a summarizing snapshot of the given image's state.
-func (sc *SchedulerCache) createImageStateSummary(state *imageState) *framework.ImageStateSummary {
-	return &framework.ImageStateSummary{
+func (sc *SchedulerCache) createImageStateSummary(state *imageState) *k8sframework.ImageStateSummary {
+	return &k8sframework.ImageStateSummary{
 		Size:     state.size,
 		NumNodes: len(state.nodes),
 	}

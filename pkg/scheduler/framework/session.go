@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -73,7 +74,7 @@ type Session struct {
 	NodeList       []*api.NodeInfo
 
 	plugins           map[string]Plugin
-	eventHandlers     []*EventHandler
+	eventHandlers     []*util.EventHandler
 	jobOrderFns       map[string]api.CompareFn
 	queueOrderFns     map[string]api.CompareFn
 	taskOrderFns      map[string]api.CompareFn
@@ -101,6 +102,19 @@ type Session struct {
 	reservedNodesFns  map[string]api.ReservedNodesFn
 	victimTasksFns    map[string][]api.VictimTasksFn
 	jobStarvingFns    map[string]api.ValidateFn
+	preBindFns        map[string]api.PreBindFn
+
+	// CycleStatesMap is used to temporarily store the scheduling status of each pod, its life cycle is same as Session.
+	// Because state needs to be passed between different extension points (not only used in PreFilter and Filter),
+	// in order to avoid different Pod scheduling states from being overwritten,
+	// the state needs to be temporarily stored in cycleStatesMap when an extension point is executed.
+	// The key is task's UID, value is the CycleState.
+	CycleStatesMap sync.Map
+
+	// In Bind, some plugins need to execute extension points such as PreBind and UnReserve, so when passing BindContext to execute Bind,
+	// BindContext needs to carry more information such as CycleState, PreBindFn, UnReserveNodesFn, etc.
+	// BindContextEnabledPlugins indicates the name of the plugins that needs to pass this information.
+	BindContextEnabledPlugins []string
 }
 
 func openSession(cache cache.Cache) *Session {
@@ -189,6 +203,8 @@ func openSession(cache cache.Cache) *Session {
 
 	klog.V(3).Infof("Open Session %v with <%d> Job and <%d> Queues",
 		ssn.UID, len(ssn.Jobs), len(ssn.Queues))
+
+	ssn.BindContextEnabledPlugins = make([]string, 0)
 
 	return ssn
 }
@@ -400,7 +416,7 @@ func (ssn *Session) Pipeline(task *api.TaskInfo, hostname string) error {
 
 	for _, eh := range ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eh.AllocateFunc(&Event{
+			eh.AllocateFunc(&util.Event{
 				Task: task,
 			})
 		}
@@ -462,7 +478,7 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 	// Callbacks
 	for _, eh := range ssn.eventHandlers {
 		if eh.AllocateFunc != nil {
-			eh.AllocateFunc(&Event{
+			eh.AllocateFunc(&util.Event{
 				Task: task,
 			})
 		}
@@ -484,7 +500,8 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 }
 
 func (ssn *Session) dispatch(task *api.TaskInfo) error {
-	if err := ssn.cache.AddBindTask(task); err != nil {
+	bindContext := ssn.CreateBindContext(task)
+	if err := ssn.cache.AddBindTask(bindContext); err != nil {
 		return err
 	}
 
@@ -503,6 +520,23 @@ func (ssn *Session) dispatch(task *api.TaskInfo) error {
 
 	metrics.UpdateTaskScheduleDuration(metrics.Duration(task.Pod.CreationTimestamp.Time))
 	return nil
+}
+
+func (ssn *Session) CreateBindContext(task *api.TaskInfo) *cache.BindContext {
+	bindContext := &cache.BindContext{TaskInfo: task}
+	if len(ssn.BindContextEnabledPlugins) > 0 {
+		v, _ := ssn.CycleStatesMap.Load(task.UID)
+		state := v.(*k8sframework.CycleState)
+		bindContext.CycleState = state
+		bindContext.NodeInfo = ssn.Nodes[task.NodeName]
+		bindContext.PreBindFns = make([]api.PreBindFn, len(ssn.BindContextEnabledPlugins))
+		for _, plugin := range ssn.BindContextEnabledPlugins {
+			bindContext.PreBindFns = append(bindContext.PreBindFns, ssn.preBindFns[plugin])
+		}
+		bindContext.EventHandlers = ssn.eventHandlers
+
+	}
+	return bindContext
 }
 
 // Evict the task in the session
@@ -536,7 +570,7 @@ func (ssn *Session) Evict(reclaimee *api.TaskInfo, reason string) error {
 
 	for _, eh := range ssn.eventHandlers {
 		if eh.DeallocateFunc != nil {
-			eh.DeallocateFunc(&Event{
+			eh.DeallocateFunc(&util.Event{
 				Task: reclaimee,
 			})
 		}
@@ -576,7 +610,7 @@ func (ssn *Session) UpdatePodGroupCondition(jobInfo *api.JobInfo, cond *scheduli
 }
 
 // AddEventHandler add event handlers
-func (ssn *Session) AddEventHandler(eh *EventHandler) {
+func (ssn *Session) AddEventHandler(eh *util.EventHandler) {
 	ssn.eventHandlers = append(ssn.eventHandlers, eh)
 }
 

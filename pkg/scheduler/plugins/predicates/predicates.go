@@ -41,6 +41,7 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util/k8s"
+	"volcano.sh/volcano/pkg/scheduler/util"
 )
 
 const (
@@ -212,8 +213,8 @@ func (pp *predicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 	predicate := enablePredicate(pp.pluginArguments)
 
 	// Register event handlers to update task info in PodLister & nodeMap
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&util.EventHandler{
+		AllocateFunc: func(event *util.Event) {
 			klog.V(4).Infoln("predicates, allocate", event.Task.NodeName)
 			pod := pl.UpdateTask(event.Task, event.Task.NodeName)
 			nodeName := event.Task.NodeName
@@ -246,7 +247,7 @@ func (pp *predicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 			node.AddPod(pod)
 			klog.V(4).Infof("predicates, update pod %s/%s allocate to node [%s]", pod.Namespace, pod.Name, nodeName)
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *util.Event) {
 			klog.V(4).Infoln("predicates, deallocate", event.Task.NodeName)
 			pod := pl.UpdateTask(event.Task, "")
 			nodeName := event.Task.NodeName

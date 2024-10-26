@@ -36,6 +36,7 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/plugins/numaaware/policy"
 	"volcano.sh/volcano/pkg/scheduler/plugins/numaaware/provider/cpumanager"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util"
+	globalutil "volcano.sh/volcano/pkg/scheduler/util"
 )
 
 const (
@@ -82,8 +83,8 @@ func (pp *numaPlugin) OnSessionOpen(ssn *framework.Session) {
 	numaNodes := api.GenerateNumaNodes(ssn.Nodes)
 	pp.nodeResSets = api.GenerateNodeResNumaSets(ssn.Nodes)
 
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&globalutil.EventHandler{
+		AllocateFunc: func(event *globalutil.Event) {
 			node := pp.nodeResSets[event.Task.NodeName]
 			if _, ok := pp.assignRes[event.Task.UID]; !ok {
 				return
@@ -97,7 +98,7 @@ func (pp *numaPlugin) OnSessionOpen(ssn *framework.Session) {
 			node.Allocate(resNumaSets)
 			pp.taskBindNodeMap[event.Task.UID] = event.Task.NodeName
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *globalutil.Event) {
 			node := pp.nodeResSets[event.Task.NodeName]
 			if _, ok := pp.assignRes[event.Task.UID]; !ok {
 				return

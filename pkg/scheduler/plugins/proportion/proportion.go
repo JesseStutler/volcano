@@ -29,6 +29,7 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util"
+	globalutil "volcano.sh/volcano/pkg/scheduler/util"
 )
 
 // PluginName indicates name of volcano scheduler plugin.
@@ -361,8 +362,8 @@ func (pp *proportionPlugin) OnSessionOpen(ssn *framework.Session) {
 	})
 
 	// Register event handlers.
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&globalutil.EventHandler{
+		AllocateFunc: func(event *globalutil.Event) {
 			job := ssn.Jobs[event.Task.Job]
 			attr := pp.queueOpts[job.Queue]
 			attr.allocated.Add(event.Task.Resreq)
@@ -373,7 +374,7 @@ func (pp *proportionPlugin) OnSessionOpen(ssn *framework.Session) {
 			klog.V(4).Infof("Proportion AllocateFunc: task <%v/%v>, resreq <%v>,  share <%v>",
 				event.Task.Namespace, event.Task.Name, event.Task.Resreq, attr.share)
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *globalutil.Event) {
 			job := ssn.Jobs[event.Task.Job]
 			attr := pp.queueOpts[job.Queue]
 			attr.allocated.Sub(event.Task.Resreq)

@@ -28,6 +28,7 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util"
+	globalutil "volcano.sh/volcano/pkg/scheduler/util"
 )
 
 const (
@@ -317,8 +318,8 @@ func (cp *capacityPlugin) OnSessionOpen(ssn *framework.Session) {
 	})
 
 	// Register event handlers.
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&globalutil.EventHandler{
+		AllocateFunc: func(event *globalutil.Event) {
 			job := ssn.Jobs[event.Task.Job]
 			attr := cp.queueOpts[job.Queue]
 			attr.allocated.Add(event.Task.Resreq)
@@ -329,7 +330,7 @@ func (cp *capacityPlugin) OnSessionOpen(ssn *framework.Session) {
 			klog.V(4).Infof("Capacity AllocateFunc: task <%v/%v>, resreq <%v>,  share <%v>",
 				event.Task.Namespace, event.Task.Name, event.Task.Resreq, attr.share)
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *globalutil.Event) {
 			job := ssn.Jobs[event.Task.Job]
 			attr := cp.queueOpts[job.Queue]
 			attr.allocated.Sub(event.Task.Resreq)

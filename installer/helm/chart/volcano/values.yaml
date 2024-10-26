@@ -23,6 +23,7 @@ custom:
   scheduler_name: ~
   leader_elect_enable: false
   enabled_admissions: "/jobs/mutate,/jobs/validate,/podgroups/mutate,/pods/validate,/pods/mutate,/queues/mutate,/queues/validate"
+  feature_gates: DynamicResourceAllocation=true
 
 # Override the configuration for admission or scheduler.
 # For example:

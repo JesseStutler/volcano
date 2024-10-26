@@ -30,6 +30,7 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util"
+	globalutil "volcano.sh/volcano/pkg/scheduler/util"
 )
 
 // PluginName indicates name of volcano scheduler plugin.
@@ -345,8 +346,8 @@ func (drf *drfPlugin) OnSessionOpen(ssn *framework.Session) {
 	ssn.AddJobOrderFn(drf.Name(), jobOrderFn)
 
 	// Register event handlers.
-	ssn.AddEventHandler(&framework.EventHandler{
-		AllocateFunc: func(event *framework.Event) {
+	ssn.AddEventHandler(&globalutil.EventHandler{
+		AllocateFunc: func(event *globalutil.Event) {
 			attr := drf.jobAttrs[event.Task.Job]
 			attr.allocated.Add(event.Task.Resreq)
 
@@ -364,7 +365,7 @@ func (drf *drfPlugin) OnSessionOpen(ssn *framework.Session) {
 			klog.V(4).Infof("DRF AllocateFunc: task <%v/%v>, resreq <%v>,  share <%v>, namespace share <%v>",
 				event.Task.Namespace, event.Task.Name, event.Task.Resreq, attr.share, nsShare)
 		},
-		DeallocateFunc: func(event *framework.Event) {
+		DeallocateFunc: func(event *globalutil.Event) {
 			attr := drf.jobAttrs[event.Task.Job]
 			attr.allocated.Sub(event.Task.Resreq)
 

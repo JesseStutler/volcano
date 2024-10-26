@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package framework
+package util
 
 import (
 	"volcano.sh/volcano/pkg/scheduler/api"
@@ -23,6 +23,7 @@ import (
 // Event structure
 type Event struct {
 	Task *api.TaskInfo
+	Err  error
 }
 
 // EventHandler structure
