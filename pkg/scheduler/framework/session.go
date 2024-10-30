@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
 	schedulingscheme "volcano.sh/apis/pkg/apis/scheduling/scheme"
@@ -161,6 +162,7 @@ func openSession(cache cache.Cache) *Session {
 		reservedNodesFns:  map[string]api.ReservedNodesFn{},
 		victimTasksFns:    map[string][]api.VictimTasksFn{},
 		jobStarvingFns:    map[string]api.ValidateFn{},
+		preBindFns:        map[string]api.PreBindFn{},
 	}
 
 	snapshot := cache.Snapshot()
@@ -525,11 +527,8 @@ func (ssn *Session) dispatch(task *api.TaskInfo) error {
 func (ssn *Session) CreateBindContext(task *api.TaskInfo) *cache.BindContext {
 	bindContext := &cache.BindContext{TaskInfo: task}
 	if len(ssn.BindContextEnabledPlugins) > 0 {
-		v, _ := ssn.CycleStatesMap.Load(task.UID)
-		state := v.(*k8sframework.CycleState)
-		bindContext.CycleState = state
 		bindContext.NodeInfo = ssn.Nodes[task.NodeName]
-		bindContext.PreBindFns = make([]api.PreBindFn, len(ssn.BindContextEnabledPlugins))
+		bindContext.PreBindFns = make([]api.PreBindFn, 0, len(ssn.BindContextEnabledPlugins))
 		for _, plugin := range ssn.BindContextEnabledPlugins {
 			bindContext.PreBindFns = append(bindContext.PreBindFns, ssn.preBindFns[plugin])
 		}
@@ -646,6 +645,11 @@ func (ssn Session) RecordPodGroupEvent(podGroup *api.PodGroup, eventType, reason
 		return
 	}
 	ssn.recorder.Eventf(pg, eventType, reason, msg)
+}
+
+// GetResourceClaimCache gets the resource claim cache from SchedulerCache
+func (ssn *Session) GetResourceClaimCache() *assumecache.AssumeCache {
+	return ssn.cache.GetResourceClaimCache()
 }
 
 // String return nodes and jobs information in the session

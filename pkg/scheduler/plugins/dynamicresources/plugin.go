@@ -12,27 +12,25 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
+	"volcano.sh/volcano/pkg/scheduler/capabilities/dynamicresources"
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util/k8s"
 	"volcano.sh/volcano/pkg/scheduler/util"
 )
 
 const (
-	PluginName = "DynamicResources"
+	PluginName = "dynamicresources"
 )
 
-// When the dynamicResources struct in the k8s scheduler package becomes public, we can directly embed it to replace the dynamicResources we copied.
-// Like this:
-//
-//	type dynamicResourcesPlugin struct {
-//		*dynamicresources.DynamicResources
-//	}
-//
 // Since "classic" DRA, which also called control plane controller DRA will be withdrawn in v1.32, we only implement the new structed parameters DRA
-// related extension points, including PreEnqueue, PreFilter, Filter, Reserve, PreBind, Unreserve, PostFilter.
-// TODO: PostFilter has not been implemented yet
+// related extension points, including PreEnqueue, PreFilter, Filter, Reserve, PreBind and Unreserve.
+// Currently, PostFilter has not been implemented yet. If PostFilter truly needed, we may add a new extension point called PostPredicateFn when PrePredicateFn or PredicateFn fail.
+// There are very rare scenarios when PostFilter needed. Only such following scenarios: Pod has two Claims that require PreBind, the first claim PreBind succeeded,
+// but the second Claim PreBind failed (e.g., the api-server down), therefore the pod was not scheduled successfully and will be scheduled again.
+// In the next scheduling cycle, the node for which the first claim allocated is no longer available somehow. At this time, the PostFilter will
+// be called to try to remove the Allocation and ReservedFor of the claim.
 type dynamicResourcesPlugin struct {
-	*dynamicResources
+	*dynamicresources.DynamicResources
 }
 
 func New(arguments framework.Arguments) framework.Plugin {
@@ -146,10 +144,11 @@ func (d *dynamicResourcesPlugin) OnSessionOpen(ssn *framework.Session) {
 	featureGates := feature.Features{
 		EnableDynamicResourceAllocation: utilFeature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation),
 	}
-	handle := k8s.NewFrameworkHandle(ssn.NodeMap, ssn.KubeClient(), ssn.InformerFactory())
-	plugin, _ := NewDRAPlugin(context.TODO(), nil, handle, featureGates)
-	draPlugin := plugin.(*dynamicResources)
-	d.dynamicResources = draPlugin
+	handle := k8s.NewFrameworkHandle(ssn.NodeMap, ssn.KubeClient(), ssn.InformerFactory(),
+		k8s.WithResourceClaimCache(ssn.GetResourceClaimCache()))
+	plugin, _ := dynamicresources.NewDRAPlugin(context.TODO(), nil, handle, featureGates)
+	draPlugin := plugin.(*dynamicresources.DynamicResources)
+	d.DynamicResources = draPlugin
 
 	ssn.BindContextEnabledPlugins = append(ssn.BindContextEnabledPlugins, PluginName)
 	d.RegisterPrePredicateFn(ssn)

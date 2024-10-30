@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/capabilities/volumebinding"
@@ -87,6 +88,9 @@ type Cache interface {
 
 	// EventRecorder returns the event recorder
 	EventRecorder() record.EventRecorder
+
+	// GetResourceClaimCache returns the resource claim assume cache
+	GetResourceClaimCache() *assumecache.AssumeCache
 }
 
 // VolumeBinder interface for allocate and bind volumes

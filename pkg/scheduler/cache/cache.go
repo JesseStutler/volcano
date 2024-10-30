@@ -50,7 +50,9 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	k8sfeatures "k8s.io/kubernetes/pkg/features"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
 	"stathat.com/c/consistent"
 
 	batch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
@@ -119,6 +121,10 @@ type SchedulerCache struct {
 	csiDriverInformer          storagev1.CSIDriverInformer
 	csiStorageCapacityInformer storagev1beta1.CSIStorageCapacityInformer
 	cpuInformer                cpuinformerv1.NumatopologyInformer
+	// ClaimAssumeCache is used in DRA plugin.
+	// It enables temporarily storing a newer claim object while the scheduler has allocated it and the corresponding object
+	// update from the apiserver has not been processed by the claim informer callbacks.
+	ResourceClaimCache *assumecache.AssumeCache
 
 	Binder         Binder
 	Evictor        Evictor
@@ -180,9 +186,6 @@ type imageState struct {
 type BindContext struct {
 	TaskInfo *schedulingapi.TaskInfo
 
-	// If BindContextEnabledPlugins is not empty in session, we need to carry out this information
-	// CycleState it the scheduling context of the task
-	CycleState *k8sframework.CycleState
 	// Before the Bind task, we need to execute PreBind. If PreBind fails, we need to execute UnReserve to rollback.
 	NodeInfo      *schedulingapi.NodeInfo
 	PreBindFns    []schedulingapi.PreBindFn
@@ -782,6 +785,16 @@ func (sc *SchedulerCache) addEventHandler() {
 			DeleteFunc: sc.DeleteNumaInfoV1alpha1,
 		})
 	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(k8sfeatures.DynamicResourceAllocation) {
+		// Simply register deviceclass and resourceslice informers are enough, there is no need to add eventhandlers
+		informerFactory.Resource().V1alpha3().DeviceClasses().Informer()
+		informerFactory.Resource().V1alpha3().ResourceSlices().Informer()
+
+		resourceClaimInformer := informerFactory.Resource().V1alpha3().ResourceClaims().Informer()
+		logger := klog.FromContext(context.TODO())
+		sc.ResourceClaimCache = assumecache.NewAssumeCache(logger, resourceClaimInformer, "ResourceClaim", "", nil)
+	}
 }
 
 // Run  starts the schedulerCache
@@ -896,26 +909,38 @@ func (sc *SchedulerCache) Evict(taskInfo *schedulingapi.TaskInfo, reason string)
 }
 
 // Bind binds task to the target host.
-func (sc *SchedulerCache) Bind(tasks []*schedulingapi.TaskInfo) {
+func (sc *SchedulerCache) Bind(bindContexts []*BindContext) {
+	readyToBindTasks := make([]*schedulingapi.TaskInfo, len(bindContexts))
+	for index := range readyToBindTasks {
+		readyToBindTasks[index] = bindContexts[index].TaskInfo
+	}
 	tmp := time.Now()
-	errMsg := sc.Binder.Bind(sc.kubeClient, tasks)
+	errMsg := sc.Binder.Bind(sc.kubeClient, readyToBindTasks)
 	if len(errMsg) == 0 {
 		klog.V(3).Infof("bind ok, latency %v", time.Since(tmp))
 	} else {
-		klog.V(3).Infof("There are %d tasks in total and %d binds failed, latency %v", len(tasks), len(errMsg), time.Since(tmp))
+		klog.V(3).Infof("There are %d tasks in total and %d binds failed, latency %v", len(readyToBindTasks), len(errMsg), time.Since(tmp))
 	}
 
-	for _, task := range tasks {
-		if reason, ok := errMsg[task.UID]; !ok {
-			sc.Recorder.Eventf(task.Pod, v1.EventTypeNormal, "Scheduled", "Successfully assigned %v/%v to %v", task.Namespace, task.Name, task.NodeName)
+	for _, bindContext := range bindContexts {
+		if reason, ok := errMsg[bindContext.TaskInfo.UID]; !ok {
+			sc.Recorder.Eventf(bindContext.TaskInfo.Pod, v1.EventTypeNormal, "Scheduled", "Successfully assigned %v/%v to %v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, bindContext.TaskInfo.NodeName)
 		} else {
-			unschedulableMsg := fmt.Sprintf("failed to bind to node %s: %s", task.NodeName, reason)
-			if err := sc.taskUnschedulable(task, schedulingapi.PodReasonSchedulerError, unschedulableMsg, ""); err != nil {
-				klog.ErrorS(err, "Failed to update pod status when bind task error", "task", task.Name)
+			unschedulableMsg := fmt.Sprintf("failed to bind to node %s: %s", bindContext.TaskInfo.NodeName, reason)
+			if err := sc.taskUnschedulable(bindContext.TaskInfo, schedulingapi.PodReasonSchedulerError, unschedulableMsg, ""); err != nil {
+				klog.ErrorS(err, "Failed to update pod status when bind task error", "task", bindContext.TaskInfo.Name)
 			}
-			klog.V(2).Infof("resyncTask task %s", task.Name)
-			sc.VolumeBinder.RevertVolumes(task, task.PodVolumes)
-			sc.resyncTask(task)
+			for _, eh := range bindContext.EventHandlers {
+				if eh.DeallocateFunc != nil {
+					eh.DeallocateFunc(&util.Event{
+						Task: bindContext.TaskInfo,
+					})
+				}
+			}
+			klog.V(2).Infof("resyncTask task %s", bindContext.TaskInfo.Name)
+			//TODO: need to move the logic of revert volumes into DeallocateFunc
+			sc.VolumeBinder.RevertVolumes(bindContext.TaskInfo, bindContext.TaskInfo.PodVolumes)
+			sc.resyncTask(bindContext.TaskInfo)
 		}
 	}
 }
@@ -992,6 +1017,10 @@ func (sc *SchedulerCache) UpdateSchedulerNumaInfo(AllocatedSets map[string]sched
 // EventRecorder returns the Event Recorder
 func (sc *SchedulerCache) EventRecorder() record.EventRecorder {
 	return sc.Recorder
+}
+
+func (sc *SchedulerCache) GetResourceClaimCache() *assumecache.AssumeCache {
+	return sc.ResourceClaimCache
 }
 
 // taskUnschedulable updates pod status of pending task
@@ -1286,7 +1315,6 @@ func (sc *SchedulerCache) BindTask() {
 	copy(tmpBindCache, sc.bindCache)
 	// Currently, bindContexts only contain 1 element.
 	go func(bindContexts []*BindContext) {
-		successfulContexts := make([]*BindContext, 0)
 		for _, bindContext := range bindContexts {
 			for _, preBindFn := range bindContext.PreBindFns {
 				err := preBindFn(bindContext.TaskInfo, bindContext.NodeInfo)
@@ -1300,7 +1328,7 @@ func (sc *SchedulerCache) BindTask() {
 						}
 					}
 					sc.resyncTask(bindContext.TaskInfo)
-					break
+					return
 				}
 			}
 
@@ -1309,17 +1337,14 @@ func (sc *SchedulerCache) BindTask() {
 				klog.Errorf("task %s/%s bind Volumes failed: %#v", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name, err)
 				sc.VolumeBinder.RevertVolumes(bindContext.TaskInfo, bindContext.TaskInfo.PodVolumes)
 				sc.resyncTask(bindContext.TaskInfo)
-			} else {
-				successfulContexts = append(successfulContexts, bindContext)
-				klog.V(5).Infof("task %s/%s bind Volumes done", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name)
+				return
 			}
+
+			// All PreBindFns succeeded
+			klog.V(5).Infof("task %s/%s preBind resources done", bindContext.TaskInfo.Namespace, bindContext.TaskInfo.Name)
 		}
 
-		bindTasks := make([]*schedulingapi.TaskInfo, len(successfulContexts))
-		for _, task := range successfulContexts {
-			bindTasks = append(bindTasks, task.TaskInfo)
-		}
-		sc.Bind(bindTasks)
+		sc.Bind(bindContexts)
 	}(tmpBindCache)
 	// The slice here needs to point to a new underlying array, otherwise bindCache may not be able to trigger garbage collection immediately
 	// if it is not expanded, causing memory leaks.
