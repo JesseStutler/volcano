@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2019 The Volcano Authors.
+# Copyright 2024 The Volcano Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,15 +16,7 @@
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 
-# 可以自定义制定镜像
-#helm install kube-prometheus-stack --set alertmanager.enabled=false \
-# --set prometheusOperator.admissionWebhooks.patch.image.registry="docker.io",prometheusOperator.admissionWebhooks.patch.image.repository=15841721425/kube-webhook-certgen \
-# --set kube-state-metrics.image.registry="docker.io",kube-state-metrics.image.repository=bitnami/kube-state-metrics,kube-state-metrics.image.tag=2.10.1 \
-# --set kube-state-metrics.prometheus.monitor.interval="1s" --set prometheus-node-exporter.prometheus.monitor.interval="1s" \
-# --set prometheus.prometheusSpec.scrapeInterval="2s" \
-# prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
-
 helm install kube-prometheus-stack --set alertmanager.enabled=false \
- --set kube-state-metrics.prometheus.monitor.interval="1s" --set prometheus-node-exporter.prometheus.monitor.interval="1s" \
- --set prometheus.prometheusSpec.scrapeInterval="2s" \
+ --set prometheus.prometheusSpec.resources.limits.cpu="500m" \
+ --set prometheus-node-exporter.tolerations="" \
  prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
