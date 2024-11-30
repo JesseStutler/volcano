@@ -16,6 +16,7 @@ source base.sh
 set -e
 
 # 初始化变量
+VK_ROOT=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../..
 node_cnt=""
 volcano_v=""
 use_mini_volcano=""
@@ -49,9 +50,14 @@ for arg in "$@"; do
 done
 
 # 检查参数是否为空
-if [[ -z "$node_cnt" || -z "$volcano_v" ]]; then
+if [ -z "$node_cnt" ]; then
   echo "Error: Missing required parameters."
   usage
+fi
+
+if [ -z "$volcano_v" ]; then
+  volcano_v=$(git rev-parse --verify HEAD)
+  make -C ${VK_ROOT} images
 fi
 
 # 输出参数信息
@@ -67,7 +73,6 @@ fi
 # 如果本地存在镜像，则load到kind集群
 load_image_to_kind "curlimages/curl:latest" "volcano-bm"
 load_image_to_kind "alpine:latest" "volcano-bm"
-load_image_to_kind "volcanosh/vc-webhook-manager:$volcano_v" "volcano-bm"
 load_image_to_kind "volcanosh/vc-scheduler:$volcano_v" "volcano-bm"
 load_image_to_kind "volcanosh/vc-controller-manager:$volcano_v" "volcano-bm"
 load_image_to_kind "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20221220-controller-v1.5.1-58-g787ea74b6" "volcano-bm"

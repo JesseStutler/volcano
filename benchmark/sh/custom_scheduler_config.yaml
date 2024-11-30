@@ -2,5 +2,3 @@ actions: "allocate, backfill"
 tiers:
   - plugins:
     - name: predicates
-      arguments:
-        predicate.CacheEnable: true
