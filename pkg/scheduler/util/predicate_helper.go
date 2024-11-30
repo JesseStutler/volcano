@@ -3,6 +3,8 @@ package util
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -10,6 +12,11 @@ import (
 	"k8s.io/klog/v2"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
+)
+
+const (
+	workerNumsKey     = "PREDICATE_WORKER_NUMS"
+	defaultWorkerNums = 16
 )
 
 type PredicateHelper interface {
@@ -97,8 +104,14 @@ func (ph *predicateHelper) PredicateNodes(task *api.TaskInfo, nodes []*api.NodeI
 		}
 	}
 
+	workerNums, err := strconv.Atoi(os.Getenv(workerNumsKey))
+	if err != nil {
+		// use default worker nums instead
+		workerNums = defaultWorkerNums
+	}
+
 	//workqueue.ParallelizeUntil(context.TODO(), 16, len(nodes), checkNode)
-	workqueue.ParallelizeUntil(ctx, 16, allNodes, checkNode)
+	workqueue.ParallelizeUntil(ctx, workerNums, allNodes, checkNode)
 
 	//processedNodes := int(numFoundNodes) + len(filteredNodesStatuses) + len(failedPredicateMap)
 	lastProcessedNodeIndex = (lastProcessedNodeIndex + int(processedNodes)) % allNodes

@@ -156,6 +156,8 @@ func openSession(cache cache.Cache) *Session {
 		victimTasksFns:      map[string][]api.VictimTasksFn{},
 		jobStarvingFns:      map[string]api.ValidateFn{},
 	}
+	klog.Infof("Start to open a new session %s", ssn.UID)
+	defer klog.Infof("End opening session")
 
 	snapshot := cache.Snapshot()
 
@@ -298,7 +300,7 @@ func closeSession(ssn *Session) {
 	ju := newJobUpdater(ssn)
 	ju.UpdateAll()
 
-	updateQueueStatus(ssn)
+	//updateQueueStatus(ssn)
 
 	ssn.Jobs = nil
 	ssn.Nodes = nil
@@ -349,10 +351,6 @@ func jobStatus(ssn *Session, jobInfo *api.JobInfo) scheduling.PodGroupStatus {
 			status.Phase = scheduling.PodGroupPending
 		}
 	}
-
-	status.Running = int32(len(jobInfo.TaskStatusIndex[api.Running]))
-	status.Failed = int32(len(jobInfo.TaskStatusIndex[api.Failed]))
-	status.Succeeded = int32(len(jobInfo.TaskStatusIndex[api.Succeeded]))
 
 	return status
 }

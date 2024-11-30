@@ -206,6 +206,8 @@ spec:
           env:
             - name: DEBUG_SOCKET_DIR
               value: /tmp/klog-socks
+            - name: PREDICATE_WORKER_NUMS
+              value: "{{ .Values.custom.scheduler_predicate_worker_nums }}"
           imagePullPolicy: {{ .Values.basic.image_pull_policy }}
           volumeMounts:
             - name: scheduler-config
