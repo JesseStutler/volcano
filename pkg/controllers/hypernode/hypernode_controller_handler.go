@@ -30,6 +30,8 @@ const (
 	// maxRetries is the number of times an event will be retried
 	// before it is dropped out of the queue
 	maxRetries = 15
+	// labelSeparator is the separator to split hypernodes in the label
+	labelSeparator = ","
 )
 
 func (hnc *hyperNodeController) addNode(obj interface{}) {
@@ -98,7 +100,7 @@ func (hnc *hyperNodeController) processNextNodeEvent() bool {
 	case addEvent:
 		node := nodeEvent.obj.(*v1.Node)
 
-		hyperNodesList := strings.Split(node.Labels[hyperNodesLabelKey], ",")
+		hyperNodesList := strings.Split(node.Labels[hyperNodesLabelKey], labelSeparator)
 		err := func() error {
 			hnas := make([]*hyperNodeAction, 0)
 
@@ -119,8 +121,8 @@ func (hnc *hyperNodeController) processNextNodeEvent() bool {
 		newNode := nodeEvent.obj.(*v1.Node)
 		oldNode := nodeEvent.oldObj.(*v1.Node)
 
-		newHNsList := strings.Split(newNode.Labels[hyperNodesLabelKey], ",")
-		oldHNsList := strings.Split(oldNode.Labels[hyperNodesLabelKey], ",")
+		newHNsList := strings.Split(newNode.Labels[hyperNodesLabelKey], labelSeparator)
+		oldHNsList := strings.Split(oldNode.Labels[hyperNodesLabelKey], labelSeparator)
 		err := func() error {
 			hnas := make([]*hyperNodeAction, 0)
 
