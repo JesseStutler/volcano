@@ -181,7 +181,7 @@ func (hnc *hyperNodeController) addHyperNode(obj interface{}) {
 }
 
 func (hnc *hyperNodeController) updateHyperNode(oldObj, newObj interface{}) {
-	oldHN, ok := oldObj.(*v1.Node)
+	oldHN, ok := oldObj.(*topologyv1alpha1.HyperNode)
 	if !ok {
 		klog.Errorf("%T is not a type of HyperNode", oldObj)
 		return
