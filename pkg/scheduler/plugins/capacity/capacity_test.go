@@ -30,6 +30,7 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/conf"
 	"volcano.sh/volcano/pkg/scheduler/framework"
+	"volcano.sh/volcano/pkg/scheduler/plugins/gang"
 	"volcano.sh/volcano/pkg/scheduler/plugins/predicates"
 	"volcano.sh/volcano/pkg/scheduler/uthelper"
 	"volcano.sh/volcano/pkg/scheduler/util"
@@ -335,7 +336,7 @@ func TestEnqueueAndAllocatable(t *testing.T) {
 }
 
 func Test_capacityPlugin_OnSessionOpenWithHierarchy(t *testing.T) {
-	plugins := map[string]framework.PluginBuilder{PluginName: New, predicates.PluginName: predicates.New}
+	plugins := map[string]framework.PluginBuilder{PluginName: New, predicates.PluginName: predicates.New, gang.PluginName: gang.New}
 	trueValue := true
 	actions := []framework.Action{enqueue.New(), reclaim.New(), allocate.New()}
 
@@ -448,6 +449,10 @@ func Test_capacityPlugin_OnSessionOpenWithHierarchy(t *testing.T) {
 				{
 					Name:             predicates.PluginName,
 					EnabledPredicate: &trueValue,
+				},
+				{
+					Name:               gang.PluginName,
+					EnabledJobStarving: &trueValue,
 				},
 			},
 		},
