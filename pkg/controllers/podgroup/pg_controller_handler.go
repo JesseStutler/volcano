@@ -142,6 +142,38 @@ func (pg *pgcontroller) updateLeaderWorkerSet(oldObj, newObj interface{}) {
 	pg.lwsQueue.Add(req)
 }
 
+func (pg *pgcontroller) updateLeaderStatefulSet(oldObj interface{}, newObj interface{}) {
+	oldSts, ok := oldObj.(*appsv1.StatefulSet)
+	if !ok {
+		klog.Errorf("Failed to convert %T to StatefulSet", oldObj)
+		return
+	}
+
+	newSts, ok := newObj.(*appsv1.StatefulSet)
+	if !ok {
+		klog.Errorf("Failed to convert %T to StatefulSet", newObj)
+		return
+	}
+
+	// If the StatefulSet is not owned by a LeaderWorkerSet, no need to update the PodGroups. Notice that only
+	// the Leader StatefulSet has the label lwsv1.SetNameLabelKey.
+	if newSts.Labels != nil && newSts.Labels[lwsv1.SetNameLabelKey] == "" {
+		return
+	}
+
+	// If the replicas of the Leader StatefulSet have not changed, no need to update the PodGroups.
+	if *newSts.Spec.Replicas == *oldSts.Spec.Replicas {
+		return
+	}
+
+	req := resourceRequest{
+		Name:      newSts.Name,
+		Namespace: newSts.Namespace,
+	}
+
+	pg.leaderStsQueue.Add(req)
+}
+
 func (pg *pgcontroller) updatePodAnnotations(pod *v1.Pod, pgName string) error {
 	if pod.Annotations == nil {
 		pod.Annotations = make(map[string]string)
@@ -292,18 +324,10 @@ func (pg *pgcontroller) createNormalPodPGIfNotExist(pod *v1.Pod) error {
 
 func (pg *pgcontroller) syncLeaderWorkerSetPodGroups(lws *lwsv1.LeaderWorkerSet) error {
 	targetReplicas := ptr.Deref(lws.Spec.Replicas, 0)
-	// If the LeaderWorkerSet is undergoing a rolling update and MaxSurge is configured, the replicas of the Leader StatefulSet
-	// will increase, requiring the creation of additional PodGroups.
-	sts, err := pg.stsLister.StatefulSets(lws.Namespace).Get(lws.Name)
-	if err != nil && !apierrors.IsNotFound(err) {
-		klog.Errorf("failed to get leader statefulset %s/%s: %v", lws.Namespace, lws.Name, err)
-		return err
-	}
+	return pg.syncLeaderWorkerSetPodGroupsWithReplicas(lws, targetReplicas)
+}
 
-	if sts != nil {
-		targetReplicas = *sts.Spec.Replicas
-	}
-
+func (pg *pgcontroller) syncLeaderWorkerSetPodGroupsWithReplicas(lws *lwsv1.LeaderWorkerSet, targetReplicas int32) error {
 	labelSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			lwsv1.SetNameLabelKey: lws.Name,

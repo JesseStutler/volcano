@@ -77,8 +77,9 @@ type pgcontroller struct {
 	lwsLister lwslister.LeaderWorkerSetLister
 	stsLister appsv1lister.StatefulSetLister
 
-	podQueue workqueue.TypedRateLimitingInterface[resourceRequest]
-	lwsQueue workqueue.TypedRateLimitingInterface[resourceRequest]
+	podQueue       workqueue.TypedRateLimitingInterface[resourceRequest]
+	lwsQueue       workqueue.TypedRateLimitingInterface[resourceRequest]
+	leaderStsQueue workqueue.TypedRateLimitingInterface[resourceRequest]
 
 	schedulerNames []string
 	workers        uint32
@@ -135,7 +136,12 @@ func (pg *pgcontroller) Initialize(opt *framework.ControllerOption) error {
 			AddFunc:    pg.addLeaderWorkerSet,
 			UpdateFunc: pg.updateLeaderWorkerSet,
 		})
-		pg.stsLister = pg.informerFactory.Apps().V1().StatefulSets().Lister()
+		stsInformer := pg.informerFactory.Apps().V1().StatefulSets()
+		pg.stsLister = stsInformer.Lister()
+		pg.leaderStsQueue = workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[resourceRequest]())
+		stsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			UpdateFunc: pg.updateLeaderStatefulSet,
+		})
 	}
 
 	return nil
@@ -173,6 +179,7 @@ func (pg *pgcontroller) Run(stopCh <-chan struct{}) {
 
 		if utilfeature.DefaultFeatureGate.Enabled(features.LeaderWorkerSetSupport) {
 			go wait.Until(pg.lwsWorker, 0, stopCh)
+			go wait.Until(pg.leaderStsWorker, 0, stopCh)
 		}
 	}
 
@@ -275,4 +282,44 @@ func (pg *pgcontroller) syncLeaderWorkerSet(req resourceRequest) error {
 	}
 
 	return nil
+}
+
+func (pg *pgcontroller) leaderStsWorker() {
+	for pg.processNextLeaderSts() {
+	}
+}
+
+func (pg *pgcontroller) processNextLeaderSts() bool {
+	req, shutdown := pg.leaderStsQueue.Get()
+	if shutdown {
+		return false
+	}
+	defer pg.leaderStsQueue.Done(req)
+
+	err := pg.syncLeaderStatefulSet(req)
+	if err == nil {
+		pg.leaderStsQueue.Forget(req)
+		return true
+	}
+
+	utilruntime.HandleError(fmt.Errorf("failed to proccess Leader StatefulSet %s/%s: %v", req.Namespace, req.Name, err))
+	pg.leaderStsQueue.AddRateLimited(req)
+
+	return true
+}
+
+func (pg *pgcontroller) syncLeaderStatefulSet(req resourceRequest) error {
+	sts, err := pg.stsLister.StatefulSets(req.Namespace).Get(req.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get leader statefulset %s/%s: %v", req.Namespace, req.Name, err)
+	}
+
+	lws, err := pg.lwsLister.LeaderWorkerSets(req.Namespace).Get(req.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get leaderworkerset %s/%s: %v", req.Namespace, req.Name, err)
+	}
+
+	// If the LeaderWorkerSet is undergoing a rolling update and MaxSurge is configured, the replicas of the Leader StatefulSet
+	// will increase, requiring the creation of additional PodGroups.
+	return pg.syncLeaderWorkerSetPodGroupsWithReplicas(lws, *sts.Spec.Replicas)
 }
