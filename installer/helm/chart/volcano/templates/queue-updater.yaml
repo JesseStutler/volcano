@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: volcano-queue-updater
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: volcano-queue-updater
+rules:
+- apiGroups: ["scheduling.volcano.sh"]
+  resources: ["queues", "queues/status"]
+  verbs: ["get", "list", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: volcano-queue-updater
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: volcano-queue-updater
+subjects:
+- kind: ServiceAccount
+  name: volcano-queue-updater
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: volcano-queue-updater
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: volcano-queue-updater
+  template:
+    metadata:
+      labels:
+        app: volcano-queue-updater
+    spec:
+      serviceAccountName: volcano-queue-updater
+      containers:
+      - name: queue-updater
+        image: volcanosh/queue-updater:latest
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"

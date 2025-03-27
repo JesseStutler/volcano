@@ -92,10 +92,14 @@ vc-agent: init
 vcctl: init
 	CC=${CC} CGO_ENABLED=0 GOOS=${OS} go build -ldflags ${LD_FLAGS} -o ${BIN_DIR}/vcctl ./cmd/cli
 
-image_bins: vc-scheduler vc-controller-manager vc-webhook-manager vc-agent
+queue-updater: init
+	CC=${CC} CGO_ENABLED=0 go build -ldflags ${LD_FLAGS} -o ${BIN_DIR}/queue-updater ./cmd/queue-updater
+
+# 在 image_bins 中添加 queue-updater
+image_bins: vc-scheduler vc-controller-manager vc-webhook-manager vc-agent queue-updater
 
 images:
-	for name in controller-manager scheduler webhook-manager agent; do\
+	for name in controller-manager scheduler webhook-manager agent queue-updater; do\
 		docker buildx build -t "${IMAGE_PREFIX}/vc-$$name:$(TAG)" . -f ./installer/dockerfile/$$name/Dockerfile --output=type=${BUILDX_OUTPUT_TYPE} --platform ${DOCKER_PLATFORMS} --build-arg APK_MIRROR=${APK_MIRROR} --build-arg OPEN_EULER_IMAGE_TAG=${OPEN_EULER_IMAGE_TAG}; \
 	done
 
