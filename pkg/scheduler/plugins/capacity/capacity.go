@@ -675,6 +675,7 @@ func (cp *capacityPlugin) checkHierarchicalQueue(attr *queueAttr) error {
 	}
 
 	for _, childAttr := range attr.children {
+		klog.Infof("Child queue <%s> of queue <%s> deserved %s", childAttr.name, attr.name, childAttr.deserved.String())
 		realCapability := attr.realCapability.Clone().Sub(totalGuarantee).Add(childAttr.guarantee)
 		if childAttr.capability == nil {
 			childAttr.realCapability = realCapability
@@ -684,8 +685,10 @@ func (cp *capacityPlugin) checkHierarchicalQueue(attr *queueAttr) error {
 		}
 		oldDeserved := childAttr.deserved.Clone()
 		childAttr.deserved.MinDimensionResource(childAttr.realCapability, api.Infinity)
+		klog.Infof("[After MinDimensionResource] Child queue <%s> of queue <%s> deserved %s", childAttr.name, attr.name, childAttr.deserved.String())
 
 		childAttr.deserved = helpers.Max(childAttr.deserved, childAttr.guarantee)
+		klog.Infof("[After helpers.Max] Child queue <%s> of queue <%s> deserved %s", childAttr.name, attr.name, childAttr.deserved.String())
 		totalDeserved.Sub(oldDeserved).Add(childAttr.deserved)
 	}
 
