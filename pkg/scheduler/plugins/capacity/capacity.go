@@ -434,6 +434,10 @@ func (cp *capacityPlugin) buildHierarchicalQueueAttrs(ssn *framework.Session) bo
 		}
 	}
 
+	for _, attr := range cp.queueOpts {
+		klog.Infof("Queue <%s> deserved after initialization: %s", attr.name, attr.deserved.String())
+	}
+
 	for _, job := range ssn.Jobs {
 		klog.V(4).Infof("Considering Job <%s/%s>.", job.Namespace, job.Name)
 		attr := cp.queueOpts[job.Queue]
@@ -645,6 +649,7 @@ func (cp *capacityPlugin) updateAncestors(queue *api.QueueInfo, ssn *framework.S
 }
 
 func (cp *capacityPlugin) checkHierarchicalQueue(attr *queueAttr) error {
+	klog.Infof("Begin at checkHierarchicalQueue: Queue %s deserved %s", attr.name, attr.deserved.String())
 	totalGuarantee := api.EmptyResource()
 	totalDeserved := api.EmptyResource()
 	for _, childAttr := range attr.children {
@@ -683,6 +688,8 @@ func (cp *capacityPlugin) checkHierarchicalQueue(attr *queueAttr) error {
 		childAttr.deserved = helpers.Max(childAttr.deserved, childAttr.guarantee)
 		totalDeserved.Sub(oldDeserved).Add(childAttr.deserved)
 	}
+
+	klog.Infof("Before check deserved: Queue %s deserved %s", attr.name, attr.deserved.String())
 
 	// Check if the parent queue's deserved resources are less than the total deserved resources of child queues
 	if attr.deserved.LessPartly(totalDeserved, api.Zero) {
