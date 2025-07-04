@@ -76,3 +76,5 @@ allowlisted_modules:
 - sigs.k8s.io/yaml
 # MIT: https://github.com/go-errors/errors/blob/master/LICENSE.MIT
 - github.com/go-errors/errors
+# BSD: https://github.com/russross/blackfriday/blob/master/LICENSE.txt
+- github.com/russross/blackfriday/v2
