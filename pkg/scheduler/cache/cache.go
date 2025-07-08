@@ -47,7 +47,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
-	tracker "k8s.io/dynamic-resource-allocation/resourceslice/tracker"
+	resourceslicetracker "k8s.io/dynamic-resource-allocation/resourceslice/tracker"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	kubefeatures "k8s.io/kubernetes/pkg/features"
@@ -765,18 +765,22 @@ func (sc *SchedulerCache) addEventHandler() {
 		logger := klog.FromContext(ctx)
 		resourceClaimInformer := informerFactory.Resource().V1beta1().ResourceClaims().Informer()
 		resourceClaimCache := assumecache.NewAssumeCache(logger, resourceClaimInformer, "ResourceClaim", "", nil)
-		opts := tracker.Options{
-			EnableDeviceTaints: false,
+		resourceSliceTrackerOpts := resourceslicetracker.Options{
+			EnableDeviceTaints: utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DRADeviceTaints),
 			SliceInformer:      informerFactory.Resource().V1beta1().ResourceSlices(),
-			TaintInformer:      informerFactory.Resource().V1alpha3().DeviceTaintRules(),
-			ClassInformer:      informerFactory.Resource().V1beta1().DeviceClasses(),
 			KubeClient:         sc.kubeClient,
 		}
-		claimTracker, err := tracker.StartTracker(ctx, opts)
-		if err != nil {
-			klog.V(3).Infof("Failed to start DRA tracker: %v", err)
+		// If device taints are disabled, the additional informers are not needed and
+		// the tracker turns into a simple wrapper around the slice informer.
+		if resourceSliceTrackerOpts.EnableDeviceTaints {
+			resourceSliceTrackerOpts.TaintInformer = informerFactory.Resource().V1alpha3().DeviceTaintRules()
+			resourceSliceTrackerOpts.ClassInformer = informerFactory.Resource().V1beta1().DeviceClasses()
 		}
-		sc.sharedDRAManager = dynamicresources.NewDRAManager(ctx, resourceClaimCache, claimTracker, informerFactory)
+		resourceSliceTracker, err := resourceslicetracker.StartTracker(ctx, resourceSliceTrackerOpts)
+		if err != nil {
+			klog.V(3).Infof("couldn't start resource slice tracker: %w", err)
+		}
+		sc.sharedDRAManager = dynamicresources.NewDRAManager(ctx, resourceClaimCache, resourceSliceTracker, informerFactory)
 	}
 }
 
