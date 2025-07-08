@@ -17,6 +17,9 @@ limitations under the License.
 package predicates
 
 import (
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/kubernetes/pkg/features"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +29,7 @@ import (
 )
 
 func TestSetUpVolumeBindingArgs(t *testing.T) {
-	//featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.VolumeCapacityPriority, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StorageCapacityScoring, true)
 
 	tests := []struct {
 		name     string
@@ -90,7 +93,7 @@ func TestSetUpVolumeBindingArgs(t *testing.T) {
 
 			assert.Equal(t, tt.expected.Weight, vbArgs.Weight)
 			assert.Equal(t, tt.expected.BindTimeoutSeconds, vbArgs.BindTimeoutSeconds)
-			//assert.Equal(t, tt.expected.Shape, vbArgs.Shape)
+			assert.Equal(t, tt.expected.Shape, vbArgs.Shape)
 		})
 	}
 }

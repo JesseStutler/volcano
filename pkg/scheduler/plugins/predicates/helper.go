@@ -49,11 +49,11 @@ func defaultVolumeBindingArgs() *wrapVolumeBindingArgs {
 		args.Shape = []kubeschedulerconfig.UtilizationShapePoint{
 			{
 				Utilization: 0,
-				Score:       0,
+				Score:       int32(kubeschedulerconfig.MaxCustomPriorityScore),
 			},
 			{
 				Utilization: 100,
-				Score:       int32(kubeschedulerconfig.MaxCustomPriorityScore),
+				Score:       0,
 			},
 		}
 	}
