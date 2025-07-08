@@ -81,15 +81,13 @@ type VolumeBinding struct {
 	fts         feature.Features
 }
 
-var (
-	_ framework.PreFilterPlugin   = &VolumeBinding{}
-	_ framework.FilterPlugin      = &VolumeBinding{}
-	_ framework.ReservePlugin     = &VolumeBinding{}
-	_ framework.PreBindPlugin     = &VolumeBinding{}
-	_ framework.PreScorePlugin    = &VolumeBinding{}
-	_ framework.ScorePlugin       = &VolumeBinding{}
-	_ framework.EnqueueExtensions = &VolumeBinding{}
-)
+var _ framework.PreFilterPlugin = &VolumeBinding{}
+var _ framework.FilterPlugin = &VolumeBinding{}
+var _ framework.ReservePlugin = &VolumeBinding{}
+var _ framework.PreBindPlugin = &VolumeBinding{}
+var _ framework.PreScorePlugin = &VolumeBinding{}
+var _ framework.ScorePlugin = &VolumeBinding{}
+var _ framework.EnqueueExtensions = &VolumeBinding{}
 
 // Name is the name of the plugin used in Registry and configurations.
 const Name = names.VolumeBinding
