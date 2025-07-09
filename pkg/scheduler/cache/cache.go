@@ -778,7 +778,7 @@ func (sc *SchedulerCache) addEventHandler() {
 		}
 		resourceSliceTracker, err := resourceslicetracker.StartTracker(ctx, resourceSliceTrackerOpts)
 		if err != nil {
-			klog.V(3).Infof("couldn't start resource slice tracker: %w", err)
+			klog.V(3).Infof("couldn't start resource slice tracker: %v", err)
 		}
 		sc.sharedDRAManager = dynamicresources.NewDRAManager(ctx, resourceClaimCache, resourceSliceTracker, informerFactory)
 	}
