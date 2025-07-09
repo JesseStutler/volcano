@@ -4699,6 +4699,9 @@ rules:
   - apiGroups: ["resource.k8s.io"]
     resources: ["deviceclasses","resourceslices"]
     verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["devicetaintrules"]
+    verbs: ["get", "list", "watch"]
 ---
 # Source: volcano/templates/scheduler.yaml
 kind: ClusterRoleBinding
