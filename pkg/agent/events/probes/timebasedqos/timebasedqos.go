@@ -67,8 +67,7 @@ func (t *timeBasedQoSProbe) RefreshCfg(cfg *api.ColocationConfig) error {
 
 	activePolicies := make(map[string]*api.TimeBasedQoSPolicy)
 	for _, p := range cfg.TimeBasedQoSPolicies {
-		// TODO: add validation?
-		if p.Enable {
+		if *p.Enable {
 			activePolicies[p.Name] = p
 		}
 	}

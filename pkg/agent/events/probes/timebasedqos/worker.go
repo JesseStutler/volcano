@@ -70,7 +70,7 @@ func (p *policyWorker) run() {
 				})
 			}
 		}
-	}, p.policy.CheckInterval, ctx.Done())
+	}, *p.policy.CheckInterval, ctx.Done())
 }
 
 func (p *policyWorker) stop() {
