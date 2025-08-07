@@ -17,6 +17,8 @@ limitations under the License.
 package api
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -64,6 +66,9 @@ type ColocationConfig struct {
 
 	// Evicting related config.
 	EvictingConfig *Evicting `json:"evictingConfig,omitempty" configKey:"Evicting"`
+
+	// TimeBasedQoSPolicies is a list of time based QoS policies.
+	TimeBasedQoSPolicies []*TimeBasedQoSPolicy `json:"timeBasedQoSPolicies,omitempty" configKey:"TimeBasedQoSPolicies"`
 }
 
 type CPUQos struct {
@@ -110,4 +115,24 @@ type Evicting struct {
 	EvictingCPULowWatermark *int `json:"evictingCPULowWatermark,omitempty"`
 	// EvictingMemoryLowWatermark defines the low watermark percent of memory usage when the node could recover schedule pods.
 	EvictingMemoryLowWatermark *int `json:"evictingMemoryLowWatermark,omitempty"`
+}
+
+// TODO: need to set default values for TimeBasedQoSPolicy
+type TimeBasedQoSPolicy struct {
+	// Enable indicates whether this TimeBasedQoSPolicy is enabled.
+	Enable bool `json:"enable,omitempty"`
+	// Name is the name of the TimeBasedQoSPolicy.
+	Name string `json:"name,omitempty"`
+	// StartTime is the
+	StartTime *string `json:"startTime,omitempty"`
+
+	EndTime *string `json:"endTime,omitempty"`
+
+	TimeZone *string `json:"timeZone,omitempty"`
+
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+
+	TargetQoSLevel *int `json:"targetQoSLevel,omitempty"`
+
+	CheckInterval time.Duration `json:"checkInterval,omitempty"`
 }
