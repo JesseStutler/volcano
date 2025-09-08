@@ -317,6 +317,8 @@ func validateJobUpdate(old, new *v1alpha1.Job) error {
 		}
 	}
 
+	klog.Infof("old job spec: %+v, new job spec: %+v", old.Spec, new.Spec)
+
 	if !apiequality.Semantic.DeepEqual(new.Spec, old.Spec) {
 		return fmt.Errorf("job updates may not change fields other than `minAvailable`, `tasks[*].replicas under spec` and `PriorityClassName`")
 	}
