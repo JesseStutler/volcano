@@ -63,6 +63,7 @@ func Run(opt *options.ServerOption) error {
 	// Align default feature-gates with the connected cluster's version.
 	if err := setupComponentGlobals(config); err != nil {
 		klog.Errorf("failed to set component globals: %v", err)
+		return err
 	}
 
 	if opt.PluginsDir != "" {
@@ -193,6 +194,7 @@ func setupComponentGlobals(config *restclient.Config) error {
 	}
 
 	kubeVersion := fmt.Sprintf("%s.%s", serverVersion.Major, serverVersion.Minor)
+	klog.Infof("The kubeVersion is: %s", kubeVersion)
 	kubeEffectiveVersion := basecompatibility.NewEffectiveVersionFromString(kubeVersion, "", "")
 
 	componentGlobalsRegistry := basecompatibility.NewComponentGlobalsRegistry()

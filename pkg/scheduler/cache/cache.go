@@ -767,6 +767,7 @@ func (sc *SchedulerCache) addEventHandler() {
 	})
 
 	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DynamicResourceAllocation) {
+		klog.Info("DRA resource feature gate is enabled")
 		ctx := context.TODO()
 		logger := klog.FromContext(ctx)
 		resourceClaimInformer := informerFactory.Resource().V1().ResourceClaims().Informer()
