@@ -21,28 +21,72 @@ limitations under the License.
 package framework
 
 import (
-	"time"
+	"k8s.io/klog/v2"
+	k8scache "k8s.io/kubernetes/pkg/scheduler/backend/cache"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/cache"
-	"volcano.sh/volcano/pkg/scheduler/metrics"
+	"volcano.sh/volcano/pkg/scheduler/conf"
+	k8sutil "volcano.sh/volcano/pkg/scheduler/plugins/util/k8s"
 )
 
-// StartSchedulingCycle start a scheduling cycle
-func StartSchedulingCycle(cache cache.Cache, plugins map[string]Plugin) *ScheduleCycle {
-	sc := startSchedulingCycle(cache, plugins)
-	for _, plugin := range plugins {
-		plugin.OnSchedulingStart(sc)
-	}
-	return sc
+// Framework manages the scheduler plugins and their execution points.
+type Framework struct {
+	*k8sutil.Framework // Embedding Framework to implement framework.Handle interface
+
+	plugins map[string]Plugin
+	Tiers   []conf.Tier
+
+	// Function registries
+	PredicateFns      map[string]api.PredicateFn
+	PrePredicateFns   map[string]api.PrePredicateFn
+	NodeOrderFns      map[string]api.NodeOrderFn
+	BatchNodeOrderFns map[string]api.BatchNodeOrderFn
+	NodeMapFns        map[string]api.NodeMapFn
+	NodeReduceFns     map[string]api.NodeReduceFn
+
+	Cache cache.Cache // TODO: need to replace to agent scheduler's own cache
 }
 
-// EndchedulingCycle end the scheduling cycle
-func EndSchedulingCycle(sc *ScheduleCycle) {
-	for _, plugin := range sc.plugins {
-		onSessionCloseStart := time.Now()
-		plugin.OnSchedulingEnd(sc)
-		metrics.UpdatePluginDuration(plugin.Name(), metrics.OnSessionClose, metrics.Duration(onSessionCloseStart))
+var _ framework.Handle = &Framework{}
+
+// NewFramework initializes the framework with the given plugins.
+func NewFramework(tiers []conf.Tier, cache cache.Cache) *Framework {
+	utilFwk := k8sutil.NewFramework(
+		nil, // fast path scheduler needs to use snapshot shared lister instead
+		k8sutil.WithSnapshotSharedLister(k8scache.NewEmptySnapshot()), // TODO: may need to use to volcano scheduler's own snapshot?
+		k8sutil.WithSharedDRAManager(cache.SharedDRAManager()),
+		k8sutil.WithClientSet(cache.Client()),
+		k8sutil.WithInformerFactory(cache.SharedInformerFactory()),
+	)
+
+	fwk := &Framework{
+		plugins:           make(map[string]Plugin),
+		Tiers:             tiers,
+		PredicateFns:      make(map[string]api.PredicateFn),
+		PrePredicateFns:   make(map[string]api.PrePredicateFn),
+		NodeOrderFns:      make(map[string]api.NodeOrderFn),
+		BatchNodeOrderFns: make(map[string]api.BatchNodeOrderFn),
+		NodeMapFns:        make(map[string]api.NodeMapFn),
+		NodeReduceFns:     make(map[string]api.NodeReduceFn),
+
+		Cache: cache,
+
+		Framework: utilFwk,
 	}
 
-	// endSchedulingCycle(ssn)
+	for _, tier := range tiers {
+		for _, pluginConf := range tier.Plugins {
+			if pb, found := GetPluginBuilder(pluginConf.Name); !found {
+				klog.Errorf("Failed to get plugin %s.", pluginConf.Name)
+			} else {
+				plugin := pb(pluginConf.Arguments)
+				fwk.plugins[plugin.Name()] = plugin
+				plugin.OnSchedulingStart(fwk)
+			}
+		}
+	}
+
+	return fwk
 }

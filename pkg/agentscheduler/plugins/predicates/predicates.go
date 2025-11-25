@@ -1,12 +1,9 @@
 package predicates
 
 import (
-	"maps"
-	"slices"
-
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/agentscheduler/framework"
-	"volcano.sh/volcano/pkg/scheduler/cache"
+	"volcano.sh/volcano/pkg/scheduler/api"
 	vfwk "volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/plugins/predicates"
 )
@@ -17,39 +14,50 @@ const (
 )
 
 type predicatesPlugin struct {
-	plugin *predicates.PredicatesPlugin
+	*predicates.PredicatesPlugin
 }
 
 func New(arguments vfwk.Arguments) framework.Plugin {
-	return &predicatesPlugin{plugin: predicates.New(arguments).(*predicates.PredicatesPlugin)}
+	plugin := predicates.New(arguments).(*predicates.PredicatesPlugin)
+
+	return &predicatesPlugin{
+		PredicatesPlugin: plugin,
+	}
 }
 
 func (pp *predicatesPlugin) Name() string {
 	return PluginName
 }
 
-// Register plugin to framework
-func (pp *predicatesPlugin) Register() {
-	// s := framework.SchedulePluginRegistry{}
-	// s.AddPrePredicateFn(ppa.plugin.GetPredicateFn(nodeMap map[string]fwk.NodeInfo, plugins map[string]k8sframework.FilterPlugin, predicate predicateEnable, pCache *predicateCache)))
+func (pp *predicatesPlugin) OnSchedulingStart(fwk *framework.Framework) {
+	pp.PredicatesPlugin.InitPlugin()
+
+	contextProvider := func(t *api.TaskInfo) (*k8sframework.CycleState, []k8sframework.NodeInfo) {
+		return state, nil // Node list is not needed for PredicateFn
+	}
+	fwk.AddPrePredicateFn(PluginName, pp.PredicatesPlugin.GetPrePredicateFn())
+	fwk.AddPredicateFn(PluginName, pp.PredicatesPlugin.GetPredicateFn())
 }
 
-func (pp *predicatesPlugin) OnSchedulingStart(sc *framework.ScheduleCycle) {
-	pluginState := &predicates.PredicatesPluginState{}
-	pluginState.NodeMap = sc.NodeMap
-	pluginState.NodeInfoList = slices.Collect(maps.Values(sc.NodeMap))
-	pluginState.KubeClient = sc.KubeClient()
-	pluginState.InformerFactory = sc.InformerFactory()
-	pluginState.SharedDRAManager = sc.SharedDRAManager()
-	pluginState.GetCycleState = sc.GetCycleState
-	pp.plugin.InitPluginState(pluginState)
+func (pp *predicatesPlugin) PrePredicate(task *api.TaskInfo, state *k8sframework.CycleState, nodeInfoList []k8sframework.NodeInfo) error {
+	contextProvider := func(t *api.TaskInfo) (*k8sframework.CycleState, []k8sframework.NodeInfo) {
+		return state, nodeInfoList
+	}
 
-	sc.AddPrePredicateFn(PluginName, pp.plugin.GetPrePredicateFn(pluginState))
-	sc.AddPredicateFn(PluginName, pp.plugin.GetPredicateFn(pluginState))
+	prePredicateFn := pp.PredicatesPlugin.GetPrePredicateFn(contextProvider)
+	return prePredicateFn(task)
 }
 
-func (pp *predicatesPlugin) OnSchedulingEnd(sc *framework.ScheduleCycle) {}
+func (pp *predicatesPlugin) Predicate(task *api.TaskInfo, node *api.NodeInfo, state *k8sframework.CycleState) error {
+	contextProvider := func(t *api.TaskInfo) (*k8sframework.CycleState, []k8sframework.NodeInfo) {
+		return state, nil // Node list is not needed for PredicateFn
+	}
 
-func (pp *predicatesPlugin) SetupBindContextExtension(state *k8sframework.CycleState, bindCtx *cache.BindContext) {
-	pp.plugin.SetupBindContextExtension(state, bindCtx)
+	// Get the actual predicate function and execute it.
+	predicateFn := pp.PredicatesPlugin.GetPredicateFn(contextProvider)
+	return predicateFn(task, node)
+}
+
+// OnSchedulingEnd is called when a schedule cycle end
+func (pp *predicatesPlugin) OnSchedulingEnd(fwk *framework.Framework) {
 }
