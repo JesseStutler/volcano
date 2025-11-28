@@ -81,14 +81,14 @@ type Cache interface {
 	// SharedDRAManager returns the shared DRAManager
 	SharedDRAManager() framework.SharedDRAManager
 
-	// EnqueueScheduleResult enqueue schedule result for bind check
-	EnqueueScheduleResult(result *PodScheduleResult)
-
 	// UpdateSnapshot is used to update the passed-in snapshot to ensure consistency between the cache's nodeinfo and the snapshot.
 	UpdateSnapshot(snapshot *k8sutil.Snapshot) error
 
 	// TaskUnschedulable update pod unschedulable status
 	TaskUnschedulable(task *api.TaskInfo, reason, message string) error
+
+	// EnqueueScheduleResult put result into binder check queue
+	EnqueueScheduleResult(result *PodScheduleResult)
 }
 
 // Binder interface for binding task and hostname

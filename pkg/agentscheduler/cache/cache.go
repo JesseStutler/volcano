@@ -29,7 +29,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -59,7 +58,6 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 	schedulingapi "volcano.sh/volcano/pkg/scheduler/api"
 	vcache "volcano.sh/volcano/pkg/scheduler/cache"
-	"volcano.sh/volcano/pkg/scheduler/metrics"
 	k8sutil "volcano.sh/volcano/pkg/scheduler/plugins/util/k8s"
 	commonutil "volcano.sh/volcano/pkg/util"
 )
@@ -77,13 +75,6 @@ var _ Cache = &SchedulerCache{}
 // New returns a Cache implementation.
 func New(config *rest.Config, schedulerNames []string, defaultQueue string, nodeSelectors []string, nodeWorkers uint32, ignoredProvisioners []string, resyncPeriod time.Duration) Cache {
 	return newSchedulerCache(config, schedulerNames, defaultQueue, nodeSelectors, nodeWorkers, ignoredProvisioners, resyncPeriod)
-}
-
-type PodScheduleResult struct {
-	Task             *api.TaskInfo
-	BindContext      *vcache.BindContext
-	SuggestedNodes   []*api.NodeInfo
-	ScheduleCycleUID types.UID
 }
 
 // SchedulerCache cache for the kube batch
@@ -137,8 +128,7 @@ type SchedulerCache struct {
 	// sharedDRAManager is used in DRA plugin, contains resourceClaimTracker, resourceSliceLister and deviceClassLister
 	sharedDRAManager k8sframework.SharedDRAManager
 
-	// BindCheckChannel is used to store allocate result for bind
-	BindCheckChannel chan *PodScheduleResult
+	ConflictAwareBinder *ConflictAwareBinder
 }
 
 type multiSchedulerInfo struct {
@@ -271,10 +261,6 @@ func podConditionHaveUpdate(status *v1.PodStatus, condition *v1.PodCondition) bo
 	return !isEqual
 }
 
-func podNominatedNodeNameNeedUpdate(status *v1.PodStatus, nodeName string) bool {
-	return status.NominatedNodeName != nodeName
-}
-
 // UpdatePodStatus will Update pod status
 func (su *defaultStatusUpdater) UpdatePodStatus(pod *v1.Pod) (*v1.Pod, error) {
 	return su.kubeclient.CoreV1().Pods(pod.Namespace).UpdateStatus(context.TODO(), pod, metav1.UpdateOptions{})
@@ -379,6 +365,8 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 
 	// add all events handlers
 	sc.addEventHandler()
+
+	sc.ConflictAwareBinder = NewConflictAwareBinder(sc.AddBindTask)
 	return sc
 }
 
@@ -509,8 +497,7 @@ func (sc *SchedulerCache) Run(stopCh <-chan struct{}) {
 
 	go wait.Until(sc.processBindTask, time.Millisecond*20, stopCh)
 
-	go wait.Until(sc.processScheduleResult, time.Millisecond*20, stopCh)
-
+	sc.ConflictAwareBinder.Run(stopCh)
 }
 
 // WaitForCacheSync sync the cache with the api server
@@ -800,6 +787,8 @@ func (sc *SchedulerCache) AddBindTask(bindContext *vcache.BindContext) error {
 		}
 		return err
 	}
+	// bind generation after task is added to node, so next allocation on this node in newer generation must aware of this task
+	node.NextBindGeneration()
 
 	sc.BindFlowChannel <- bindContext
 
@@ -1003,52 +992,12 @@ func (sc *SchedulerCache) RegisterBinder(name string, binder interface{}) {
 	sc.binderRegistry.Register(name, binder)
 }
 
-func (sc *SchedulerCache) processScheduleResult() {
-	for {
-		select {
-		case scheduleResult, ok := <-sc.BindCheckChannel:
-			if !ok {
-				return
-			}
-			sc.CheckAndBindPod(scheduleResult)
-		default:
-		}
-		if len(sc.BindCheckChannel) == 0 {
-			break
-		}
-	}
-}
-
-func (sc *SchedulerCache) EnqueueScheduleResult(scheduleResult *PodScheduleResult) {
-	sc.BindCheckChannel <- scheduleResult
-}
-
-// CheckAndBindPod check the pod schedule result, send pod for binding if no conflict. Put pod back to schedule queue if there is conflict
-func (sc *SchedulerCache) CheckAndBindPod(scheduleResult *PodScheduleResult) {
-	//1. Check confilct
-	conflict := sc.CheckConflict(scheduleResult)
-
-	//2. Bind pod if no conflict
-	if !conflict {
-		task := scheduleResult.Task
-		if err := sc.AddBindTask(scheduleResult.BindContext); err != nil {
-			//TODO: Put pod back to queue if conflic
-			return
-		}
-		metrics.UpdateTaskScheduleDuration(metrics.Duration(task.Pod.CreationTimestamp.Time))
-		return
-	}
-
-	//TODO: 3. Put pod back to queue if conflic
-}
-
-func (sc *SchedulerCache) CheckConflict(scheduleResult *PodScheduleResult) bool {
-	//TODO: Check confilct based on version in candidate nodes
-	return false
-}
-
 // TODO: refer to UpdateTaskStatus
 func (sc *SchedulerCache) UpdateTaskStatus(task *api.TaskInfo, status api.TaskStatus) error {
 	task.Status = status
 	return nil
+}
+
+func (sc *SchedulerCache) EnqueueScheduleResult(scheduleResult *PodScheduleResult) {
+	sc.ConflictAwareBinder.EnqueueScheduleResult(scheduleResult)
 }
