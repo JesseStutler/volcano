@@ -233,6 +233,7 @@ func (ni *NodeInfo) Clone() *NodeInfo {
 
 	res.Others = ni.CloneOthers()
 	res.ImageStates = ni.CloneImageSummary()
+	res.BindGeneration = ni.BindGeneration
 	return res
 }
 
