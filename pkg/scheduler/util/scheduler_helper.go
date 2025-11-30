@@ -227,7 +227,7 @@ func SelectBestNodesAndScores(nodeScores map[float64][]*api.NodeInfo, count int)
 	sort.Sort(sort.Reverse(sort.Float64Slice(allScores)))
 
 	selecteNodeCount := 0
-	for _, score := range scores {
+	for _, score := range allScores {
 		nodes := nodeScores[score]
 		if len(nodes)+selecteNodeCount > count {
 			rand.Shuffle(len(nodes), func(i, j int) {
