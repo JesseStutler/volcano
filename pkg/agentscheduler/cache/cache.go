@@ -401,7 +401,7 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 	// add all events handlers
 	sc.addEventHandler()
 
-	sc.ConflictAwareBinder = NewConflictAwareBinder(sc.AddBindTask)
+	sc.ConflictAwareBinder = NewConflictAwareBinder(sc)
 
 	sc.schedulingQueue = k8sschedulingqueue.NewSchedulingQueue(
 		Less,
