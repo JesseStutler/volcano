@@ -128,12 +128,12 @@ func (worker *Worker) runOnce(index uint32) {
 		conf.EnabledActionMap[action.Name()] = true
 	}
 
-	task, err := worker.nextTask()
+	schedCtx, err := worker.generateSchedulingContext()
 	if err != nil {
 		klog.Errorf("Failed to get next task: %v", err)
 		return
 	}
-	if task == nil {
+	if schedCtx == nil {
 		klog.Warningf("No task to schedule")
 		return
 	}
@@ -157,12 +157,13 @@ func (worker *Worker) runOnce(index uint32) {
 
 	for _, action := range worker.framework.Actions {
 		actionStartTime := time.Now()
-		action.Execute(worker.framework, task)
+		action.Execute(worker.framework, schedCtx)
 		metrics.UpdateActionDuration(action.Name(), metrics.Duration(actionStartTime))
 	}
 }
 
-func (worker *Worker) nextTask() (*schedulingapi.TaskInfo, error) {
+// generateSchedulingContext generates a new scheduling context for the next task to be scheduled.
+func (worker *Worker) generateSchedulingContext() (*framework.SchedulingContext, error) {
 	if worker.framework == nil {
 		return nil, fmt.Errorf("framework is not initialized")
 	}
@@ -186,7 +187,10 @@ func (worker *Worker) nextTask() (*schedulingapi.TaskInfo, error) {
 		return nil, nil
 	}
 
-	return task, nil
+	return &framework.SchedulingContext{
+		Task:          task,
+		QueuedPodInfo: podInfo,
+	}, nil
 }
 
 func (sched *Scheduler) loadSchedulerConf() {
