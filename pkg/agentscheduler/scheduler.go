@@ -33,12 +33,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
-	schedulingapi "volcano.sh/volcano/pkg/scheduler/api"
 
 	"volcano.sh/volcano/cmd/agent-scheduler/app/options"
 	schedcache "volcano.sh/volcano/pkg/agentscheduler/cache"
 	"volcano.sh/volcano/pkg/agentscheduler/framework"
 	"volcano.sh/volcano/pkg/filewatcher"
+	schedulingapi "volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/conf"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
 )
