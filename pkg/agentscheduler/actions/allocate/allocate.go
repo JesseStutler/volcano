@@ -90,11 +90,9 @@ func (alloc *Action) allocateTask(task *api.TaskInfo) error {
 
 	predicatedNodes, err := alloc.predicateFeasibleNodes(task, nodes)
 	if err != nil {
-		err = fmt.Errorf("predicate failed for task %s/%s: %w", task.Namespace, task.Name, err)
 		klog.ErrorS(err, "Predicate failed", "task", klog.KRef(task.Namespace, task.Name))
 		return err
 	}
-
 	bestNodes := alloc.prioritizeNodes(task, predicatedNodes)
 	result := &cache.PodScheduleResult{
 		SuggestedNodes: bestNodes,

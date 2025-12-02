@@ -340,8 +340,6 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 	// add all events handlers
 	sc.addEventHandler()
 
-	sc.ConflictAwareBinder = NewConflictAwareBinder(sc)
-
 	sc.schedulingQueue = k8sschedulingqueue.NewSchedulingQueue(
 		Less,
 		sc.informerFactory,
@@ -350,6 +348,8 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 		k8sschedulingqueue.WithPodMaxBackoffDuration(time.Duration(defaultSchedulerOptions.podMaxBackoffSeconds)*time.Second),
 		k8sschedulingqueue.WithPodMaxInUnschedulablePodsDuration(defaultSchedulerOptions.podMaxInUnschedulablePodsDuration),
 	)
+
+	sc.ConflictAwareBinder = NewConflictAwareBinder(sc, sc.schedulingQueue)
 
 	return sc
 }

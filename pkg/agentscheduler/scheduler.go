@@ -128,7 +128,7 @@ func (worker *Worker) runOnce(index uint32) {
 		conf.EnabledActionMap[action.Name()] = true
 	}
 
-	schedCtx, err := worker.generateSchedulingContext()
+	schedCtx, err := worker.generateNextSchedulingContext()
 	if err != nil {
 		klog.Errorf("Failed to get next task: %v", err)
 		return
@@ -162,8 +162,8 @@ func (worker *Worker) runOnce(index uint32) {
 	}
 }
 
-// generateSchedulingContext generates a new scheduling context for the next task to be scheduled.
-func (worker *Worker) generateSchedulingContext() (*framework.SchedulingContext, error) {
+// generateNextSchedulingContext generates a new scheduling context for the next task to be scheduled.
+func (worker *Worker) generateNextSchedulingContext() (*framework.SchedulingContext, error) {
 	if worker.framework == nil {
 		return nil, fmt.Errorf("framework is not initialized")
 	}
