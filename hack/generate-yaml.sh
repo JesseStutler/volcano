@@ -146,6 +146,7 @@ fi
 
 # Namespace
 cat ${VK_ROOT}/installer/namespace.yaml > ${DEPLOYMENT_FILE}
+cat ${VK_ROOT}/installer/namespace.yaml > ${AGENT_SCHEDULER_DEPLOYMENT_YAML_FILENAME}
 
 # Volcano
 HELM_CMD="${HELM_BIN_DIR}/helm template ${VK_ROOT}/installer/helm/chart/volcano --namespace volcano-system \
