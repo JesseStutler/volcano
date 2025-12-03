@@ -27,7 +27,7 @@ export RELEASE_FOLDER=${VK_ROOT}/${RELEASE_DIR}
 export HELM_VER=${HELM_VER:-v3.6.3}
 export VOLCANO_IMAGE_TAG=${TAG:-"latest"}
 export YAML_FILENAME=volcano-${VOLCANO_IMAGE_TAG}.yaml
-export AGENT_SCHEDULER_YAML_FILENAME=agent-scheduler-${VOLCANO_IMAGE_TAG}.yaml
+export AGENT_SCHEDULER_YAML_FILENAME=volcano-agent-scheduler-${VOLCANO_IMAGE_TAG}.yaml
 export MONITOR_YAML_FILENAME=volcano-monitoring-${VOLCANO_IMAGE_TAG}.yaml
 export AGENT_YAML_FILENAME=volcano-agent-${VOLCANO_IMAGE_TAG}.yaml
 
