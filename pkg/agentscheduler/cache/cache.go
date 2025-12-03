@@ -516,8 +516,10 @@ func (sc *SchedulerCache) Run(stopCh <-chan struct{}) {
 
 	sc.ConflictAwareBinder.Run(stopCh)
 
-	<-stopCh
-	sc.cancel() // cancel other goroutines such as metricsRecorder
+	go func() {
+		<-stopCh
+		sc.cancel() // cancel other goroutines such as metricsRecorder
+	}()
 }
 
 // WaitForCacheSync sync the cache with the api server
