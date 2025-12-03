@@ -72,16 +72,18 @@ func NewFramework(actions []Action, tiers []conf.Tier, cache cache.Cache, config
 	)
 
 	fwk := &Framework{
-		Plugins:           make(map[string]Plugin),
-		Actions:           actions,
-		Tiers:             tiers,
-		Configurations:    configurations,
-		PredicateFns:      make(map[string]api.PredicateFn),
-		PrePredicateFns:   make(map[string]api.PrePredicateFn),
-		NodeOrderFns:      make(map[string]api.NodeOrderFn),
-		BatchNodeOrderFns: make(map[string]api.BatchNodeOrderFn),
-		NodeMapFns:        make(map[string]api.NodeMapFn),
-		NodeReduceFns:     make(map[string]api.NodeReduceFn),
+		Plugins:               make(map[string]Plugin),
+		Actions:               actions,
+		Tiers:                 tiers,
+		Configurations:        configurations,
+		PredicateFns:          make(map[string]api.PredicateFn),
+		PrePredicateFns:       make(map[string]api.PrePredicateFn),
+		NodeOrderFns:          make(map[string]api.NodeOrderFn),
+		BatchNodeOrderFns:     make(map[string]api.BatchNodeOrderFn),
+		NodeMapFns:            make(map[string]api.NodeMapFn),
+		NodeReduceFns:         make(map[string]api.NodeReduceFn),
+		PrePredicateFailedFns: sets.New[string](),
+		PredicateFailedFns:    sets.New[string](),
 
 		Cache: cache,
 
