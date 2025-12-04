@@ -540,11 +540,16 @@ func (sc *SchedulerCache) Run(stopCh <-chan struct{}) {
 
 	go wait.Until(sc.processBindTask, time.Millisecond*20, stopCh)
 
+	ctx := context.TODO()
+	logger := klog.FromContext(ctx)
+	sc.schedulingQueue.Run(logger)
+
 	sc.ConflictAwareBinder.Run(stopCh)
 
 	go func() {
 		<-stopCh
 		sc.cancel() // cancel other goroutines such as metricsRecorder
+		sc.schedulingQueue.Close()
 	}()
 }
 
