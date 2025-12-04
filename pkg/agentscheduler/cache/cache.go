@@ -345,10 +345,15 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 	// add all events handlers
 	sc.addEventHandler()
 
+	// init scheduling queue
 	ctx, cancel := context.WithCancel(context.Background())
 	metricsRecorder := k8smetrics.NewMetricsAsyncRecorder(1000, time.Second, ctx.Done())
 	sc.cancel = cancel
 
+	queueingHintMapPerProfile := make(k8sschedulingqueue.QueueingHintMapPerProfile)
+	for _, schedulerName := range sc.schedulerNames {
+		queueingHintMapPerProfile[schedulerName] = buildQueueingHintMap()
+	}
 	sc.schedulingQueue = k8sschedulingqueue.NewSchedulingQueue(
 		Less,
 		sc.informerFactory,
@@ -357,11 +362,32 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 		k8sschedulingqueue.WithPodMaxBackoffDuration(time.Duration(defaultSchedulerOptions.podMaxBackoffSeconds)*time.Second),
 		k8sschedulingqueue.WithPodMaxInUnschedulablePodsDuration(defaultSchedulerOptions.podMaxInUnschedulablePodsDuration),
 		k8sschedulingqueue.WithMetricsRecorder(metricsRecorder),
+		k8sschedulingqueue.WithQueueingHintMapPerProfile(queueingHintMapPerProfile),
 	)
 
 	sc.ConflictAwareBinder = NewConflictAwareBinder(sc, sc.schedulingQueue)
 
 	return sc
+}
+
+// defaultQueueingHintFn is the default queueing hint function.
+// It always returns Queue as the queueing hint.
+var defaultQueueingHintFn = func(_ klog.Logger, _ *v1.Pod, _, _ interface{}) (fwk.QueueingHint, error) {
+	return fwk.Queue, nil
+}
+
+// buildQueueingHintMap builds the queueing hint map for the scheduling queue.
+func buildQueueingHintMap() k8sschedulingqueue.QueueingHintMap {
+	queueingHintMap := make(k8sschedulingqueue.QueueingHintMap)
+
+	// Currently, we only register a wild card event with the default queueing hint function.
+	// TODO: Support more specific events and queueing hint functions.
+	wildCardEvent := fwk.ClusterEvent{Resource: fwk.WildCard, ActionType: fwk.All}
+	queueingHintMap[wildCardEvent] = append(queueingHintMap[wildCardEvent], &k8sschedulingqueue.QueueingHintFunction{
+		QueueingHintFn: defaultQueueingHintFn,
+	})
+
+	return queueingHintMap
 }
 
 func (sc *SchedulerCache) addEventHandler() {
