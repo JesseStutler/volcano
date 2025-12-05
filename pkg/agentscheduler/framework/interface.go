@@ -18,7 +18,7 @@ package framework
 
 import (
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
-	
+
 	agentapi "volcano.sh/volcano/pkg/agentscheduler/api"
 )
 
