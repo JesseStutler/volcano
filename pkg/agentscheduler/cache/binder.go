@@ -116,6 +116,8 @@ func (binder *ConflictAwareBinder) CheckAndBindPod(scheduleResult *agentapi.PodS
 		binder.requeuePodWithPriority(task, SchedulingPriorityUrgent, RequeueReasonBindTaskFailure)
 		return
 	}
+
+	binder.schedulingQueue.Done(task.Pod.UID) // Mark previous processing as done to clean in-flight records, avoid memory leak
 	binder.recordsMutex.Lock()
 	defer binder.recordsMutex.Unlock()
 	binder.nodeBindRecords[node.Name] = nodeBindGeneration
