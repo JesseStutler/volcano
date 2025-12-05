@@ -55,6 +55,7 @@ import (
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
 	"volcano.sh/apis/pkg/client/clientset/versioned/scheme"
 	vcinformer "volcano.sh/apis/pkg/client/informers/externalversions"
+	"volcano.sh/volcano/cmd/scheduler/app/options"
 	agentapi "volcano.sh/volcano/pkg/agentscheduler/api"
 	"volcano.sh/volcano/pkg/features"
 	"volcano.sh/volcano/pkg/scheduler/api"
@@ -409,6 +410,16 @@ func (sc *SchedulerCache) addEventHandler() {
 	// `PodDisruptionBudgets` informer is used by `Pdb` plugin
 	if utilfeature.DefaultFeatureGate.Enabled(features.PodDisruptionBudgetsSupport) {
 		informerFactory.Policy().V1().PodDisruptionBudgets().Informer()
+	}
+
+	// Register storage releated informers
+	informerFactory.Core().V1().PersistentVolumeClaims().Informer()
+	informerFactory.Core().V1().PersistentVolumes().Informer()
+	informerFactory.Storage().V1().StorageClasses().Informer()
+	informerFactory.Storage().V1().CSINodes().Informer()
+	if options.ServerOpts.EnableCSIStorage {
+		informerFactory.Storage().V1().CSIDrivers().Informer()
+		informerFactory.Storage().V1beta1().CSIStorageCapacities().Informer()
 	}
 
 	// create informer for node information
