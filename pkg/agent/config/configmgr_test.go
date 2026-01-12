@@ -114,9 +114,15 @@ var agentPod = &v1.Pod{
 
 func defaultCfg() *api.VolcanoAgentConfig {
 	return &api.VolcanoAgentConfig{GlobalConfig: &api.ColocationConfig{
-		CPUBurstConfig: &api.CPUBurst{Enable: utilpointer.Bool(true)},
+		NodeLabelConfig: &api.NodeLabelConfig{
+			NodeColocationEnable:       utilpointer.Bool(true),
+			NodeOverSubscriptionEnable: utilpointer.Bool(false),
+		},
+		CPUQosConfig:    &api.CPUQos{Enable: utilpointer.Bool(false)},
+		CPUBurstConfig:  &api.CPUBurst{Enable: utilpointer.Bool(false)},
+		MemoryQosConfig: &api.MemoryQos{Enable: utilpointer.Bool(false)},
 		NetworkQosConfig: &api.NetworkQos{
-			Enable:                          utilpointer.Bool(true),
+			Enable:                          utilpointer.Bool(false),
 			OnlineBandwidthWatermarkPercent: utilpointer.Int(utils.DefaultOnlineBandwidthWatermarkPercent),
 			OfflineLowBandwidthPercent:      utilpointer.Int(utils.DefaultOfflineLowBandwidthPercent),
 			OfflineHighBandwidthPercent:     utilpointer.Int(utils.DefaultOfflineHighBandwidthPercent),
