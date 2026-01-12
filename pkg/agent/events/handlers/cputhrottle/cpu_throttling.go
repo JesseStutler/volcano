@@ -10,7 +10,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
-	"volcano.sh/volcano/pkg/agent/config/api"
 	"volcano.sh/volcano/pkg/agent/events/framework"
 	"volcano.sh/volcano/pkg/agent/events/handlers"
 	"volcano.sh/volcano/pkg/agent/events/handlers/base"
@@ -123,34 +122,4 @@ func (h *CPUThrottleHandler) writeBEQuota(quota int64) (string, error) {
 	}
 
 	return filePath, nil
-}
-
-func (h *CPUThrottleHandler) RefreshCfg(cfg *api.ColocationConfig) error {
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	isActive, err := features.DefaultFeatureGate.Enabled(features.CPUThrottleFeature, cfg)
-	if err != nil {
-		return err
-	}
-
-	if !isActive {
-		klog.InfoS("CPU throttle feature disabled, recovering all throttled pods")
-		return h.recoverAllThrottledPods()
-	}
-
-	return nil
-}
-
-func (h *CPUThrottleHandler) recoverAllThrottledPods() error {
-	if !h.throttlingActive {
-		return nil
-	}
-
-	if err := h.applyBEQuota(unlimitedQuota); err != nil {
-		return err
-	}
-
-	klog.InfoS("Recovered BE root CPU quota due to feature disable")
-	return nil
 }

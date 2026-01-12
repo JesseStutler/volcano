@@ -85,6 +85,12 @@ func (f *featureGate) Enabled(key Feature, c *api.ColocationConfig) (bool, error
 	case EvictionFeature, ResourcesFeature:
 		// Always return true because eviction manager need take care of all nodes.
 		return true, nil
+	case CPUThrottleFeature:
+		if c.CPUThrottlingConfig == nil || c.CPUThrottlingConfig.Enable == nil {
+			return false, fmt.Errorf("nil cpu throttling config")
+		}
+		// only when node overSubscription is enabled, cpu throttling can be enabled
+		return nodeOverSubscriptionEnabled && *c.CPUThrottlingConfig.Enable, nil
 	default:
 		return false, fmt.Errorf("unsupported feature %s", string(key))
 	}

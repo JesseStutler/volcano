@@ -252,23 +252,12 @@ func (m *monitor) detectCPUThrottling() {
 		availableBEMilli = 0
 	}
 
-	// CPU throttling is applied when the available quota of Best Effort pods is less
-	// than 10% of the throttling threshold
-	if availableBEMilli < allowedMilli/10 {
-		event := framework.NodeCPUThrottleEvent{
-			TimeStamp:     time.Now(),
-			Resource:      v1.ResourceCPU,
-			CPUQuotaMilli: availableBEMilli,
-		}
-		m.queue.Add(event)
-	} else {
-		event := framework.NodeCPUThrottleEvent{
-			TimeStamp:     time.Now(),
-			Resource:      v1.ResourceCPU,
-			CPUQuotaMilli: unlimitedQuota,
-		}
-		m.queue.Add(event)
+	event := framework.NodeCPUThrottleEvent{
+		TimeStamp:     time.Now(),
+		Resource:      v1.ResourceCPU,
+		CPUQuotaMilli: availableBEMilli,
 	}
+	m.queue.Add(event)
 }
 
 func getPodCPURequestMilli(pod *v1.Pod) int64 {
