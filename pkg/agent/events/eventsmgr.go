@@ -59,9 +59,8 @@ func NewEventManager(config *config.Configuration, metricCollectManager *metricc
 	}
 
 	for eventName, newProbeFuncs := range probes.GetEventProbeFuncs() {
-		eventQueue := mgr.eventQueueFactory.EventQueue(eventName)
 		for _, newProbeFunc := range newProbeFuncs {
-			prob := newProbeFunc(config, metricCollectManager, eventQueue.GetQueue())
+			prob := newProbeFunc(config, metricCollectManager, mgr.eventQueueFactory)
 			klog.InfoS("Registering event probe", "eventName", eventName, "probeName", prob.ProbeName())
 			mgr.eventQueueFactory.RegistryEventProbe(eventName, prob)
 		}

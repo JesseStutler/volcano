@@ -22,7 +22,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
 	"volcano.sh/volcano/pkg/agent/apis"
@@ -54,10 +53,10 @@ type monitor struct {
 	sync.Mutex
 	*config.Configuration
 	policy.Interface
-	cfgLock       sync.RWMutex
-	queue         workqueue.RateLimitingInterface
-	lowWatermark  apis.Watermark
-	highWatermark apis.Watermark
+	cfgLock           sync.RWMutex
+	eventQueueFactory *framework.EventQueueFactory
+	lowWatermark      apis.Watermark
+	highWatermark     apis.Watermark
 	// highUsageCountByResName is used to record whether resources usage are high.
 	highUsageCountByResName map[v1.ResourceName]int
 	getNodeFunc             utilnode.ActiveNode
@@ -68,11 +67,11 @@ type monitor struct {
 	cpuThrottlingActive     bool
 }
 
-func NewMonitor(config *config.Configuration, mgr *metriccollect.MetricCollectorManager, workQueue workqueue.RateLimitingInterface) framework.Probe {
+func NewMonitor(config *config.Configuration, mgr *metriccollect.MetricCollectorManager, eventQueueFactory *framework.EventQueueFactory) framework.Probe {
 	evictor := eviction.NewEviction(config.GenericConfiguration.KubeClient, config.GenericConfiguration.KubeNodeName)
 	return &monitor{
 		Interface:               policy.GetPolicyFunc(config.GenericConfiguration.OverSubscriptionPolicy)(config, mgr, evictor, queue.NewSqQueue(), local.CollectorName),
-		queue:                   workQueue,
+		eventQueueFactory:       eventQueueFactory,
 		getNodeFunc:             config.GetNode,
 		getPodsFunc:             config.GetActivePods,
 		lowWatermark:            make(apis.Watermark),
@@ -157,7 +156,8 @@ func (m *monitor) detect() {
 				Resource:  res,
 			}
 			klog.InfoS("Node pressure detected", "resource", res, "time", event.TimeStamp)
-			m.queue.Add(event)
+			eventQueue := m.eventQueueFactory.EventQueue(string(framework.NodeMonitorEventName)).GetQueue()
+			eventQueue.Add(event)
 		}
 
 		usage := m.usageGetter.UsagesByPercentage(nodeCopy)
@@ -232,6 +232,7 @@ func (m *monitor) detectCPUThrottling(node *v1.Node) {
 		"protectionWatermark", protectionWatermark,
 		"active", m.cpuThrottlingActive)
 
+	eventQueue := m.eventQueueFactory.EventQueue(string(framework.NodeCPUThrottleEventName)).GetQueue()
 	// 启动限流：CPU使用率超过阈值且当前未激活限流
 	if !m.cpuThrottlingActive && cpuUsage >= int64(throttlingThreshold) {
 		m.cpuThrottlingActive = true
@@ -241,7 +242,7 @@ func (m *monitor) detectCPUThrottling(node *v1.Node) {
 			Action:    "start",
 			Usage:     cpuUsage,
 		}
-		m.queue.Add(event)
+		eventQueue.Add(event)
 		klog.InfoS("CPU throttling started",
 			"usage", cpuUsage,
 			"throttlingThreshold", throttlingThreshold)
@@ -256,7 +257,7 @@ func (m *monitor) detectCPUThrottling(node *v1.Node) {
 			Action:    "continue", // 新增continue动作
 			Usage:     cpuUsage,
 		}
-		m.queue.Add(event)
+		eventQueue.Add(event)
 		klog.V(2).InfoS("CPU throttling continued",
 			"usage", cpuUsage,
 			"throttlingThreshold", throttlingThreshold)
@@ -271,7 +272,7 @@ func (m *monitor) detectCPUThrottling(node *v1.Node) {
 			Action:    "stop",
 			Usage:     cpuUsage,
 		}
-		m.queue.Add(event)
+		eventQueue.Add(event)
 		klog.InfoS("CPU throttling stopped",
 			"usage", cpuUsage,
 			"protectionWatermark", protectionWatermark)
