@@ -50,8 +50,8 @@ v1.14.0 版本带来以下重磅更新：
 **核心能力**：
 
 * **动态分片策略**：支持多种策略来计算动态候选节点池。当前版本率先支持基于 CPU 利用率的分片策略，并采用了可扩展的架构设计，以便未来轻松集成更多分片算法。
-* **NodeShard CRD**：为特定调度器管理专属的动态候选节点池。
-* **大规模集群就绪**：通过在多个调度器之间灵活分配负载，天然适配大规模集群场景。
+* **节点池化管理**：引入 NodeShard CRD，为特定调度器管理专属的动态候选节点池。
+* **支持大规模集群**：通过在多个调度器之间灵活分配负载，天然适配大规模集群场景。
 * **多调度器协同**：支持多种调度器组合的无缝协作。无论是部署多个 Batch Scheduler 进行负载分担，还是混合部署 Agent Scheduler 与 Batch Scheduler 以应对不同业务需求，都能灵活适配。
 
 配置示例：
@@ -100,8 +100,8 @@ Volcano v1.14.0 对网络拓扑感知调度进行了进一步增强，满足分�
 * **SubGroup 级精细化拓扑感知**：支持在 SubGroup / Partition 粒度设置网络拓扑约束，调度颗粒度更精细。
 * **灵活的网络层级约束**：新增 `highestTierName`，支持按名称指定允许跨越的最高网络层级。
 * **多层级 Gang Scheduling**：同时支持 PodGroup 级别和 SubGroup 级别的 Gang Scheduling，确保分布式任务的整体性。
-* **Volcano Job 分区**：支持将 Job 拆分为多个分区（Partition），便于资源管理和故障隔离。
-* **HyperNode 级 Binpacking**：跨网络拓扑边界优化资源利用率，减少碎片。
+* **Volcano Job 分区**：支持将 Job 拆分为多个分区（Partition），便于管理 TP/PP/DP 等并行策略，并优化网络亲和性。
+* **HyperNode 级 Binpacking**：在 HyperNode（如交换机、机架）层级进行资源装箱，减少网络碎片，提升通信效率。
 
 配置示例 - Volcano Job：
 
@@ -208,9 +208,8 @@ v1.14 原生集成了昇腾 vNPU（虚拟 NPU）调度能力，实现昇腾 AI �
 **支持模式**：
 
 1. **MindCluster 模式**
-   - 集成自官方昇腾集群调度插件
+   - 集成自 Ascend MindCluster 调度插件: https://gitcode.com/Ascend/mind-cluster
    - 支持昇腾 310P 系列的动态虚拟化
-   - 使用 `huawei.com/npu-core` 资源名称
 
 2. **HAMi 模式**
    - 由 HAMi 社区开发

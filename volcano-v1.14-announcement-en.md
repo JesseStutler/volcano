@@ -49,7 +49,7 @@ The new Sharding Controller introduces a scalable multi-scheduler architecture t
 **Key Capabilities**:
 
 * **Dynamic Node Scheduling Shard Strategies**: Compute dynamic candidate node pools based on various policies. Currently supports scheduling shard by CPU utilization, with an extensible design to support more policies in the future.
-* **NodeShard CRD**: Manages dynamic candidate node pools for specific schedulers.
+* **Node Pool Management**: Introduces NodeShard CRD to manage dynamic candidate node pools for specific schedulers.
 * **Large-scale Cluster Support**: Architecture designed to support large-scale clusters by distributing load across multiple schedulers.
 * **Scheduler Coordination**: Enable seamless coordination among various scheduler combinations (e.g., multiple Batch Schedulers, or a mix of Agent and Batch Schedulers).
 
@@ -99,8 +99,8 @@ Volcano v1.14.0 brings significant enhancements to network topology aware schedu
 * **SubGroup Level Topology Awareness**: Support fine-grained network topology constraints at the SubGroup/Partition level.
 * **Flexible Network Tier Configuration**: Support `highestTierName` for specifying maximum network tier constraints by name.
 * **Multi-Level Gang Scheduling**: Improved gang scheduling to support both PodGroup-level and SubGroup-level consistency.
-* **Volcano Job Partitioning**: Enable partitioning of Volcano Jobs for better resource management and fault isolation.
-* **HyperNode-Level Binpacking**: Optimization for resource utilization across network topology boundaries.
+* **Volcano Job Partitioning**: Enable partitioning of Volcano Jobs to better support parallel strategies (TP/PP/DP) and optimize network affinity.
+* **HyperNode-Level Binpacking**: Resource packing at the HyperNode level (e.g., switches, racks) to reduce network fragmentation and improve communication efficiency.
 
 Configuration Example - Volcano Job:
 
@@ -207,9 +207,8 @@ Volcano v1.14.0 introduces integrated support for Ascend vNPU (virtual NPU) sche
 **Supported Modes**:
 
 1. **MindCluster Mode**
-   - Integrated from the official Ascend cluster scheduling add-on
+   - Integrated from the Ascend MindCluster scheduling plugin: https://gitcode.com/Ascend/mind-cluster
    - Supports Ascend 310P series with dynamic virtualization
-   - Uses `huawei.com/npu-core` resource name
 
 2. **HAMi Mode**
    - Developed by the HAMi community
