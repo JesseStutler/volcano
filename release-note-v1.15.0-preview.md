@@ -268,10 +268,13 @@ Related:
 
 ## Other Notable Changes
 
-### Features and Enhancements
+### Stability and Correctness Highlights
 
 - **Core scheduler stability and capacity correctness**: Improves transaction rollback, preemption/reclaim correctness, queue and inqueue accounting, victim ordering, event-handler synchronization, and scheduler cache safety. The Bug Fixes section lists the individual fixes. Together, they improve scheduler stability under high contention and concurrent event processing. ([#5073](https://github.com/volcano-sh/volcano/pull/5073), [#5180](https://github.com/volcano-sh/volcano/pull/5180), [#5010](https://github.com/volcano-sh/volcano/pull/5010), [#5011](https://github.com/volcano-sh/volcano/pull/5011), [#5067](https://github.com/volcano-sh/volcano/pull/5067), [#5141](https://github.com/volcano-sh/volcano/pull/5141), [#5142](https://github.com/volcano-sh/volcano/pull/5142), [#5113](https://github.com/volcano-sh/volcano/pull/5113), [#5100](https://github.com/volcano-sh/volcano/pull/5100), [#5130](https://github.com/volcano-sh/volcano/pull/5130), [#5176](https://github.com/volcano-sh/volcano/pull/5176), [#5091](https://github.com/volcano-sh/volcano/pull/5091), [#4973](https://github.com/volcano-sh/volcano/pull/4973), [#5172](https://github.com/volcano-sh/volcano/pull/5172), [#5178](https://github.com/volcano-sh/volcano/pull/5178), [#5086](https://github.com/volcano-sh/volcano/pull/5086), @hzxuzhonghu, @Sanchit2662, @Aman-Cool, @hajnalmt, @goyalpalak18, @guoqinwill, @qi-min, @zhifei92)
 - **Agent Scheduler stability enhancements**: Fixes multi-worker optimistic concurrency conflicts, prevents a shared action instance from reusing different framework/cycle state, registers the missing CSI manager, improves binder node priority behavior when nodes are waiting to be checked, fixes inaccurate E2E duration metrics, and adds e2e coverage. ([#5154](https://github.com/volcano-sh/volcano/pull/5154), [#5153](https://github.com/volcano-sh/volcano/pull/5153), [#5221](https://github.com/volcano-sh/volcano/pull/5221), [#5163](https://github.com/volcano-sh/volcano/pull/5163), [#4991](https://github.com/volcano-sh/volcano/pull/4991), @JesseStutler, @qi-min, @agrawalcodes)
+
+### Features and Enhancements
+
 - **Kubernetes 1.35 support**: Updates Kubernetes dependencies, generated APIs, fake clients, informers, volumebinding integration, CI/lint tooling, Dockerfile Kubernetes version, and compatibility documentation for Kubernetes 1.35. ([#5000](https://github.com/volcano-sh/volcano/pull/5000), [#5039](https://github.com/volcano-sh/volcano/pull/5039), [#5062](https://github.com/volcano-sh/volcano/pull/5062), @guoqinwill, @hajnalmt)
 - **NodeGroup preferred ordering for queues**: Adds `enablePreferredOrder` to the NodeGroup plugin so the order of `preferredDuringSchedulingIgnoredDuringExecution` in queue affinity is meaningful. Earlier nodegroups receive higher scores, allowing queues to prefer fixed resource pools before fallback pools. See the [Preferred Nodegroup Priority Ordering](https://github.com/volcano-sh/volcano/blob/release-1.15/docs/user-guide/how_to_use_nodegroup_plugin.md#preferred-nodegroup-priority-ordering) user guide section for configuration details. ([#5110](https://github.com/volcano-sh/volcano/pull/5110), @ruanwenjun)
 
@@ -300,8 +303,6 @@ spec:
 - **GPU/vGPU incremental improvements**: Adds GPU exclusivity support to the deviceshare plugin, adds vGPU preemption support, and prevents pods in the same PodGroup from using the same physical vGPU device when disallowed. ([#5213](https://github.com/volcano-sh/volcano/pull/5213), [#5235](https://github.com/volcano-sh/volcano/pull/5235), [#5049](https://github.com/volcano-sh/volcano/pull/5049), @ckyuto, @archlitchi, @goyalankit)
 - **Pod-level resource request and limit settings**: Supports pod-level resource request and limit configuration in Volcano Job pod templates. ([#5020](https://github.com/volcano-sh/volcano/pull/5020), @Tau721)
 - **MPI validation and Argo MPI examples**: Relaxes MPI validation for single-master MPI jobs and adds Argo MPI workflow examples. ([#4956](https://github.com/volcano-sh/volcano/pull/4956), [#5117](https://github.com/volcano-sh/volcano/pull/5117), @kingeasternsun, @jrbe228)
-- **DRA granular status authorization**: Adds ResourceClaim binding RBAC for granular DRA status authorization. ([#5151](https://github.com/volcano-sh/volcano/pull/5151), @praveen0raj)
-- **DRA feature gate alignment**: Enables Volcano's DRA scheduling integration by default to align with Kubernetes 1.34+ DRA defaults. Operators can still disable it with `predicate.DynamicResourceAllocationEnable: false`. ([#5198](https://github.com/volcano-sh/volcano/pull/5198), @t2wang)
 
 ### Security Fixes Included
 
@@ -347,27 +348,35 @@ Adds capacity plugin arguments:
 - `capacity.DynamicResourceAllocationEnable`
 - `capacity.DRAConsumableCapacityEnable`
 
-**4. Capacity reclaim scope configuration** ([#5115](https://github.com/volcano-sh/volcano/pull/5115), @hajnalmt)
+**4. DRA scheduling feature gate default** ([#5198](https://github.com/volcano-sh/volcano/pull/5198), @t2wang)
+
+Aligns Volcano with Kubernetes 1.34+ DRA defaults by enabling DRA scheduling integration by default. Operators can disable it with `predicate.DynamicResourceAllocationEnable: false`.
+
+**5. DRA ResourceClaim binding RBAC** ([#5151](https://github.com/volcano-sh/volcano/pull/5151), @praveen0raj)
+
+Adds `resourceclaims/binding` update and patch permissions to scheduler ClusterRoles for Kubernetes DRA granular status authorization.
+
+**6. Capacity reclaim scope configuration** ([#5115](https://github.com/volcano-sh/volcano/pull/5115), @hajnalmt)
 
 Adds the `ancestorReclaimLevel` capacity plugin argument to control how many ancestor levels are considered when hierarchical queues reclaim resources.
 
-**5. Pod-level resource request and limit settings** ([#5020](https://github.com/volcano-sh/volcano/pull/5020), @Tau721)
+**7. Pod-level resource request and limit settings** ([#5020](https://github.com/volcano-sh/volcano/pull/5020), @Tau721)
 
 Supports pod-level resource request and limit settings in Volcano Job pod templates.
 
-**6. Pluggable sharding ConfigMap policy format (Alpha)** (@agrawalcodes, @lixmgl)
+**8. Pluggable sharding ConfigMap policy format (Alpha)** (@agrawalcodes, @lixmgl)
 
 Adds ConfigMap-driven `schedulerConfigs`, `policies`, `shardSyncPeriod`, and `enableNodeEventTrigger` configuration for live-reloadable sharding policies.
 
-**7. NodeGroup preferred-order scoring** ([#5110](https://github.com/volcano-sh/volcano/pull/5110), @ruanwenjun)
+**9. NodeGroup preferred-order scoring** ([#5110](https://github.com/volcano-sh/volcano/pull/5110), @ruanwenjun)
 
 Adds the NodeGroup plugin argument `enablePreferredOrder`. When enabled, earlier entries in `preferredDuringSchedulingIgnoredDuringExecution` receive higher scores.
 
-**8. GPU exclusivity rules** ([#5213](https://github.com/volcano-sh/volcano/pull/5213), @ckyuto)
+**10. GPU exclusivity rules** ([#5213](https://github.com/volcano-sh/volcano/pull/5213), @ckyuto)
 
 Adds the deviceshare plugin argument `deviceshare.GPUExclusiveRules` for label-based exclusive physical GPU use on supported HAMi-core nodes.
 
-**9. Scheduler and webhook flags**
+**11. Scheduler and webhook flags**
 
 Adds or exposes user-facing operational flags:
 
@@ -377,7 +386,7 @@ Adds or exposes user-facing operational flags:
 - Webhook-manager `--max-queue-depth` controls maximum hierarchical queue depth.
 - Webhook-manager `--enable-root-queue-protection` protects root queue resource attributes.
 
-**10. Helm chart values**
+**12. Helm chart values**
 
 Adds per-component image tag overrides, `scheduler_percentage_nodes_to_find`, and sharding ConfigMap values:
 
@@ -402,7 +411,6 @@ Adds per-component image tag overrides, `scheduler_percentage_nodes_to_find`, an
 - **Preempt action queue order and victim ordering**: Honors `QueueOrderFn`, scopes intra-job under-request processing by queue, and improves same-priority victim tie-break behavior. ([#5142](https://github.com/volcano-sh/volcano/pull/5142), [#5113](https://github.com/volcano-sh/volcano/pull/5113), @hajnalmt)
 - **Subgroup scheduling without hard topology mode**: Fixes jobs with subgroups but without hard `networkTopology.mode` failing to schedule. ([#5038](https://github.com/volcano-sh/volcano/pull/5038), @JesseStutler)
 - **Real capability guarded preemptive reclaim**: Guards preemptive reclaim by `realCapability`. ([#5053](https://github.com/volcano-sh/volcano/pull/5053), @FAUST-BENCHOU)
-- **E2E failure context dump**: Fixes `DumpTestContextIfFailed` ordering so failure context is captured. ([#5054](https://github.com/volcano-sh/volcano/pull/5054), @katara-Jayprakash)
 - **Duplicate session close**: Removes duplicated session close call. ([#5055](https://github.com/volcano-sh/volcano/pull/5055), @qi-min)
 - **Reclaim spurious evictions**: Prevents committing evictions from nodes that the scheduler ends up not using. ([#5067](https://github.com/volcano-sh/volcano/pull/5067), @Aman-Cool)
 - **Scheduler install panic**: Fixes panic and restart of scheduler pods during install, including concurrent root/default queue creation behavior. ([#5077](https://github.com/volcano-sh/volcano/pull/5077), @Tau721)
@@ -422,8 +430,6 @@ Adds per-component image tag overrides, `scheduler_percentage_nodes_to_find`, an
 - **Highest tier restrictions**: Fixes `highestTierName` in `partitionPolicy` or `subGroupPolicy` failing to restrict scheduling to specified HyperNode tiers. ([#5190](https://github.com/volcano-sh/volcano/pull/5190), [#5234](https://github.com/volcano-sh/volcano/pull/5234), @Tau721)
 - **Network topology soft affinity placement**: Fixes suboptimal placement in soft affinity mode, where pods could be placed outside the best available HyperNode in some cluster states. The scheduler now converts soft topology constraints to the hard-mode scheduling path with the top HyperNode tier, and also fixes network-topology-aware scheduling for SubJobs. ([#5205](https://github.com/volcano-sh/volcano/issues/5205), [#5206](https://github.com/volcano-sh/volcano/pull/5206), @3th4novo)
 - **Victim reprieve order**: Reverses potentialVictims order to reprieve higher-priority pods first. ([#5214](https://github.com/volcano-sh/volcano/pull/5214), @dengaosong)
-- **cgroup unit test permission errors**: Fixes permission denied errors in cgroup handler unit tests. ([#5231](https://github.com/volcano-sh/volcano/pull/5231), @kube-gopher)
-- **Admission webhook log level**: Adjusts the log level of Volcano admission webhook. ([#5245](https://github.com/volcano-sh/volcano/pull/5245), @0YHR0)
 - **vGPU SchedulePolicy**: Makes deviceshare `SchedulePolicy` drive per-device pick. ([#5252](https://github.com/volcano-sh/volcano/pull/5252), @ckyuto)
 - **vGPU cache double-counting**: Fixes HAMi core factory double-counting and stale PodMap handling. ([#5253](https://github.com/volcano-sh/volcano/pull/5253), @ckyuto)
 - **Typed-nil devices clone**: Preserves typed-nil devices through `CloneOthers`. ([#5290](https://github.com/volcano-sh/volcano/pull/5290), @ckyuto)
@@ -431,18 +437,16 @@ Adds per-component image tag overrides, `scheduler_percentage_nodes_to_find`, an
 - **Queue overused metric**: Computes queue overused metrics from final session share instead of per-task preemptive checks, so the metric reflects actual queue overuse. ([#5051](https://github.com/volcano-sh/volcano/pull/5051), @aadhil2k4)
 - **Predicate plugin execution and allocation error handling**: Stabilizes predicate plugin execution order and rollback semantics, and sets `event.Err` when predicate allocation fails to prevent further node allocation. ([#5259](https://github.com/volcano-sh/volcano/pull/5259), [#5116](https://github.com/volcano-sh/volcano/pull/5116), @wangyang0616, @jiahuat)
 - **MIG template matching**: Fixes incorrect MIG template matching when `gpuMemoryFactor` is greater than 1. ([#5318](https://github.com/volcano-sh/volcano/pull/5318), @DSFans2014)
-- **Flaky preempt anti-affinity e2e**: Fixes flaky preempt anti-affinity e2e behavior. ([#5319](https://github.com/volcano-sh/volcano/pull/5319), @JesseStutler)
-- **Scheduler comments and API comments**: Fixes typos in scheduler, Job, and CronJobSpec comments. ([#5237](https://github.com/volcano-sh/volcano/pull/5237), [#5328](https://github.com/volcano-sh/volcano/pull/5328), @FAUST-BENCHOU, @pmady)
 - **ImageLocality scoring**: Restores `ImageStates` propagation in `GenerateNodeMapAndSlice` so the Kubernetes `ImageLocality` scoring plugin can prefer nodes that already have the required container images. ([#5343](https://github.com/volcano-sh/volcano/pull/5343), @kitianFresh)
-- **Helm Chart API v2 and jobflow path**: Upgrades Helm `Chart.yaml` to API v2 and fixes jobflow path. ([#5301](https://github.com/volcano-sh/volcano/pull/5301), @madmecodes)
-- **Website typo fixes**: Fixes typos and YAML syntax in website examples. ([#5024](https://github.com/volcano-sh/volcano/pull/5024), @aniketchawardol)
 
 ### Other
 
 - **Helm and deployment refinements**: Adds per-component image tag overrides, `scheduler_percentage_nodes_to_find`, Helm chart API v2 updates, and jobflow path fixes. ([#5194](https://github.com/volcano-sh/volcano/pull/5194), [#5254](https://github.com/volcano-sh/volcano/pull/5254), [#5301](https://github.com/volcano-sh/volcano/pull/5301), @kingeasternsun, @madmecodes)
 - **Scheduler metrics refinements**: Refactors scheduler/controller metrics and adds throughput output. ([#5215](https://github.com/volcano-sh/volcano/pull/5215), @JesseStutler)
 - **SSH plugin custom port**: Allows custom SSH port configuration. ([#5047](https://github.com/volcano-sh/volcano/pull/5047), @aadhil2k4)
-- **Logging behavior**: Honors `-stderrthreshold` when `-logtostderr` is enabled. ([#5134](https://github.com/volcano-sh/volcano/pull/5134), @pierluigilenoci)
+- **Logging behavior**: Honors `-stderrthreshold` when `-logtostderr` is enabled and adjusts the admission webhook log level. ([#5134](https://github.com/volcano-sh/volcano/pull/5134), [#5245](https://github.com/volcano-sh/volcano/pull/5245), @pierluigilenoci, @0YHR0)
+- **Documentation and comments**: Fixes website examples, scheduler comments, and Job/CronJob API comments. ([#5024](https://github.com/volcano-sh/volcano/pull/5024), [#5237](https://github.com/volcano-sh/volcano/pull/5237), [#5328](https://github.com/volcano-sh/volcano/pull/5328), @aniketchawardol, @FAUST-BENCHOU, @pmady)
+- **Internal code cleanup**: Removes unnecessary return values and reformats preempt function signatures. ([#5043](https://github.com/volcano-sh/volcano/pull/5043), [#5340](https://github.com/volcano-sh/volcano/pull/5340), @hzxuzhonghu, @SquareCatFirst)
 
 ### Dependencies
 
@@ -464,9 +468,9 @@ Adds per-component image tag overrides, `scheduler_percentage_nodes_to_find`, an
 - **Webhook-manager Dockerfile**: Updates `KUBE_VERSION` to 1.35.0. ([#5062](https://github.com/volcano-sh/volcano/pull/5062), @hajnalmt)
 - **PR template guidance**: Adds AI guidance to the PR template. ([#5096](https://github.com/volcano-sh/volcano/pull/5096), @hwdef)
 - **OWNERS update**: Adds `dafu-wu` to reviewers and approvers. ([#5121](https://github.com/volcano-sh/volcano/pull/5121), @dafu-wu)
-- **Preempt function cleanup**: Reformats preempt function signatures. ([#5340](https://github.com/volcano-sh/volcano/pull/5340), @SquareCatFirst)
-- **E2E queue cleanup**: Waits for queue deletion instead of forcing `Closed` state during e2e cleanup. ([#5350](https://github.com/volcano-sh/volcano/pull/5350), @FAUST-BENCHOU)
-- **Cleanup return values**: Removes unnecessary error return values. ([#5043](https://github.com/volcano-sh/volcano/pull/5043), @hzxuzhonghu)
+- **E2E diagnostics and cleanup**: Captures failure context correctly and waits for queue deletion during cleanup instead of forcing `Closed` state. ([#5054](https://github.com/volcano-sh/volcano/pull/5054), [#5350](https://github.com/volcano-sh/volcano/pull/5350), @katara-Jayprakash, @FAUST-BENCHOU)
+- **E2E stability fixes**: Fixes flaky preempt anti-affinity e2e behavior. ([#5319](https://github.com/volcano-sh/volcano/pull/5319), @JesseStutler)
+- **Unit test permission handling**: Fixes permission denied errors in cgroup handler unit tests. ([#5231](https://github.com/volcano-sh/volcano/pull/5231), @kube-gopher)
 
 ## Upgrade Instructions
 
@@ -485,6 +489,7 @@ kubectl apply -f https://raw.githubusercontent.com/volcano-sh/volcano/v1.15.0/in
 
 - Gang-aware preemption and reclamation is opt-in. Configure `gangPreempt` and `gangReclaim` explicitly, and do not use them together with legacy `preempt` and `reclaim` actions in the same scheduler action list.
 - `SchedulingGatesQueueAdmission` is opt-in and must be enabled on both scheduler and webhook-manager.
+- DRA scheduling integration is enabled by default to align with Kubernetes 1.34+ behavior. Set `predicate.DynamicResourceAllocationEnable: false` if DRA scheduling integration should be disabled.
 - DRA queue quota requires Kubernetes DRA support and a DRA-capable driver.
 
 ## Contributors
