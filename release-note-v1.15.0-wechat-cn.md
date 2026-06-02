@@ -10,7 +10,7 @@ v1.15.0沿着“通智融合”的统一调度平台方向继续演进。这个�
 
 本次发布主要围绕以下方向展开：
 
-- **Gang-Aware Preemption and Resource Reclamation**：抢占和资源回收时同时考虑新任务能否整体运行、已有任务是否会被拆散，避免逐Pod抢占打断多个训练任务。
+- **Gang-Aware Preemption and Resource Reclamation**：以Job/Gang为粒度组织被抢占候选，区分冗余副本与关键副本，优先驱逐冗余副本减少任务扰动，并在驱逐前模拟整体放置确认抢占方能成功启动，避免逐Pod抢占打断多个训练任务而抢占方自己也无法运行的情况。
 - **DRA Queue Quota**：capacity插件将DRA `ResourceClaim`纳入Volcano现有的队列容量模型，让DRA设备资源也能通过队列配额管理。
 - **Pluggable Multi-Sharding Policy**：Sharding Controller支持通过ConfigMap组合多种分片策略，并支持运行时热加载。
 - **Volcano Benchmark框架**：提供一键化性能测试环境搭建和报告输出，支持Kind/KWOK及已有集群。
@@ -22,15 +22,15 @@ v1.15.0沿着“通智融合”的统一调度平台方向继续演进。这个�
 
 ### 1. Gang-Aware Preemption and Resource Reclamation（Alpha）
 
-在大模型训练、HPC等分布式任务中，一个Job往往需要多个Pod同时运行才有意义。如果抢占只针对单个Pod进行，就可能从多个训练任务里各抢走一个Pod——表面上释放了资源，实际上却把多个任务都打断了，而新任务也未必能顺利启动。
+在大模型训练、HPC等分布式任务中，一个Job往往需要多个Pod同时运行才有意义。如果抢占只按单个Pod进行决策，就可能从多个正在运行的训练任务里各抢一个Pod——表面上释放了资源，实际上既把多个任务都打断了，发起抢占的Gang也未必能凑齐`minAvailable`成功启动。
 
-v1.15.0引入Gang-Aware Preemption and Resource Reclamation，使抢占决策同时考虑两个维度：新任务能否整体调度成功，以及已有任务是否会被不必要地拆散。
+v1.15.0引入Gang-Aware Preemption and Resource Reclamation，让抢占方和被抢占方在决策时都以Gang为整体来考量，避免出现"释放了一堆Pod，但谁都没跑起来"的情况。
 
-对新任务，Volcano会先判断整个Gang是否能够一起调度成功，而不是只看某个Pod能不能放下。
+**在被抢占方一侧**，Volcano以Job/Gang为粒度组织被抢占候选，而不是把所有Pod看成可互换的抢占对象。每个候选Job的Pod被区分为冗余副本（超出`minAvailable`的部分）和关键副本，调度器优先选择冗余副本——驱逐它们不会打断任务——尽量避免触碰关键副本。这与原有action逐Pod选择、不区分破坏代价的方式有本质区别。
 
-对已有任务，Volcano以Job/Gang为粒度组织victim候选，并优先选择对任务影响较小的副本。例如在训练任务中，会优先考虑`replicas - minAvailable`这部分超出最小运行要求的副本，尽量避免抢走多个Job的关键副本。
+**在抢占方一侧**，调度器逐步累计可释放的资源，当累计量足以覆盖抢占方Gang的整体需求时，先做放置模拟——在释放后的资源视图上验证抢占方Gang能否整体调度成功——只有模拟通过才真正执行驱逐。这样不会出现"抢了一堆Pod结果抢占方还是起不来"的情况。
 
-这是v1.15.0中最重要的调度语义增强，不仅适用于HyperNode拓扑场景，在普通非拓扑场景下同样能减少随机抢占带来的任务扰动。启用HyperNode拓扑后，Volcano还会将victim搜索限定在选定的拓扑范围内，避免跨拓扑域抢占。
+不论是否启用HyperNode拓扑，这套机制都能减少随机抢占带来的任务扰动。启用HyperNode拓扑后，Volcano还会将victim搜索限定在选定的拓扑范围内，避免跨拓扑域抢占。
 
 该特性目前为Alpha，需要显式配置`gangPreempt`和`gangReclaim`两个新的action。后续版本会继续评估是否将Gang-Aware驱逐机制与原有`preempt`、`reclaim` action合并。
 
@@ -274,7 +274,7 @@ v1.15.0包含webhook request body size mitigation，用于修复CVE-2026-44247�
 
 ## 总结：Volcano v1.15.0 - 面向通智融合的统一调度平台
 
-v1.15.0在统一调度平台方向上迈出了重要一步。Gang-Aware Preemption and Resource Reclamation让抢占决策不再局限于单个Pod，而是从Gang整体视角权衡新任务的可行性与已有任务的完整性。DRA Queue Quota将DRA设备资源纳入队列容量模型，使异构资源的管理方式与传统资源保持一致。Pluggable Multi-Sharding Policy、Benchmark框架和Agent Scheduler稳定性修复，则进一步提升了Volcano在大规模集群、多调度器协同和性能调优方面的工程能力。
+v1.15.0在统一调度平台方向上迈出了重要一步。Gang-Aware Preemption and Resource Reclamation让抢占决策不再局限于单个Pod，而是从Gang整体视角同时权衡抢占方能否整体启动与被抢占方的完整性。DRA Queue Quota将DRA设备资源纳入队列容量模型，使异构资源的管理方式与传统资源保持一致。Pluggable Multi-Sharding Policy、Benchmark框架和Agent Scheduler稳定性修复，则进一步提升了Volcano在大规模集群、多调度器协同和性能调优方面的工程能力。
 
 面向AI训练、推理、RL、Agent、HPC和大数据混合部署场景，Volcano将继续完善通智融合统一调度平台。
 
