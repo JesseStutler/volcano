@@ -1,10 +1,8 @@
-# Volcano v1.15重磅发布！通智融合统一调度再升级
+# Volcano v1.15发布：Gang粒度抢占、DRA队列配额等多项调度能力增强
 
-AI基础设施正在进入更复杂的混合部署阶段。一个Kubernetes集群里，可能同时运行大模型训练、推理服务、RL任务、AI Agent、HPC、大数据作业和在线业务。调度系统面对的资源也不再只有CPU、内存和GPU，还包括vGPU、DRA设备资源、网络拓扑资源以及不同资源池之间的协同调度。
+随着批量训练、推理、AI Agent、HPC、大数据等多种负载在同一Kubernetes集群中混合部署，调度器需要在资源竞争更加激烈的环境下做出更高质量的决策，同时保持作业级语义、队列公平性、拓扑亲和性与运行稳定性。v1.15.0围绕这些方向，在调度核心、异构资源管理、多调度器协同与性能可观测等方面进行了增强。
 
-在这样的集群里，调度器要解决的不只是“把Pod放到哪台节点上”。它还需要判断一个分布式任务能不能整体启动，抢占资源时会不会打散其他训练任务，队列quota是否覆盖了新的设备资源，多个调度器如何分工，性能瓶颈如何定位，以及queue quota和autoscaler之间如何避免误触发等。
-
-v1.15.0沿着“通智融合”的统一调度平台方向继续演进。这个版本把重点放在资源竞争、异构设备、调度器扩展和性能可观测这几类更贴近生产集群的问题上，让Volcano在大规模批量计算、AI训练、推理和Agent workload混部场景下具备更稳定、更细粒度的调度能力。
+本次最值得关注的新增能力是**Gang-Aware Preemption and Resource Reclamation**：抢占决策在抢占方与被抢占方两侧均以Gang为整体进行评估——抢占方按Gang整体进行放置，被抢占候选者同样按Gang粒度进行排序和评估，优先驱逐冗余副本，避免逐Pod随机驱逐打断多个训练任务而抢占方自身仍无法启动的情况。此外，v1.15.0在capacity插件中引入了DRA队列配额，新增了可插拔的多分片策略框架以及Benchmark与性能可观测工具，支持Kubernetes 1.35，并带来了NodeGroup优先序、Agent Scheduler稳定性修复、GPU/vGPU增量增强以及面向队列配额的Scheduling Gates等改动。
 
 ## 版本亮点
 
@@ -272,11 +270,11 @@ v1.15.0对deviceshare plugin做了多项增强，包括GPU exclusive支持、vGP
 
 v1.15.0包含webhook request body size mitigation，用于修复CVE-2026-44247相关的拒绝服务风险。该修复限制admission webhook请求体大小，避免超大请求导致webhook server内存耗尽。
 
-## 总结：Volcano v1.15.0 - 面向通智融合的统一调度平台
+## 总结
 
-v1.15.0在统一调度平台方向上迈出了重要一步。Gang-Aware Preemption and Resource Reclamation让抢占决策不再局限于单个Pod，而是从Gang整体视角同时权衡抢占方能否整体启动与被抢占方的完整性。DRA Queue Quota将DRA设备资源纳入队列容量模型，使异构资源的管理方式与传统资源保持一致。Pluggable Multi-Sharding Policy、Benchmark框架和Agent Scheduler稳定性修复，则进一步提升了Volcano在大规模集群、多调度器协同和性能调优方面的工程能力。
+v1.15.0的核心变化是Gang-Aware Preemption and Resource Reclamation，将抢占决策从逐Pod粒度提升到Gang粒度，在抢占方与被抢占方两侧同时进行整体性评估，减少分布式训练场景下因随机驱逐导致的连锁任务失败。DRA Queue Quota将DRA设备资源纳入已有的队列容量模型，使异构资源与CPU、内存在配额管理上保持一致。Pluggable Multi-Sharding Policy、Benchmark框架与Agent Scheduler稳定性修复，则分别完善了多调度器协同、性能基线建立与延迟敏感负载调度方面的工程能力。
 
-面向AI训练、推理、RL、Agent、HPC和大数据混合部署场景，Volcano将继续完善通智融合统一调度平台。
+Volcano将继续面向AI训练、推理、Agent、HPC与大数据等混合部署场景，持续完善统一调度平台的调度能力与工程质量。
 
 ## 升级注意事项
 
@@ -291,7 +289,7 @@ helm upgrade volcano volcano-sh/volcano --version 1.15.0
 kubectl apply -f https://raw.githubusercontent.com/volcano-sh/volcano/v1.15.0/installer/volcano-development.yaml
 ```
 
-- Gang-Aware Preemption and Resource Reclamation为Alpha，需要显式配置`gangPreempt`和`gangReclaim`两个新的action。不要在同一个scheduler action list中同时配置新的`gangPreempt`/`gangReclaim`和旧的`preempt`/`reclaim`。
+- 当前Gang-Aware Preemption and Resource Reclamation特性为Alpha阶段，需要显式配置`gangPreempt`和`gangReclaim`两个新的action。当前不推荐在同一个scheduler action list中同时配置新的`gangPreempt`/`gangReclaim`和旧的`preempt`/`reclaim` action。
 - Scheduling Gates for Queue Admission为Alpha，需要同时在scheduler和webhook-manager中开启。
 - DRA scheduling integration默认开启，以对齐Kubernetes 1.34+的DRA默认行为。如需关闭，可设置`predicate.DynamicResourceAllocationEnable: false`。
 - DRA Queue Quota依赖Kubernetes DRA支持和可用的DRA driver。
