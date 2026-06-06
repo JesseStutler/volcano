@@ -1,75 +1,54 @@
-# 资源碎片整理演示
+# 资源碎片整理演示方案
 
-这个文档记录一套手工可执行的演示流程：先构造“训练任务运行一段时间后 Pod 分散在多个节点”的状态，再通过 descheduler 触发驱逐，由 Volcano binpack 负责重调度，把负载压到一个目标节点上。
+## 目的
 
-文档里的 YAML 可以直接用 `kubectl apply`，也可以按字段在控制台里手工创建。不同环境的 descheduler 配置入口可能不一样，核心参数保持一致即可。
+演示一个训练任务运行一段时间后的资源碎片整理场景：
 
-## 场景说明
+- 集群本身开启 Volcano binpack，正常情况下新任务会倾向于往已有负载的节点上放。
+- 训练任务运行和结束一段时间后，A、B 节点上仍散落一些低负载 Pod，形成碎片。
+- C 节点上已有一部分训练负载，适合作为收拢目标。
+- 通过 descheduler 驱逐 A、B 上的低负载 Pod。
+- Pod 重建后交给 Volcano scheduler。
+- Volcano binpack 将这些 Pod 尽量重新调度到 C，让 A、B 空出来。
 
-初始状态：
+核心展示点：
 
-- 选 3 个 worker 节点，记为 A、B、C。
-- A/B 上放低负载 Pod，模拟碎片。
-- C 上放一个 anchor Pod，模拟已有训练负载。
-- Volcano scheduler 已开启 binpack。
-- 节点上可能还有系统组件、监控组件或其他基础负载，阈值要按现场 requests 调整。
+- descheduler 负责“把可迁移 Pod 释放出来”。
+- Volcano binpack 负责“把重建 Pod 尽量收拢到目标节点”。
+- 整理后 A、B 的业务 Pod 减少，C 的资源利用率升高。
 
-整理过程：
+## 角色定义
 
-- descheduler 使用高利用率整理策略，从低利用率节点驱逐可迁移 Pod。
-- Deployment 自动重建 Pod。
-- 重建 Pod 使用 `schedulerName: volcano`。
-- Volcano binpack 将新 Pod 尽量调度到已有较高利用率的 C。
-
-最后希望看到：
-
-- A/B 上 demo Pod 清空或明显减少。
-- C 上有 anchor Pod 和迁移后的低负载 Pod。
-
-可以这样讲初始状态：
-
-> 这里模拟训练任务运行一段时间之后的碎片状态。任务结束、缩容或局部空闲后，一些 Pod 还散在多个节点上，每个节点都占一点资源。scheduler 的 binpack 只影响新 Pod 的放置，不会主动移动已经运行的 Pod，所以需要 descheduler 先触发驱逐，再交给 Volcano binpack 重新压实。
-
-## 变量
-
-下面的名字按现场替换：
+选择 3 个 worker 节点：
 
 ```text
 NODE_A=<worker-a>
 NODE_B=<worker-b>
 NODE_C=<worker-c>
 DEMO_NS=finops-demo
-PAUSE_IMAGE=<reachable-registry>/pause:3.10
-DESCHEDULER_IMAGE=<reachable-registry>/vc-descheduler:<tag>
 ```
 
-镜像不一定能直接从外网拉取。提前确认目标集群能访问 `PAUSE_IMAGE` 和 `DESCHEDULER_IMAGE`。如果平台已经内置 descheduler，就不需要部署文档里的 descheduler Job，只需要按同等策略配置即可。
+节点含义：
 
-建议先看节点当前 requests：
+- `NODE_A`：碎片节点 A。
+- `NODE_B`：碎片节点 B。
+- `NODE_C`：负载收拢目标节点。
+
+建议先看三个节点当前 requests：
 
 ```bash
 kubectl describe nodes <NODE_A> <NODE_B> <NODE_C>
 ```
 
-关注 `Allocated resources`：
+阈值设置原则：
 
-- A/B 总 requests 要低于 descheduler 阈值，才能作为驱逐源。
-- C 总 requests 要高于阈值，才能作为压实目标。
-- 如果 A/B 基础负载已经高于 20%，就把阈值调高，同时增加 C 的 anchor requests，让 C 仍高于阈值。
+- A/B 总 requests 低于 descheduler 阈值。
+- C 总 requests 高于 descheduler 阈值。
+- 如果节点上已有基础负载，按现场 requests 调整 anchor Pod 的 requests 或 descheduler 阈值。
 
-示例参数按 16C/32Gi 节点写：
+## 1. Volcano 配置
 
-```text
-anchor: cpu=4, memory=8Gi
-low pod: cpu=500m, memory=512Mi
-threshold: cpu=20, memory=20
-```
-
-如果节点是 8C，可以先把 anchor 调成 `cpu=2`。如果现场基础负载较高，以实际 requests 为准。
-
-## 1. 检查 Volcano binpack
-
-确认 Volcano scheduler 配置中有 `binpack`：
+确认 scheduler 配置中启用 `binpack`：
 
 ```yaml
 actions: "enqueue, allocate, backfill"
@@ -89,7 +68,7 @@ tiers:
   - name: binpack
 ```
 
-如果现场效果不稳定，录制时可以临时把 binpack 权重调高。改完需要重启 scheduler 组件。
+如果演示时调度结果不够稳定，可以临时提高 binpack 权重：
 
 ```yaml
 - name: binpack
@@ -99,11 +78,11 @@ tiers:
     binpack.memory: 10
 ```
 
-这一步只为提高演示确定性。录完之后恢复原配置。
+改完 scheduler 配置后，重启 scheduler 组件。演示结束后恢复原配置。
 
-## 2. 给节点打标签
+## 2. 节点标签
 
-给三个节点标记角色。控制台里手工加 label 也可以。
+给三个节点打标签，用于 workload 选择演示节点：
 
 ```bash
 kubectl label node <NODE_A> finops-demo/enabled=true finops-demo/role=A --overwrite
@@ -117,34 +96,58 @@ kubectl label node <NODE_C> finops-demo/enabled=true finops-demo/role=C --overwr
 kubectl get nodes -L finops-demo/role,finops-demo/enabled
 ```
 
-## 3. 构造初始状态
+## 3. 初始场景设置
 
-为了录制稳定，可以手工控制初始落点：
+初始状态要构造成：
 
-1. C 上创建 anchor。
-2. A 上创建 `low-a` 两个副本。
-3. B 上创建 `low-b` 两个副本。
+```text
+NODE_A: low-a x 2
+NODE_B: low-b x 2
+NODE_C: anchor-c x 1
+```
 
-如果可以用命令操作，最简单的做法是临时 cordon 节点来控制落点：
+说明：
+
+- `anchor-c` 模拟 C 上已有训练负载。
+- `low-a`、`low-b` 模拟散落在 A/B 上的低负载训练 Pod。
+- 所有 demo Pod 都设置 `schedulerName: volcano`。
+- `low-a`、`low-b` 从一开始就只限制在 A/B/C 这三个 demo 节点内，不固定到 A 或 B。
+- 这里不是要证明初始调度一定会这么放，而是构造一个训练任务运行后常见的碎片状态，方便后面展示整理效果。
+
+建议初始场景准备阶段先不要触发 descheduler。可以让 descheduler 组件存在，但策略先不启用，或者先不要创建本次 demo 的策略。等初始状态录完，再启用/触发 descheduler。
+
+初始落点用“临时禁止/恢复节点调度”来控制：
+
+1. 先让 C 可调度，创建 `anchor-c`，让它落到 C。
+2. 禁止 B/C 调度，只保留 A 可调度，创建 `low-a`。
+3. 禁止 A/C 调度，只保留 B 可调度，创建 `low-b`。
+4. 初始状态录完后，恢复 A/B/C 可调度。
+
+如果通过页面操作，就在节点页面临时将对应节点设置为不可调度；如果用命令，可以用 `cordon/uncordon`。
+
+命令方式参考：
 
 ```bash
-# anchor 放 C。C 即使 cordon，也通过 toleration 允许 anchor 落上去。
-kubectl cordon <NODE_C>
+# 创建 anchor 前：确保 C 可调度
+kubectl uncordon <NODE_C>
 
-# low-a 放 A：只保留 A 可调度。
+# 创建 low-a 前：只保留 A 可调度
 kubectl uncordon <NODE_A>
 kubectl cordon <NODE_B>
 kubectl cordon <NODE_C>
 
-# low-b 放 B：只保留 B 可调度。
+# 创建 low-b 前：只保留 B 可调度
 kubectl cordon <NODE_A>
 kubectl uncordon <NODE_B>
 kubectl cordon <NODE_C>
+
+# 初始状态录完后：恢复 A/B/C 可调度，再触发 descheduler
+kubectl uncordon <NODE_A>
+kubectl uncordon <NODE_B>
+kubectl uncordon <NODE_C>
 ```
 
-如果只能在控制台操作，也可以直接在 workload 里设置 `nodeSelector` 或节点亲和性，把 `low-a` 固定到 A、`low-b` 固定到 B。触发整理前需要把固定到 A/B 的强约束撤掉，否则重建 Pod 不能迁到 C。下面的示例使用 demo 节点范围亲和性，不固定 A/B；初始落点靠临时 cordon 控制。
-
-创建命名空间：
+### 3.1 创建命名空间
 
 ```yaml
 apiVersion: v1
@@ -153,7 +156,9 @@ metadata:
   name: finops-demo
 ```
 
-anchor workload：
+### 3.2 创建 C 上的 anchor 负载
+
+根据节点规格调整 requests。16C/32Gi 节点可先用 `4 CPU / 8Gi`。
 
 ```yaml
 apiVersion: apps/v1
@@ -178,10 +183,6 @@ spec:
       schedulerName: volcano
       nodeSelector:
         finops-demo/role: C
-      tolerations:
-      - key: node.kubernetes.io/unschedulable
-        operator: Exists
-        effect: NoSchedule
       containers:
       - name: pause
         image: <PAUSE_IMAGE>
@@ -191,7 +192,11 @@ spec:
             memory: 8Gi
 ```
 
-low-a workload：
+### 3.3 创建 A/B 上的低负载 Pod
+
+每个 Pod 设置 `500m CPU / 512Mi`，按需要调整。
+
+`low-a`：
 
 ```yaml
 apiVersion: apps/v1
@@ -231,7 +236,7 @@ spec:
             memory: 512Mi
 ```
 
-low-b workload 只需要把名字和 label 从 `low-a` 改成 `low-b`：
+`low-b`：
 
 ```yaml
 apiVersion: apps/v1
@@ -271,29 +276,34 @@ spec:
             memory: 512Mi
 ```
 
-初始状态验证：
+录制初始状态：
 
 ```bash
 kubectl get pods -n finops-demo -o wide
 kubectl describe nodes <NODE_A> <NODE_B> <NODE_C>
 ```
 
-录制时要看到：
+需要看到：
 
-- `anchor-c` 在 C。
-- `low-a` 在 A。
-- `low-b` 在 B。
-- A/B 在阈值以下，C 在阈值以上。
-
-## 4. 触发整理
-
-触发前先让 C 可调度：
-
-```bash
-kubectl uncordon <NODE_C>
+```text
+low-a   在 NODE_A
+low-b   在 NODE_B
+anchor  在 NODE_C
 ```
 
-如果平台自带 descheduler，就在对应配置入口里设置同等策略。下面是等价的 policy 参考：
+## 4. 整理前检查
+
+触发 descheduler 前确认三件事：
+
+- A/B/C 都已经恢复可调度。
+- `low-a`、`low-b` 没有固定到 A/B，只限制在 A/B/C 这三个 demo 节点内。
+- Volcano binpack 一直保持开启，不需要等到整理时才开启。
+
+descheduler 在这一步之后再启用或手动触发。
+
+## 5. Descheduler 配置
+
+使用高利用率整理策略。不同平台入口可能不同，关键配置保持一致。前端能直接配置的话，优先用前端配置；下面的 YAML 只是字段参考。
 
 ```yaml
 apiVersion: "descheduler/v1alpha2"
@@ -326,229 +336,76 @@ profiles:
       - HighNodeUtilization
 ```
 
-有的平台把同类能力叫 `HighUtilization`。不用纠结名字，关键是：
+配置含义：
 
-- 驱逐源：低于阈值的节点。
-- 驱逐对象：只选 demo label 或 demo namespace 下的 Pod。
-- 驱逐检查：开启 node fit，避免驱逐后无处可去。
-- 重建调度：Pod 要使用 `schedulerName: volcano`。
-- 调度策略：Volcano 开启 binpack。
+- `thresholds.cpu/memory`: 低于该阈值的节点作为整理来源。
+- `labelSelector`: 只驱逐本次 demo 的 Pod。
+- `nodeFit: true`: 确保 Pod 驱逐后仍有节点可放。
+- `maxNoOfPodsToEvict*`: 控制本次最多驱逐数量。
 
-如果没有内置 descheduler，可以临时创建一个 Job。注意替换镜像地址。
+如果平台里策略名显示为 `HighUtilization`，按平台字段配置即可，语义保持一致。
 
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: volcano-descheduler-finops-demo
-  namespace: volcano-system
-data:
-  policy.yaml: |
-    apiVersion: "descheduler/v1alpha2"
-    kind: "DeschedulerPolicy"
-    maxNoOfPodsToEvictPerNode: 10
-    maxNoOfPodsToEvictTotal: 10
-    profiles:
-    - name: default
-      pluginConfig:
-      - name: DefaultEvictor
-        args:
-          nodeFit: true
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/part-of: finops-defrag-demo
-          priorityThreshold:
-            value: 10000
-      - name: HighNodeUtilization
-        args:
-          thresholds:
-            cpu: 20
-            memory: 20
-          evictableNamespaces:
-            exclude:
-            - kube-system
-            - volcano-system
-      plugins:
-        balance:
-          enabled:
-          - HighNodeUtilization
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: volcano-descheduler-finops-demo
-  namespace: volcano-system
----
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: volcano-descheduler-finops-demo
-rules:
-- apiGroups: ["events.k8s.io"]
-  resources: ["events"]
-  verbs: ["create", "update"]
-- apiGroups: [""]
-  resources: ["nodes", "namespaces", "pods"]
-  verbs: ["get", "watch", "list"]
-- apiGroups: [""]
-  resources: ["pods/eviction"]
-  verbs: ["create"]
-- apiGroups: ["policy"]
-  resources: ["poddisruptionbudgets"]
-  verbs: ["get", "watch", "list"]
-- apiGroups: ["scheduling.k8s.io"]
-  resources: ["priorityclasses"]
-  verbs: ["get", "watch", "list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: volcano-descheduler-finops-demo
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: volcano-descheduler-finops-demo
-subjects:
-- kind: ServiceAccount
-  name: volcano-descheduler-finops-demo
-  namespace: volcano-system
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: volcano-descheduler-finops-demo
-  namespace: volcano-system
-spec:
-  backoffLimit: 0
-  template:
-    spec:
-      restartPolicy: Never
-      serviceAccountName: volcano-descheduler-finops-demo
-      containers:
-      - name: descheduler
-        image: <DESCHEDULER_IMAGE>
-        imagePullPolicy: IfNotPresent
-        command:
-        - /vc-descheduler
-        - --policy-config-file=/policy-dir/policy.yaml
-        - --descheduling-interval=60s
-        - --leader-elect=false
-        - --v=4
-        volumeMounts:
-        - mountPath: /policy-dir
-          name: policy-volume
-      volumes:
-      - name: policy-volume
-        configMap:
-          name: volcano-descheduler-finops-demo
-```
+## 6. 触发整理
 
-Job 跑出第一轮 eviction 后可以删掉，避免持续反复驱逐：
+初始状态录完、A/B/C 都恢复可调度后，再启用或手动触发 descheduler。
 
-```bash
-kubectl -n volcano-system logs job/volcano-descheduler-finops-demo
-kubectl -n volcano-system delete job volcano-descheduler-finops-demo
-```
+如果是周期性 descheduler，建议只打开本次 demo 策略，确认第一轮 eviction 完成后关闭策略，避免后面反复驱逐影响画面。
 
-## 5. 验证
+如果是临时 Job 方式，第一轮 eviction 完成后就删除 Job。
 
-Pod 落点：
+观察：
 
 ```bash
 kubectl get pods -n finops-demo -o wide
+kubectl get events -n finops-demo --sort-by=.lastTimestamp
 ```
 
-期望：
+日志关键字：
 
 ```text
-anchor-c   -> NODE_C
-low-a-*    -> NODE_C
-low-b-*    -> NODE_C
-```
-
-事件：
-
-```bash
-kubectl get events -n finops-demo --sort-by=.lastTimestamp | grep -E "HighNodeUtilization|HighUtilization|Successfully assigned"
-```
-
-能看到两类信息：
-
-- descheduler 从 A/B 驱逐 Pod。
-- Volcano 后续把新 Pod 调度到 C。
-
-节点 requests：
-
-```bash
-kubectl describe nodes <NODE_A> <NODE_B> <NODE_C>
-```
-
-期望：
-
-- A/B 上没有 `finops-demo` 的低负载 Pod，或者数量明显减少。
-- C 上有 anchor 和迁移后的 low Pod。
-- C 的 requests 明显高于 A/B。
-
-descheduler 日志里比较有用的关键字：
-
-```bash
 Node is underutilized
 Node is overutilized
 Evicted pod
 Number of evicted pods
 ```
 
-## 录制顺序
+## 7. 结果验证
 
-1. 展示节点列表。
-2. 展示 Volcano scheduler 配置里有 `binpack`。
-3. 展示三个节点的 requests 基线。
-4. 创建初始 workload，展示 A/B/C 落点。
-5. 触发 descheduler。
-6. 展示 eviction 事件或日志。
-7. 展示最终 Pod 全部或大部分被压到 C。
-8. 展示 A/B requests 降低、C requests 升高。
+期望整理后：
 
-讲解不要太复杂，围绕三句话：
+```text
+NODE_A: 无 low-a / low-b，或数量明显减少
+NODE_B: 无 low-a / low-b，或数量明显减少
+NODE_C: anchor-c + low-a + low-b
+```
 
-- 这是训练任务运行后的碎片状态。
-- descheduler 负责把低利用率节点上的可迁移 Pod 驱逐出来。
-- Volcano binpack 负责把重建 Pod 放到更适合压实的节点。
+验证命令：
 
-## 常见问题
+```bash
+kubectl get pods -n finops-demo -o wide
+kubectl describe nodes <NODE_A> <NODE_B> <NODE_C>
+```
 
-### Pod 没有被驱逐
+对比口径：
 
-检查：
+| 阶段 | A | B | C |
+| --- | --- | --- | --- |
+| 整理前 | low-a | low-b | anchor-c |
+| 整理后 | 空或减少 | 空或减少 | anchor-c + low-a + low-b |
 
-- Pod 是否带有 `app.kubernetes.io/part-of=finops-defrag-demo`。
-- Pod 是否被 PDB 保护。
-- Pod 是否来自 DaemonSet、static pod 或 mirror pod。
-- A/B 的实际 requests 是否低于 thresholds。
-- descheduler 日志是否出现 `pod labels do not match` 或 `No removable pods`。
+## 8. 录制顺序
 
-### Pod 被驱逐后没有去 C
+1. 展示 Volcano scheduler 已启用 binpack。
+2. 展示 A/B/C 三个节点当前 requests。
+3. 创建初始 workload，展示 Pod 分散在 A/B/C。
+4. 说明这是模拟训练任务运行后留下的碎片状态。
+5. 恢复 A/B/C 可调度，确认 `low-a`、`low-b` 可以被重新调度到 C。
+6. 展示并启用 descheduler 策略。
+7. 展示 eviction 事件。
+8. 展示最终 Pod 被压到 C。
+9. 展示 A/B requests 下降、C requests 上升。
 
-检查：
-
-- C 是否已 uncordon。
-- C 是否满足 Pod 的 nodeSelector、affinity 和 taint toleration。
-- Pod 是否是 `schedulerName: volcano`。
-- Volcano scheduler 是否启用 binpack。
-- 如果现场调度结果受其他插件影响，可以临时提高 binpack 权重。
-
-### 节点基础负载影响阈值
-
-不要照搬固定阈值。先看节点 requests：
-
-- A/B 要低于 threshold。
-- C 要高于 threshold。
-- 如果 A/B 基础负载偏高，提高 threshold，同时提高 C 的 anchor requests。
-- 如果 C 基础负载已经够高，可以降低 anchor requests，避免过度占资源。
-
-## 清理
-
-录制结束后清理 demo workload：
+## 9. 清理
 
 ```bash
 kubectl delete ns finops-demo
@@ -557,15 +414,6 @@ kubectl uncordon <NODE_B>
 kubectl uncordon <NODE_C>
 ```
 
-如果临时创建过 descheduler Job/RBAC：
+如果临时创建过 descheduler Job/RBAC，也一起删除。
 
-```bash
-kubectl -n volcano-system delete job volcano-descheduler-finops-demo --ignore-not-found
-kubectl -n volcano-system delete cm volcano-descheduler-finops-demo --ignore-not-found
-kubectl -n volcano-system delete sa volcano-descheduler-finops-demo --ignore-not-found
-kubectl delete clusterrole volcano-descheduler-finops-demo --ignore-not-found
-kubectl delete clusterrolebinding volcano-descheduler-finops-demo --ignore-not-found
-```
-
-如果临时改过 Volcano scheduler binpack 权重，恢复原配置并重启 scheduler。
-
+如果临时改过 Volcano scheduler 配置，恢复原配置并重启 scheduler。
