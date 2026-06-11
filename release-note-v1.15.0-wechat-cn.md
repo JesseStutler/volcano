@@ -1,8 +1,8 @@
 # Volcano v1.15发布：Gang粒度抢占、DRA队列配额等多项调度能力增强
 
-随着批量训练、推理、AI Agent、HPC、大数据等多种负载在同一Kubernetes集群中混合部署，调度器需要在资源竞争更加激烈的环境下做出更高质量的决策，同时保持作业级语义、队列公平性、拓扑亲和性与运行稳定性。v1.15.0围绕这些方向，在调度核心、异构资源管理、多调度器协同与性能可观测等方面进行了增强。
+随着批量训练、推理、AI Agent、HPC、大数据等多种负载在同一Kubernetes集群中混合部署，调度器需要在资源竞争更加激烈的环境下做出更高质量的决策，同时保持作业级语义、队列公平性、拓扑亲和性与运行稳定性。Volcano v1.15.0 现已正式发布，围绕这些方向，在调度核心、异构资源管理、多调度器协同与性能可观测等方面进行了增强。
 
-本次最值得关注的新增能力是**Gang-Aware Preemption and Resource Reclamation**：抢占决策在抢占方与被抢占方两侧均以Gang为整体进行评估——抢占方按Gang整体进行放置，被抢占候选者同样按Gang粒度进行排序和评估，优先驱逐冗余副本，避免逐Pod随机驱逐打断多个训练任务而抢占方自身仍无法启动的情况。此外，v1.15.0在capacity插件中引入了DRA队列配额，新增了可插拔的多分片策略框架以及Benchmark与性能可观测工具，支持Kubernetes 1.35，并带来了NodeGroup优先序、Agent Scheduler稳定性修复、GPU/vGPU增量增强以及面向队列配额的Scheduling Gates等改动。
+本次最值得关注的新增能力是**Gang-Aware Preemption and Resource Reclamation**：抢占决策在抢占方与被抢占方两侧均以Gang为整体进行评估——抢占方按Gang整体进行放置，被抢占候选者同样按Gang粒度进行排序和评估，优先驱逐冗余副本，避免逐Pod随机驱逐打断多个训练任务而抢占方自身仍无法启动的情况。此外，v1.15.0在capacity插件中引入了DRA队列配额，新增了可插拔的多分片策略框架以及Benchmark与性能可观测工具，支持Kubernetes 1.35，并在NodeGroup调度优先级、Agent Scheduler稳定性、GPU/vGPU及队列准入控制等方面做了补充增强。
 
 ## 版本亮点
 
