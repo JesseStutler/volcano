@@ -1098,7 +1098,9 @@ func (sc *SchedulerCache) taskUnschedulable(task *schedulingapi.TaskInfo, reason
 		pod = pod.DeepCopy()
 
 		if updateCond && podutil.UpdatePodCondition(&pod.Status, condition) {
-			klog.V(3).Infof("Updating pod condition for %s/%s to (%s==%s)", pod.Namespace, pod.Name, condition.Type, condition.Status)
+			klog.V(3).InfoS("Updating pod condition for unschedulable task",
+				"pod", klog.KObj(pod), "condition", condition.Type, "status", condition.Status,
+				"reason", reason, "message", message)
 		}
 
 		// if nominatedNode field changed, we should update it to the pod status, for k8s
