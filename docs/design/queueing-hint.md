@@ -250,9 +250,9 @@ type Rejection struct {
     // bypass logic (§5).
     Source RejectionSource
 
-    // Tasks is set for Predicate / PrePredicate rejections. It contains the tasks
-    // that failed this plugin in the previous session. Job-level extension points
-    // leave it empty.
+    // Tasks holds the task IDs a rejection needs for per-task hint replay. Only
+    // predicate rejections set it today: the §6 adapter runs the upstream per-Pod
+    // QueueingHintFn for each failed task. Job-level hints leave it empty.
     Tasks []TaskID
 }
 
@@ -266,68 +266,37 @@ const (
 )
 ```
 
-Volcano's extension points come in two shapes; each needs its own capture strategy,
-and both feed into a single merge step at `CloseSession`.
+Each rejection is tagged with the extension point that produced it. The source tells
+§5 which action stage may later bypass the Job, and tells the §6 adapter whether the
+rejection must carry the failed task IDs.
 
-**Capture paths.** Predicate failures and boolean/vote failures expose plugin names
-differently, but both are normalized into the same `Rejection` list before recording
-the Job in the cache.
+| Extension point | RejectionSource | Records `Tasks`? | Typical plugins |
+|---|---|---|---|
+| `PredicateFn` / `PrePredicateFn` | `RejectionPredicate` | Yes | `predicates/*` |
+| `Allocatable` | `RejectionAllocatable` | Not today | `capacity`, `proportion` |
+| `JobEnqueueable` | `RejectionEnqueue` | No (Job-level) | `capacity`, `proportion`, `overcommit` |
+| `JobReady` / `SubJobReady` | `RejectionJobReady` | No (Job-level) | `gang` |
 
-```mermaid
-flowchart TD
-    P[Predicate / PrePredicate failure] --> S[Ensure Status.Plugin is set]
-    S --> N[Keep task IDs in NodesFitErrors]
+`Tasks` is populated only when a plugin's hint actually consumes per-task information,
+not simply because the extension point is invoked per task. The §6 predicate adapter
+replays the upstream per-Pod `QueueingHintFn`, so it always needs the task IDs that
+failed each filter. `Allocatable` is also called per task, but the native `capacity` /
+`proportion` hint today decides at queue granularity ("did this queue's quota grow?"),
+so it does not consume the task list — a future capacity hint that wants to match freed
+quota against specific task requests can start recording `Tasks` with no structural
+change. `JobEnqueueable` and `JobReady` are genuinely Job-level and never carry tasks.
 
-    B[JobEnqueueable / JobReady / Allocatable failure] --> M[Record plugin vote in session side table]
+`RejectionJobReady` is the `gang` plugin's rejection: the Job could not gather
+`minAvailable` schedulable tasks this session. It is woken by events that add
+schedulable capacity — `Node/Add`, `Node/UpdateNodeAllocatable`, or `Pod/Delete` when a
+task finishes and frees resources — which is exactly what `gang` registers as a
+`HintProvider`.
 
-    N --> C[CloseSession collectRejections]
-    M --> C
-    C --> D{All rejecting plugins have hints?}
-    D -- yes --> R[Record Job in UnschedulableJobCache]
-    D -- no --> F[Do not cache; retry normally next session]
-```
-
-`PredicateFn` and `PrePredicateFn` already return typed scheduler errors that end up
-in `JobInfo.NodesFitErrors`. Their wrappers only need to make sure `Status.Plugin` is
-filled consistently and that the failed task ID is preserved for the adapter in §6.
-
-`JobEnqueueable`, `JobReady`, `SubJobReady` and `Allocatable` do not return typed
-errors, so their wrappers record the rejecting plugin name in a session-local side
-table. The side table is keyed by Job and plugin, which naturally deduplicates repeated
-votes from the same plugin during one session.
-
-| Extension point | Where captured | RejectionSource |
-|---|---|---|
-| `PredicateFn(task, node)` | `Status.Plugin` on entries in `job.NodesFitErrors` | `RejectionPredicate`, with `task.UID` in `Rejection.Tasks` |
-| `PrePredicateFn(task)` | same, propagated to every node by `FitErrors.SetNodeError` | `RejectionPredicate`, with `task.UID` in `Rejection.Tasks` |
-| `Allocatable(queue, task)` | `ssn.jobRejections[job.UID][plugin]` | `RejectionAllocatable` |
-| `JobEnqueueable(job)` | `ssn.jobRejections[job.UID][plugin]` | `RejectionEnqueue` |
-| `JobReady(job)` / `SubJobReady` | `ssn.jobRejections[job.UID][plugin]` | `RejectionJobReady` |
-
-`PredicateFn` and `PrePredicateFn` share a single `RejectionSource` because §5 gates
-both under the same `SkipPredicate` bypass and does not need to tell them apart.
-
-**Merge at CloseSession.**
-
-For every still-pending Job, `CloseSession` merges predicate rejections from
-`NodesFitErrors` with vote rejections from the session side table. The result is one
-deduplicated `[]Rejection` per Job. For predicate sources, `Tasks` contains the task
-IDs rejected by that plugin; for Job-level sources, `Tasks` is empty.
-
-Two rejection classes are dropped rather than merged, and both collapse to the same
-"do not cache this Job" fallback:
-
-- **Unattributed predicate errors** (`Status.Plugin == ""`). A predicate that did not
-  flow through the annotated wrapper — a third-party plugin bypassing the session, or
-  the `extender` — leaves no way to look up the responsible plugin. The merge simply
-  skips these entries.
-- **Rejections from plugins without a `HintProvider`.** `Record` (§3) looks each
-  plugin up in `hintRegistry`. If any rejection's plugin has no registered hints, no
-  cluster event can wake the Job for that failure, so `Record` declines to cache the
-  Job.
-
-In both cases the Job is left out of the unschedulable cache and goes through the
-normal filter path every session, exactly matching today's behavior.
+At `CloseSession` Volcano gathers each pending Job's rejections into one list. A
+rejection is only actionable if its plugin is a `HintProvider`: if any rejecting plugin
+has no registered hints (or a predicate error carries no plugin name), no cluster event
+could ever wake the Job for that failure, so the Job is left out of the cache and keeps
+going through the normal filter path every session — matching today's behavior.
 
 ### 3. UnschedulableJobCache
 
@@ -347,22 +316,12 @@ The normal retry lifecycle is:
 5. If no relevant event arrives before `RetryAfter`, `ShouldSkip` returns false once
    and the Job is retried by the normal actions.
 
-```mermaid
-flowchart LR
-    A[CloseSession: Job failed] --> B[Record rejections and copied hints]
-    B --> C[Next OpenSession: ShouldSkip]
-    C -->|record valid| D[Skip normal retry in enqueue / allocate / backfill]
-    C -->|RetryAfter expired| E[Evaluate normally]
-    B --> F[Subscribed informer event]
-    F --> G[OnEvent runs matching hints]
-    G -->|HintWakeup / timeout / error| H[Forget record]
-    H --> E
-    G -->|all HintSkip| D
-```
-
 Recovery actions (`preempt` and `reclaim`) do not use `ShouldSkip`. They scan pending
 Jobs from `ssn.Jobs` normally because Volcano cannot know in advance which Job may
-become schedulable after victims are selected.
+become schedulable after victims are selected. When they pipeline a Job's tasks onto
+victims, that Job is progressing through preemption rather than being unschedulable, so
+`CloseSession` drops any existing record and does not re-cache it while it has pipelined
+tasks (see §5).
 
 **Interface.**
 
@@ -545,25 +504,24 @@ Action behavior:
 |---|---|
 | `enqueue` | Skip enqueue plugin re-vote only when the cached rejection came from `RejectionEnqueue`. |
 | `allocate` / `backfill` | Keep the Job in the action queue, but skip pre-predicate, predicate and scoring work for its tasks. |
-| `preempt` / `reclaim` | Ignore `SkipPredicate` and evaluate pending Jobs normally. These actions may make a Job schedulable by selecting victims or reclaiming resources. |
+| `preempt` / `reclaim` | Ignore `SkipPredicate` and evaluate pending Jobs normally. If they pipeline a Job's tasks onto victims, that Job is treated as in-progress and kept out of the unschedulable cache. |
 
-```mermaid
-flowchart TD
-    A[OpenSession checks ShouldSkip] --> B{SkipPredicate?}
-    B -- no --> C[Actions evaluate Job normally]
-    B -- yes --> D[enqueue / allocate / backfill bypass normal retry work]
-    B -- yes --> E[preempt / reclaim still evaluate Job]
-    C --> F[CloseSession collects fresh rejections]
-    D --> G[Keep existing cache record]
-    E --> H{Job allocated?}
-    H -- yes --> I[Forget cache record]
-    H -- no --> G
-    F --> J[Record or Forget based on outcome]
-```
+The cache reconciles against the session outcome at `CloseSession`:
 
-`CloseSession` records a fresh cache entry only for Jobs that were actually evaluated
-and still failed. A skipped Job keeps its existing record until a relevant event wakes
-it, the Job changes, or `RetryAfter` lets it retry once.
+| Job outcome | Cache action |
+|---|---|
+| Allocated this session | Forget the record. |
+| Has pipelined tasks after `preempt` / `reclaim` | Forget / do not record — preemption is in progress. |
+| Skipped this session (`SkipPredicate`) | Keep the existing record unchanged. |
+| Evaluated, still pending, produced rejections | Record (replace) the Job. |
+
+A Job whose tasks were pipelined by `preempt` or `reclaim` is deliberately kept out of
+the cache. Its victims are still being evicted, so the next `allocate` may keep
+rejecting those tasks until their resources are actually freed — and caching the Job as
+unschedulable would suppress exactly the retries that let the preemption finish.
+Otherwise `Record` runs only when the session actually evaluated the Job and produced
+fresh rejections; a skipped Job keeps its record until an event wakes it, the Job
+changes, or `RetryAfter` lets it retry once.
 
 ### 6. kube-scheduler QueueingHint Adapter
 
@@ -645,6 +603,7 @@ normally rather than guessing from an arbitrary representative Pod.
 | Fairness drift. | Jobs stay in `ssn.Jobs`; only selected expensive checks are skipped. |
 | Hot `Pod` event path. | Event index by per-rejection subscription; callbacks outside lock; per-callback timeout. |
 | Extender behavior unknown. | Jobs rejected by the extender are not cached; they are re-evaluated every session, matching today's behavior. |
+| Preemption progress suppressed. | Jobs with pipelined tasks are excluded from the cache, so `preempt` / `reclaim` retries are never skipped. |
 
 ## Alternatives Considered
 
@@ -673,6 +632,8 @@ normally rather than guessing from an arbitrary representative Pod.
 - Session close records rejections from `NodesFitErrors` and `jobRejections`.
 - Skipped Jobs remain in `ssn.Jobs` and fairness plugin outputs match the baseline.
 - `preempt` and `reclaim` still evaluate Jobs with `SkipPredicate=true`.
+- A Job whose tasks are pipelined by `preempt` / `reclaim` is not recorded, and any
+  existing record is dropped.
 
 **Benchmarks**
 
