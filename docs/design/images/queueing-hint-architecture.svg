@@ -1,128 +1,177 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 980" width="980" height="980">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1060" width="1600" height="1060">
   <style>
-    text { font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .title { font-size: 23px; font-weight: 700; fill: #111827; }
-    .subtitle { font-size: 12px; fill: #6b7280; }
-    .section { font-size: 13px; font-weight: 700; fill: #374151; }
-    .node-title { font-size: 14px; font-weight: 700; fill: #111827; }
-    .node-sub { font-size: 11px; fill: #4b5563; }
-    .label { font-size: 11px; font-weight: 700; fill: #374151; }
-    .tiny { font-size: 10px; fill: #6b7280; }
+    text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; fill: #111827; }
+    .title { font-size: 28px; font-weight: 700; }
+    .section { font-size: 19px; font-weight: 700; }
+    .box-title { font-size: 17px; font-weight: 700; }
+    .body { font-size: 15px; }
+    .small { font-size: 13px; fill: #4b5563; }
+    .tiny { font-size: 12px; fill: #6b7280; }
+    .chip { font-size: 15px; font-weight: 600; fill: #1e3a8a; }
+    .label { font-size: 13px; font-weight: 700; }
+    .blue { stroke: #2563eb; }
+    .green { stroke: #059669; }
+    .purple { stroke: #7c3aed; }
+    .orange { stroke: #ea580c; }
+    .gray { stroke: #64748b; }
   </style>
+
   <defs>
-    <marker id="green" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0,10 4,0 8" fill="#16a34a"/></marker>
-    <marker id="orange" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0,10 4,0 8" fill="#ea580c"/></marker>
-    <marker id="blue" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0,10 4,0 8" fill="#2563eb"/></marker>
-    <marker id="purple" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0,10 4,0 8" fill="#9333ea"/></marker>
-    <marker id="gray" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><polygon points="0 0,10 4,0 8" fill="#64748b"/></marker>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0,12 5,0 10" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0,12 5,0 10" fill="#059669"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0,12 5,0 10" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0,12 5,0 10" fill="#ea580c"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0,12 5,0 10" fill="#64748b"/>
+    </marker>
   </defs>
 
-  <rect width="980" height="980" fill="#ffffff"/>
-  <text x="490" y="34" text-anchor="middle" class="title">Volcano QueueingHint Data Flow</text>
-  <text x="490" y="56" text-anchor="middle" class="subtitle">Job-level cache for session scheduling; hints only lift cached skip and trigger normal retry.</text>
+  <rect width="1600" height="1060" fill="#ffffff"/>
+  <text x="800" y="38" text-anchor="middle" class="title">Volcano Queueing Hint - Architecture</text>
 
-  <rect x="48" y="82" width="884" height="142" rx="10" fill="#faf5ff" stroke="#e9d5ff"/>
-  <text x="68" y="107" class="section">1. Registration path</text>
-  <rect x="92" y="130" width="170" height="58" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
-  <text x="177" y="154" text-anchor="middle" class="node-title">Scheduler plugin</text>
-  <text x="177" y="172" text-anchor="middle" class="node-sub">optional HintProvider</text>
-  <rect x="405" y="130" width="170" height="58" rx="8" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1.5"/>
-  <text x="490" y="154" text-anchor="middle" class="node-title">EventsToRegister</text>
-  <text x="490" y="172" text-anchor="middle" class="node-sub">ClusterEventWithHint</text>
-  <rect x="718" y="130" width="170" height="58" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
-  <text x="803" y="154" text-anchor="middle" class="node-title">HintRegistry</text>
-  <text x="803" y="172" text-anchor="middle" class="node-sub">cache-scoped copy</text>
-  <path d="M262 159 H405" stroke="#9333ea" stroke-width="2" fill="none" marker-end="url(#purple)"/>
-  <text x="334" y="147" text-anchor="middle" class="label">register events</text>
-  <path d="M575 159 H718" stroke="#9333ea" stroke-width="2" fill="none" marker-end="url(#purple)"/>
-  <text x="647" y="147" text-anchor="middle" class="label">store by plugin</text>
+  <!-- [1] Informers -->
+  <rect x="52" y="70" width="740" height="130" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="74" y="101" class="section">[1] K8s / Volcano Informers</text>
+  <g>
+    <rect x="86" y="132" width="78" height="34" rx="17" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+    <text x="125" y="154" text-anchor="middle" class="chip">Pod</text>
+    <rect x="178" y="132" width="82" height="34" rx="17" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+    <text x="219" y="154" text-anchor="middle" class="chip">Node</text>
+    <rect x="274" y="132" width="118" height="34" rx="17" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+    <text x="333" y="154" text-anchor="middle" class="chip">PodGroup</text>
+    <rect x="406" y="132" width="96" height="34" rx="17" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+    <text x="454" y="154" text-anchor="middle" class="chip">Queue</text>
+    <rect x="516" y="132" width="146" height="34" rx="17" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+    <text x="589" y="154" text-anchor="middle" class="chip">PV / PVC / CSI</text>
+    <rect x="676" y="132" width="92" height="34" rx="17" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+    <text x="722" y="154" text-anchor="middle" class="chip">DRA</text>
+  </g>
 
-  <rect x="48" y="252" width="884" height="196" rx="10" fill="#fff7ed" stroke="#fed7aa"/>
-  <text x="68" y="277" class="section">2. Failure record path</text>
-  <rect x="92" y="315" width="150" height="68" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
-  <text x="167" y="343" text-anchor="middle" class="node-title">CloseSession</text>
-  <text x="167" y="363" text-anchor="middle" class="node-sub">evaluated Job failed</text>
-  <rect x="318" y="302" width="170" height="94" rx="8" fill="#fef2f2" stroke="#fecaca" stroke-width="1.5"/>
-  <text x="403" y="331" text-anchor="middle" class="node-title">Rejections</text>
-  <text x="403" y="353" text-anchor="middle" class="node-sub">Status.Plugin</text>
-  <text x="403" y="371" text-anchor="middle" class="node-sub">session vote table</text>
-  <rect x="564" y="302" width="170" height="94" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
-  <text x="649" y="331" text-anchor="middle" class="node-title">Record Job</text>
-  <text x="649" y="353" text-anchor="middle" class="node-sub">copy matching hints</text>
-  <text x="649" y="371" text-anchor="middle" class="node-sub">set RetryAfter</text>
-  <rect x="785" y="302" width="110" height="94" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
-  <text x="840" y="331" text-anchor="middle" class="node-title">Indexes</text>
-  <text x="840" y="353" text-anchor="middle" class="node-sub">records</text>
-  <text x="840" y="371" text-anchor="middle" class="node-sub">byEvent</text>
-  <path d="M242 349 H318" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#orange)"/>
-  <text x="280" y="337" text-anchor="middle" class="label">collect</text>
-  <path d="M488 349 H564" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#orange)"/>
-  <text x="526" y="337" text-anchor="middle" class="label">all plugins have hints</text>
-  <path d="M734 349 H785" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#orange)"/>
-  <text x="760" y="337" text-anchor="middle" class="label">store</text>
-  <rect x="330" y="410" width="250" height="24" rx="6" fill="#ffffff" stroke="#d1d5db"/>
-  <text x="455" y="426" text-anchor="middle" class="tiny">unattributed / no HintProvider: do not cache</text>
-  <path d="M734 319 C780 268 800 224 803 188" stroke="#9333ea" stroke-width="1.7" stroke-dasharray="6,5" fill="none" marker-end="url(#purple)"/>
-  <text x="818" y="256" class="label">read registry</text>
+  <!-- [2] Event handlers -->
+  <rect x="52" y="230" width="740" height="124" rx="12" fill="#fff7ed" stroke="#f59e0b" stroke-width="2"/>
+  <text x="74" y="262" class="section">[2] SchedulerCache event handlers</text>
+  <text x="422" y="296" text-anchor="middle" class="body">Add / Update / Delete handlers normalize object changes</text>
+  <text x="422" y="326" text-anchor="middle" class="label" fill="#9a3412">dispatchClusterEvent(ClusterEvent{Resource, ActionType}, oldObj, newObj)</text>
 
-  <rect x="48" y="476" width="884" height="166" rx="10" fill="#f8fafc" stroke="#d1d5db"/>
-  <text x="68" y="501" class="section">3. Session skip path</text>
-  <rect x="92" y="536" width="145" height="58" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
-  <text x="164" y="560" text-anchor="middle" class="node-title">OpenSession</text>
-  <text x="164" y="578" text-anchor="middle" class="node-sub">pending Job</text>
-  <rect x="310" y="536" width="145" height="58" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
-  <text x="382" y="560" text-anchor="middle" class="node-title">ShouldSkip</text>
-  <text x="382" y="578" text-anchor="middle" class="node-sub">record valid?</text>
-  <rect x="528" y="536" width="145" height="58" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
-  <text x="600" y="560" text-anchor="middle" class="node-title">SkipPredicate</text>
-  <text x="600" y="578" text-anchor="middle" class="node-sub">session flag</text>
-  <rect x="746" y="526" width="145" height="78" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
-  <text x="818" y="554" text-anchor="middle" class="node-title">Actions</text>
-  <text x="818" y="574" text-anchor="middle" class="node-sub">skip enqueue /</text>
-  <text x="818" y="592" text-anchor="middle" class="node-sub">allocate / backfill</text>
-  <path d="M237 565 H310" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#green)"/>
-  <text x="274" y="553" text-anchor="middle" class="label">query</text>
-  <path d="M455 565 H528" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#green)"/>
-  <text x="492" y="553" text-anchor="middle" class="label">valid</text>
-  <path d="M673 565 H746" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#green)"/>
-  <text x="710" y="553" text-anchor="middle" class="label">bypass</text>
-  <rect x="306" y="606" width="180" height="24" rx="6" fill="#ffffff" stroke="#d1d5db"/>
-  <text x="396" y="622" text-anchor="middle" class="tiny">missing / expired: evaluate normally</text>
-  <path d="M600 594 C650 633 760 633 840 604" stroke="#64748b" stroke-width="1.7" fill="none" marker-end="url(#gray)"/>
-  <text x="720" y="632" text-anchor="middle" class="label">preempt / reclaim ignore this flag</text>
+  <!-- [3] Unschedulable cache -->
+  <rect x="52" y="384" width="740" height="328" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="74" y="416" class="section">[3] UnschedulableJobCache (cross-session, in-memory)</text>
 
-  <rect x="48" y="670" width="884" height="206" rx="10" fill="#eff6ff" stroke="#bfdbfe"/>
-  <text x="68" y="695" class="section">4. Event wake-up path</text>
-  <rect x="82" y="735" width="130" height="62" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
-  <text x="147" y="761" text-anchor="middle" class="node-title">Informer</text>
-  <text x="147" y="779" text-anchor="middle" class="node-sub">cluster change</text>
-  <rect x="270" y="735" width="140" height="62" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
-  <text x="340" y="761" text-anchor="middle" class="node-title">Dispatcher</text>
-  <text x="340" y="779" text-anchor="middle" class="node-sub">ClusterEvent</text>
-  <rect x="468" y="735" width="140" height="62" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
-  <text x="538" y="761" text-anchor="middle" class="node-title">OnEvent</text>
-  <text x="538" y="779" text-anchor="middle" class="node-sub">lookup byEvent</text>
-  <rect x="666" y="735" width="140" height="62" rx="8" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1.5"/>
-  <text x="736" y="761" text-anchor="middle" class="node-title">JobHintFn</text>
-  <text x="736" y="779" text-anchor="middle" class="node-sub">copied rejection</text>
-  <rect x="470" y="828" width="170" height="34" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
-  <text x="555" y="850" text-anchor="middle" class="node-title">Forget record</text>
-  <path d="M212 766 H270" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#blue)"/>
-  <text x="241" y="754" text-anchor="middle" class="label">event</text>
-  <path d="M410 766 H468" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#blue)"/>
-  <text x="439" y="754" text-anchor="middle" class="label">subscribed</text>
-  <path d="M608 766 H666" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#blue)"/>
-  <text x="637" y="754" text-anchor="middle" class="label">run hint</text>
-  <path d="M736 797 C720 842 670 845 640 845" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#blue)"/>
-  <text x="718" y="834" class="label">HintWakeup / error</text>
-  <path d="M555 828 C490 790 455 760 410 735" stroke="#2563eb" stroke-width="1.7" stroke-dasharray="6,5" fill="none" marker-end="url(#blue)"/>
-  <text x="450" y="828" text-anchor="end" class="label">next session retries normally</text>
+  <rect x="88" y="445" width="668" height="58" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
+  <text x="422" y="480" text-anchor="middle" class="box-title">Inverted index: ClusterEvent -> interested JobIDs</text>
 
-  <rect x="112" y="916" width="756" height="34" rx="7" fill="#ffffff" stroke="#d1d5db"/>
-  <circle cx="136" cy="933" r="5" fill="#9333ea"/><text x="150" y="937" class="tiny">registration</text>
-  <circle cx="258" cy="933" r="5" fill="#ea580c"/><text x="272" y="937" class="tiny">failure record</text>
-  <circle cx="405" cy="933" r="5" fill="#16a34a"/><text x="419" y="937" class="tiny">session skip</text>
-  <circle cx="538" cy="933" r="5" fill="#2563eb"/><text x="552" y="937" class="tiny">event wake-up</text>
-  <text x="680" y="937" class="tiny">HintWakeup means retry, not guaranteed schedulable.</text>
+  <rect x="88" y="526" width="668" height="128" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5"/>
+  <text x="112" y="558" class="box-title" fill="#047857">Records[JobID]</text>
+  <text x="112" y="586" class="body">- Rejections: plugin, source, optional failed task IDs</text>
+  <text x="112" y="612" class="body">- Subscriptions: map[ClusterEvent][]JobHintFn copied at Record time</text>
+  <text x="112" y="638" class="body">- LastFailedAt, RetryAfter watchdog timestamp</text>
+
+  <rect x="88" y="672" width="668" height="30" rx="8" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="422" y="692" text-anchor="middle" class="body">OnEvent -> lookup index -> run hints -> if Wakeup / error / timeout: Forget(JobID)</text>
+
+  <!-- [4] Scheduler session -->
+  <rect x="880" y="70" width="668" height="642" rx="12" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="902" y="101" class="section">[4] Volcano Scheduler Session (every schedulePeriod)</text>
+
+  <rect x="910" y="132" width="608" height="110" rx="9" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="1214" y="168" text-anchor="middle" class="box-title" fill="#6d28d9">OpenSession - Snapshot</text>
+  <text x="1214" y="198" text-anchor="middle" class="body">for each pending Job: ShouldSkip(job) -> job.SkipPredicate</text>
+  <text x="1214" y="224" text-anchor="middle" class="small">skipped Jobs stay in ssn.Jobs, preserving fairness and accounting</text>
+
+  <rect x="910" y="282" width="608" height="238" rx="9" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="1214" y="318" text-anchor="middle" class="box-title" fill="#6d28d9">Actions</text>
+  <g>
+    <rect x="946" y="352" width="170" height="42" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.2"/>
+    <text x="1031" y="379" text-anchor="middle" class="box-title" fill="#6d28d9">enqueue</text>
+    <text x="1146" y="378" class="body">skip JobEnqueueable for enqueue rejections</text>
+
+    <rect x="946" y="410" width="170" height="42" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.2"/>
+    <text x="1031" y="437" text-anchor="middle" class="box-title" fill="#6d28d9">allocate</text>
+    <text x="1146" y="436" class="body">short-circuit predicate retry work</text>
+
+    <rect x="946" y="468" width="170" height="42" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.2"/>
+    <text x="1031" y="495" text-anchor="middle" class="box-title" fill="#6d28d9">backfill</text>
+    <text x="1146" y="494" class="body">same short-circuit as allocate</text>
+  </g>
+
+  <rect x="910" y="558" width="608" height="124" rx="9" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="1214" y="594" text-anchor="middle" class="box-title" fill="#6d28d9">CloseSession</text>
+  <text x="1214" y="624" text-anchor="middle" class="body">evaluated and still pending -> Record(job, rejections)</text>
+  <text x="1214" y="650" text-anchor="middle" class="body">allocated or pipelined by preempt/reclaim -> Forget(JobID)</text>
+  <text x="1214" y="674" text-anchor="middle" class="small">skipped this session -> keep existing record unchanged</text>
+
+  <!-- [5] Plugins -->
+  <rect x="52" y="748" width="1496" height="136" rx="12" fill="#fff1f2" stroke="#ef4444" stroke-width="2"/>
+  <text x="74" y="780" class="section">[5] Plugins implement HintProvider</text>
+  <g>
+    <rect x="86" y="803" width="360" height="58" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="1.4"/>
+    <text x="108" y="827" class="box-title" fill="#b91c1c">predicates</text>
+    <text x="108" y="850" class="small">adapts kube-scheduler in-tree QueueingHintFns</text>
+
+    <rect x="466" y="803" width="282" height="58" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="1.4"/>
+    <text x="488" y="827" class="box-title" fill="#b91c1c">gang</text>
+    <text x="488" y="850" class="small">PodGroup, Pod and Node capacity events</text>
+
+    <rect x="768" y="803" width="338" height="58" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="1.4"/>
+    <text x="790" y="827" class="box-title" fill="#b91c1c">capacity / proportion / overcommit</text>
+    <text x="790" y="850" class="small">Queue, PodGroup completion and Pod deletion</text>
+
+    <rect x="1126" y="803" width="386" height="58" rx="8" fill="#ffffff" stroke="#ef4444" stroke-width="1.4"/>
+    <text x="1148" y="827" class="box-title" fill="#b91c1c">deviceshare / numaaware / topology</text>
+    <text x="1148" y="850" class="small">Node allocatable, NumaInfo, HyperNode and DRA events</text>
+  </g>
+
+  <!-- Arrows: cluster event dispatch -->
+  <path d="M232 200 V230" class="blue" stroke-width="3" fill="none" marker-end="url(#arrow-blue)"/>
+  <path d="M422 200 V230" class="blue" stroke-width="3" fill="none" marker-end="url(#arrow-blue)"/>
+  <path d="M612 200 V230" class="blue" stroke-width="3" fill="none" marker-end="url(#arrow-blue)"/>
+  <path d="M422 354 V384" class="blue" stroke-width="3" fill="none" marker-end="url(#arrow-blue)"/>
+  <rect x="450" y="363" width="110" height="26" rx="6" fill="#ffffff" stroke="#2563eb"/>
+  <text x="505" y="381" text-anchor="middle" class="label" fill="#1d4ed8">ClusterEvent</text>
+
+  <!-- Arrows: hint subscription -->
+  <path d="M422 748 V712" class="purple" stroke-width="3" stroke-dasharray="8,6" fill="none" marker-end="url(#arrow-purple)"/>
+  <rect x="442" y="718" width="126" height="26" rx="6" fill="#ffffff" stroke="#7c3aed"/>
+  <text x="505" y="736" text-anchor="middle" class="label" fill="#6d28d9">HintedEvents()</text>
+
+  <!-- Arrows: ShouldSkip read -->
+  <path d="M792 472 H836 V187 H880" class="green" stroke-width="3" stroke-dasharray="8,6" fill="none" marker-end="url(#arrow-green)"/>
+  <rect x="808" y="286" width="104" height="28" rx="6" fill="#ffffff" stroke="#059669"/>
+  <text x="860" y="306" text-anchor="middle" class="label" fill="#047857">ShouldSkip</text>
+
+  <!-- Arrows: Record / Forget mutation -->
+  <path d="M880 620 H832 V590 H792" class="green" stroke-width="3" fill="none" marker-end="url(#arrow-green)"/>
+  <rect x="794" y="607" width="126" height="28" rx="6" fill="#ffffff" stroke="#059669"/>
+  <text x="857" y="627" text-anchor="middle" class="label" fill="#047857">Record / Forget</text>
+
+  <!-- Arrows: event evicts cache record -->
+  <path d="M92 688 V586" class="orange" stroke-width="3" fill="none" marker-end="url(#arrow-orange)"/>
+  <text x="75" y="642" text-anchor="middle" transform="rotate(-90 75 642)" class="label" fill="#c2410c">evict record</text>
+
+  <!-- Arrows: next session retry -->
+  <path d="M1518 624 H1540 V187 H1518" class="gray" stroke-width="2.5" stroke-dasharray="6,6" fill="none" marker-end="url(#arrow-gray)"/>
+  <text x="1538" y="408" text-anchor="middle" transform="rotate(90 1538 408)" class="tiny">next tick retries normally</text>
+
+  <!-- Legend -->
+  <rect x="52" y="924" width="1496" height="78" rx="10" fill="#f8fafc" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="74" y="955" class="box-title">Legend</text>
+  <line x1="188" y1="956" x2="244" y2="956" class="blue" stroke-width="3"/>
+  <text x="258" y="962" class="small">cluster event dispatch</text>
+  <line x1="448" y1="956" x2="504" y2="956" class="green" stroke-width="3"/>
+  <text x="518" y="962" class="small">cache mutation</text>
+  <line x1="692" y1="956" x2="748" y2="956" class="green" stroke-width="3" stroke-dasharray="8,6"/>
+  <text x="762" y="962" class="small">cache read</text>
+  <line x1="906" y1="956" x2="962" y2="956" class="purple" stroke-width="3" stroke-dasharray="8,6"/>
+  <text x="976" y="962" class="small">hint subscription</text>
+  <line x1="1190" y1="956" x2="1246" y2="956" class="orange" stroke-width="3"/>
+  <text x="1260" y="962" class="small">hint wakes and evicts record</text>
 </svg>
