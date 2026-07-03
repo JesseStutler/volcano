@@ -121,7 +121,7 @@ blocked by those plugins — but maps it to session-based scheduling and Job-lev
     and records the Job in `UnschedulableJobCache` with copied hint subscriptions.
 3. Informer dispatchers normalize cluster changes into `ClusterEvent`s and call
     `UnschedulableJobCache.OnEvent`.
-4. A matching hint, timeout, error, PodGroup change, or `RetryAfter` expiry removes
+4. A matching hint, hint error, PodGroup change, or `RetryAfter` expiry removes
     the record so the next session retries the Job.
 5. Until then, `OpenSession` marks the Job with `SkipPredicate`; `enqueue`, `allocate`
     and `backfill` skip normal retry work, while `preempt` and `reclaim` still evaluate
@@ -180,17 +180,15 @@ const (
 )
 
 // ClusterEventWithHint pairs one cluster event a plugin cares about with the
-// callback used to check whether that event may help a specific Job. Mirrors
-// kube-scheduler's fwk.ClusterEventWithHint. A nil HintFn means every occurrence
-// of Event may wake Jobs blocked by this plugin.
+// callback used to check whether that event may help a specific Job. A nil
+// HintFn means every occurrence of Event may wake Jobs blocked by this plugin.
 type ClusterEventWithHint struct {
     Event  ClusterEvent
     HintFn JobHintFn
 }
 
 // HintProvider lets a plugin declare the events that can change its previous
-// unschedulable decisions. The method name mirrors kube-scheduler's
-// fwk.EnqueueExtensions.EventsToRegister.
+// unschedulable decisions.
 type HintProvider interface {
     EventsToRegister(ctx context.Context) ([]ClusterEventWithHint, error)
 }
@@ -286,11 +284,18 @@ so it does not consume the task list — a future capacity hint that wants to ma
 quota against specific task requests can start recording `Tasks` with no structural
 change. `JobEnqueueable` and `JobReady` are genuinely Job-level and never carry tasks.
 
-`RejectionJobReady` is the `gang` plugin's rejection: the Job could not gather
-`minAvailable` schedulable tasks this session. It is woken by events that add
-schedulable capacity — `Node/Add`, `Node/UpdateNodeAllocatable`, or `Pod/Delete` when a
-task finishes and frees resources — which is exactly what `gang` registers as a
-`HintProvider`.
+`RejectionJobReady` is *derived*, and overlaps with the others by nature: a gang Job
+fails `JobReady` whenever fewer than `minAvailable` of its tasks could be placed, which
+is itself usually caused by those same tasks' `RejectionPredicate` or
+`RejectionAllocatable` failures. Sources are not mutually exclusive — a Job may carry
+several, and `OnEvent` wakes it if any one hint fires — but to keep wake-ups selective
+the more specific per-task rejection is preferred. A standalone `RejectionJobReady` is
+therefore recorded only when the shortfall is plain resource insufficiency: no node had
+enough idle resources and no predicate or queue plugin voted against the tasks. That
+case is otherwise unattributed, so without it the gang Job could not be cached at all;
+`gang` is its `HintProvider` and wakes it on capacity-adding events (`Node/Add`,
+`Node/UpdateNodeAllocatable`, `Pod/Delete`). When the tasks already carry predicate or
+allocatable rejections, those drive the wake-up and the gang rejection is dropped.
 
 At `CloseSession` Volcano gathers each pending Job's rejections into one list. A
 rejection is only actionable if its plugin is a `HintProvider`: if any rejecting plugin
@@ -313,15 +318,57 @@ The normal retry lifecycle is:
    pending and skip the expensive predicate path for this session.
 4. A matching informer event calls `OnEvent`; if a hint says the Job may need retry,
    the cache calls `Forget(job.UID)` and the next session evaluates it normally.
-5. If no relevant event arrives before `RetryAfter`, `ShouldSkip` returns false once
-   and the Job is retried by the normal actions.
+5. If no relevant event arrives before `RetryAfter`, a background watchdog goroutine
+   `Forget`s the record, and the next session evaluates the Job normally.
 
-Recovery actions (`preempt` and `reclaim`) do not use `ShouldSkip`. They scan pending
-Jobs from `ssn.Jobs` normally because Volcano cannot know in advance which Job may
-become schedulable after victims are selected. When they pipeline a Job's tasks onto
-victims, that Job is progressing through preemption rather than being unschedulable, so
-`CloseSession` drops any existing record and does not re-cache it while it has pipelined
-tasks (see §5).
+Recovery actions (`preempt` and `reclaim`) do not use `ShouldSkip`; they scan pending
+Jobs from `ssn.Jobs` directly, because Volcano cannot know in advance which Job becomes
+schedulable after victims are selected. Once they pipeline a Job's tasks onto victims,
+that Job is making progress through preemption rather than being unschedulable:
+`ShouldSkip` returns false for it, so `allocate` keeps placing its remaining tasks as
+resources free, and `CloseSession` drops any existing record instead of re-caching it
+(see §5).
+
+A Job therefore moves between three states across sessions:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Evaluating: OpenSession, no record
+    Evaluating --> Progressing: allocated / pipelined
+    Evaluating --> Cached: CloseSession Record
+    Cached --> Cached: ShouldSkip bypass
+    Cached --> Cached: hint = HintSkip
+    Cached --> Evaluating: Forget (hint / PodGroup / watchdog)
+    Progressing --> [*]
+```
+
+The three states are:
+
+- **Evaluating** — no record (or the record is being bypassed); actions run predicates
+  and resource fit for the Job normally.
+- **Cached** — a record exists and `now < RetryAfter`; `enqueue`/`allocate`/`backfill`
+  skip the Job. `preempt`/`reclaim` still evaluate it (they ignore the cache).
+- **Progressing** — the Job allocated or was pipelined this session, so it holds no
+  record and leaves the cache's scope.
+
+A Job enters **Cached** only from `CloseSession → Record`. It leaves **Cached** back to
+**Evaluating** through three paths, all of which `Forget` (delete) the record so the
+next `OpenSession` finds none and evaluates the Job normally:
+
+1. **Hint wake-up (event-driven).** An informer fires `OnEvent`; the cache runs the
+   Job's subscribed hints. If any returns `HintWakeup`, the cache `Forget`s the record.
+   If every hint returns `HintSkip`, the record is kept and the Job stays **Cached**
+   (the `Cached → Cached` self-loop). This is the primary path — a real cluster change
+   plausibly fixes the earlier rejection.
+2. **PodGroup change (invalidation).** A `PodGroup Update`/`Delete` informer handler
+   `Forget`s the record directly, without consulting any hint: the Job's own spec or
+   lifecycle changed, so the previous rejection may no longer describe it and the record
+   must not be trusted.
+3. **RetryAfter watchdog (safety net).** A background goroutine runs on a fixed
+   interval and `Forget`s any record whose `RetryAfter` has passed. It runs off the
+   scheduling path — it does not add scanning work to `OpenSession` — and guarantees a
+   Job is never cached forever when a hint is missed, mis-attributed, or an informer
+   edge case drops an event.
 
 **Interface.**
 
@@ -334,8 +381,10 @@ type UnschedulableJobCache interface {
     Record(job *api.JobInfo, rejections []Rejection)
 
     // ShouldSkip is called during OpenSession. It returns true when normal retry
-    // work can be skipped for this Job in enqueue/allocate/backfill. The returned
-    // rejections are copied to JobInfo.SkipReason.
+    // work can be skipped for this Job in enqueue/allocate/backfill. It returns
+    // false when there is no record or the Job has pipelined tasks (preemption in
+    // progress); expired records are cleaned up by the watchdog goroutine, not
+    // here. The returned rejections are copied to JobInfo.SkipReason.
     ShouldSkip(job *api.JobInfo) (bool, []Rejection)
 
     // Forget drops the record.
@@ -347,33 +396,58 @@ type UnschedulableJobCache interface {
 }
 ```
 
-**Record.**
+**Cache state.** The cache keeps one record per Job, plus a reverse index so `OnEvent`
+can find the affected Jobs without scanning every record:
 
 ```go
-type UnschedulableRecord struct {
-    JobID      api.JobID
-    Rejections []Rejection // §2; retained for §5 bypass rules
+type UnschedulableJobCache struct {
+    mu sync.RWMutex
 
-    LastFailedAt time.Time
-    RetryAfter   time.Time  // LastFailedAt + DefaultMaxSkipDuration
+    // records is the primary store: one entry per cached Job.
+    records map[api.JobID]*UnschedulableRecord
 
-    // Subscriptions is the per-Job routing table, copied from sc.hintRegistry
-    // at Record time. OnEvent walks this map — never the live registry — so a
-    // plugin registered in a later session cannot silently change how old
-    // records wake up.
-    Subscriptions map[ClusterEvent][]hintEntry
+    // byEvent is the reverse index OnEvent uses: for each subscribed event, the
+    // Jobs whose hints want it. wildcard holds Jobs subscribed with a nil HintFn
+    // (any occurrence of a subscribed event wakes them).
+    byEvent  map[ClusterEvent]sets.Set[api.JobID]
+    wildcard sets.Set[api.JobID]
 }
 
-type hintEntry struct {
+type UnschedulableRecord struct {
+    JobID      api.JobID
+    Rejections []Rejection // §2; also retained for the §5 bypass rules
+
+    LastFailedAt time.Time
+    RetryAfter   time.Time // LastFailedAt + DefaultMaxSkipDuration
+
+    // Subscriptions is this Job's private routing table: for every event that
+    // could wake it, the hint callbacks to run. It is a snapshot (see below),
+    // not a reference to the global registry.
+    Subscriptions map[ClusterEvent][]QueueingHintFunction
+}
+
+// QueueingHintFunction pairs a plugin name with its hint callback, plus the
+// plugin's own Rejection so the callback can inspect the exact decision it
+// made in the previous session.
+type QueueingHintFunction struct {
     Plugin    string
     Rejection Rejection
-    Fn        JobHintFn
+    HintFn    JobHintFn
 }
 ```
 
-The cache indexes records two ways: `records map[JobID]*UnschedulableRecord` for
-direct lookup, and `byEvent map[ClusterEvent]sets.Set[JobID]` (plus a `wildcard` set
-for records with a nil `HintFn`) as a reverse index for `OnEvent`.
+`Subscriptions` holds the same `(event, hintFn)` pairs a plugin declares through
+`ClusterEventWithHint` (§1), narrowed to the plugins that rejected this Job and
+re-keyed by event for fast `OnEvent` lookup. `Record` builds it by looking each
+rejection's plugin up in the cache's global `HintRegistry` and copying the matching
+entries.
+
+It is a **snapshot** rather than a live reference to `HintRegistry` for one reason: a
+Job cached in an earlier session must keep waking up the way it was recorded, even if a
+plugin re-registers different events in a later session. If `OnEvent` walked the live
+registry instead, those later registrations would silently change how already-cached
+records behave. Copying at `Record` time is also what lets the cache keep working after
+the session that produced the hints is torn down.
 
 **Cache updates.**
 
@@ -384,25 +458,29 @@ for records with a nil `HintFn`) as a reverse index for `OnEvent`.
 | `CloseSession`, Job became allocated | `Forget(job.UID)` | Remove the record. |
 | PodGroup update/delete informer | `Forget(jobID)` | Job spec/lifecycle changed; evaluate it again. |
 | Queueing-hint informer event | `OnEvent(ev, oldObj, newObj)` | Run matching hints and wake Jobs that may need retry. |
+| Watchdog goroutine, `now >= RetryAfter` | `Forget(jobID)` | Off-path cleanup of stale records so a Job is never cached forever. |
 
-`ShouldSkip(job)` returns false when there is no record or `now >= RetryAfter`. In
-that case the normal actions evaluate the Job again; if it still fails, `Record`
-refreshes the cache at `CloseSession`.
+`ShouldSkip(job)` returns false when there is no record, or the Job currently has
+pipelined tasks from a prior `preempt`/`reclaim`. In that case the normal actions
+evaluate the Job again; if it still fails, `Record` refreshes the cache at
+`CloseSession`. Expired records are removed by the watchdog goroutine (below), so
+`ShouldSkip` never scans for timeouts on the scheduling path.
 
-There is no per-Job timer and no exponential backoff. Each record stores a timestamp,
-and Volcano checks it while it already walks pending Jobs in `OpenSession`. This gives
-the same watchdog semantics as a periodic cache scan: if a Job stays cached longer
-than the maximum skip duration, the next scan lets it retry once. Events remain the
-normal wake-up path; the timestamp is only a safety net for missed hints, broken
-attribution, or informer edge cases.
+There is no per-Job timer and no exponential backoff. A single background goroutine
+runs on a fixed interval, scans the records, and `Forget`s any whose `RetryAfter` has
+passed; the next `OpenSession` then finds no record and evaluates the Job normally.
+Keeping expiry on this goroutine means `OpenSession`/`ShouldSkip` only reads a record
+and never blocks the scheduling loop with a timeout sweep. Events remain the normal
+wake-up path; the timestamp is only a safety net for missed hints, broken attribution,
+or informer edge cases.
 
 **Invalidation.** A record is removed or bypassed by these triggers:
 
 | Trigger | Effect |
 |---|---|
-| A subscribed cluster event whose hint returns `HintWakeup`, times out, or errors | `Forget` (via `OnEvent`) |
+| A subscribed cluster event whose hint returns `HintWakeup` or errors | `Forget` (via `OnEvent`) |
 | `PodGroup Update` / `Delete` | `Forget` (from the cache's informer handler) |
-| `now >= RetryAfter` | `ShouldSkip` returns false; the session re-evaluates the Job |
+| `now >= RetryAfter` | the watchdog goroutine `Forget`s the record; the next session re-evaluates the Job |
 
 `Record` sets retry timing like this:
 
@@ -415,75 +493,69 @@ RetryAfter   = now + DefaultMaxSkipDuration // 5m
 
 ### 4. Event Dispatch
 
-The dispatch layer wires cluster events to `UnschedulableJobCache`. It has three
-concerns: (a) telling the cache which events any plugin actually cares about, (b)
-attaching handlers to the corresponding informers, and (c) delivering each event to
-the affected records.
+The dispatch layer connects cluster events to `UnschedulableJobCache`. It has three
+concerns: (a) knowing which events any plugin cares about, (b) attaching handlers to
+the corresponding informers, and (c) delivering each event to the affected records
+through `OnEvent`.
 
-**Subscribed event set.** After each `OpenSession`, the cache derives the union of
-subscribed `(resource, action)` pairs from `HintRegistry`. Only matching events are
-forwarded to queueing-hint dispatch. If no plugin subscribes to
-`Node/UpdateNodeTaint`, a taint-only node update does not run queueing-hint logic.
+**Subscribed event set.** After each `OpenSession`, the cache takes the union of the
+`(resource, action)` pairs declared in `HintRegistry`. Only those events are forwarded
+to queueing-hint dispatch; an event no plugin subscribes to never runs any hint. Node
+updates are split into finer actions (`UpdateNodeLabel`, `UpdateNodeTaint`,
+`UpdateNodeAllocatable`, `UpdateNodeCondition`) while other resources use a generic
+`Update`, so a taint-only change does not wake Jobs blocked only by node labels.
 
-**Handler registration.** Volcano installs a queueing-hint dispatcher beside the
-existing cache-update handlers for subscribed resources. Each dispatcher normalizes
-the informer callback into a `ClusterEvent`, filters unsupported action types, and
-then calls `UnschedulableJobCache.OnEvent`.
+**Handler registration.** Volcano installs a queueing-hint handler beside the existing
+cache-update handlers on the subscribed informers. Each handler normalizes the informer
+callback into a `ClusterEvent` and calls
+`UnschedulableJobCache.OnEvent(ev, oldObj, newObj)`.
+
+**Delivery.** `OnEvent` uses the `byEvent` / `wildcard` index (§3) to find the records
+subscribed to the event, runs each Job's matching hints, and `Forget`s a Job as soon as
+one hint returns `HintWakeup`. A hint that returns an error is treated as `HintWakeup`
+too, so a broken hint can never keep a Job cached forever. Jobs whose hints all return
+`HintSkip` stay cached until another event fires or the `RetryAfter` watchdog (§3) lets
+them retry.
 
 ```mermaid
 sequenceDiagram
-    participant Plugin as HintProvider
-    participant Registry as HintRegistry
     participant Informer as SharedInformer
-    participant Dispatch as Event Dispatcher
+    participant Dispatch as Event Handler
     participant UJC as UnschedulableJobCache
 
-    Plugin->>Registry: EventsToRegister()
-    Registry-->>Dispatch: subscribed resource/action set
     Informer->>Dispatch: Add / Update / Delete object
     Dispatch->>Dispatch: normalize to ClusterEvent
     Dispatch->>UJC: OnEvent(ev, oldObj, newObj)
-    UJC->>UJC: run matching hints outside locks
-    UJC-->>UJC: Forget Job on HintWakeup / timeout / error
+    UJC->>UJC: look up subscribed records via byEvent / wildcard
+    UJC->>UJC: run each Job's matching hints
+    UJC-->>UJC: Forget Job on HintWakeup / error
 ```
 
-Node updates are split into finer action types such as `UpdateNodeLabel`,
-`UpdateNodeTaint`, `UpdateNodeAllocatable` and `UpdateNodeCondition`; other resources
-use generic `Update`. This is what prevents, for example, a taint-only change from
-waking Jobs blocked only by node labels.
-
-**Dispatch mode.** The default path runs `OnEvent` synchronously on the informer
-callback. The cache snapshots candidate records under lock, releases the lock, and
-then runs bounded hint callbacks. A timeout, panic or error is treated as
-`HintWakeup`, so a broken hint cannot keep a Job cached indefinitely. If benchmarks
-show a specific event source is too hot, that resource can be moved behind a bounded
-worker without changing the `OnEvent` contract.
-
-**`OnEvent` behavior**:
+`OnEvent` decides per record:
 
 ```mermaid
 flowchart TD
-    A[OnEvent receives ClusterEvent] --> B[Snapshot matching records and hint entries]
+    A[OnEvent receives ClusterEvent] --> B[Find subscribed records via byEvent / wildcard]
     B --> C{Job still pending in SchedulerCache?}
     C -- no --> D[Forget record]
-    C -- yes --> E[Run matching hints outside cache locks]
-    E --> F{HintWakeup, nil hint, timeout or error?}
+    C -- yes --> E[Run the Job's matching hints]
+    E --> F{Any hint returns HintWakeup or errors?}
     F -- yes --> D
     F -- no --> G[Keep record cached]
 ```
 
-Any subscribed plugin can wake the Job. The next scheduling session still performs the
-normal Volcano checks; the hint only decides whether the cached skip should be lifted.
+Any subscribed plugin can wake the Job. Waking only lifts the cached skip — the next
+scheduling session still runs the normal Volcano checks before the Job can be placed.
 
 ### 5. Scheduler Action Changes
 
-Queueing hints only take effect if scheduling actions actually short-circuit on cached
-Jobs. This section walks the session lifecycle and specifies which extension points each
-action skips.
+Queueing hints only pay off if the actions actually skip cached Jobs. Two things change
+in the session lifecycle: `OpenSession` tags each pending Job with the cache's verdict,
+and `CloseSession` brings the cache back in line with what the session did.
 
-`OpenSession` still builds the session normally. After plugins register callbacks and
-hint providers, Volcano checks each pending Job against `UnschedulableJobCache` and
-stores the result on a transient session field:
+**Tagging pending Jobs.** `OpenSession` builds the session as usual. Once plugins have
+registered, Volcano asks `ShouldSkip` for every pending Job and stores the answer on a
+transient field:
 
 ```go
 type JobInfo struct {
@@ -493,35 +565,32 @@ type JobInfo struct {
 }
 ```
 
-This is intentionally not a snapshot-level filter. Skipped Jobs stay in `ssn.Jobs` and in
-every action's task queue so DRF, capacity, proportion and gang accounting see the full
-pending demand. `SkipPredicate` only gates normal retry work in `enqueue`, `allocate`
-and `backfill`; recovery actions ignore it.
+Skipped Jobs are *not* dropped from the snapshot. They stay in `ssn.Jobs` and in every
+action's queue so DRF, capacity, proportion and gang accounting still see the full
+pending demand; `SkipPredicate` only gates the expensive retry work described below.
 
-Action behavior:
+**How each action reacts to `SkipPredicate`.** `enqueue` skips its plugin re-vote only
+when the cached rejection came from `RejectionEnqueue`, since any other rejection says
+nothing about enqueueability. `allocate` and `backfill` keep the Job in their queue but
+skip pre-predicate, predicate and scoring for its tasks — this is where the CPU savings
+come from. `preempt` and `reclaim` ignore `SkipPredicate` entirely and evaluate every
+pending Job: they exist precisely to free resources for Jobs the other actions could
+not place, so a cached Job must stay a preemption candidate.
 
-| Stage | Behavior when `SkipPredicate=true` |
-|---|---|
-| `enqueue` | Skip enqueue plugin re-vote only when the cached rejection came from `RejectionEnqueue`. |
-| `allocate` / `backfill` | Keep the Job in the action queue, but skip pre-predicate, predicate and scoring work for its tasks. |
-| `preempt` / `reclaim` | Ignore `SkipPredicate` and evaluate pending Jobs normally. If they pipeline a Job's tasks onto victims, that Job is treated as in-progress and kept out of the unschedulable cache. |
+**Reconciling the cache at `CloseSession`.** Each pending Job's record is updated to
+match what actually happened to it:
 
-The cache reconciles against the session outcome at `CloseSession`:
+- If the Job was allocated, or `preempt`/`reclaim` pipelined some of its tasks onto
+  victims, it is making progress, so any record is dropped (or never written).
+- If the Job was skipped and never re-evaluated, its record is left untouched — still
+  waiting for an event or the watchdog.
+- If the Job was actually evaluated and still produced rejections, the record is written
+  or replaced with those fresh rejections.
 
-| Job outcome | Cache action |
-|---|---|
-| Allocated this session | Forget the record. |
-| Has pipelined tasks after `preempt` / `reclaim` | Forget / do not record — preemption is in progress. |
-| Skipped this session (`SkipPredicate`) | Keep the existing record unchanged. |
-| Evaluated, still pending, produced rejections | Record (replace) the Job. |
-
-A Job whose tasks were pipelined by `preempt` or `reclaim` is deliberately kept out of
-the cache. Its victims are still being evicted, so the next `allocate` may keep
-rejecting those tasks until their resources are actually freed — and caching the Job as
-unschedulable would suppress exactly the retries that let the preemption finish.
-Otherwise `Record` runs only when the session actually evaluated the Job and produced
-fresh rejections; a skipped Job keeps its record until an event wakes it, the Job
-changes, or `RetryAfter` lets it retry once.
+A pipelined Job is deliberately kept out of the cache. Its victims are still being
+evicted, so the next `allocate` may keep rejecting those tasks until their resources are
+freed — and caching the Job as unschedulable would suppress exactly the retries that let
+the preemption finish.
 
 ### 6. kube-scheduler QueueingHint Adapter
 
@@ -597,11 +666,11 @@ normally rather than guessing from an arbitrary representative Pod.
 
 | Risk | Mitigation |
 |---|---|
-| A hint misses a relevant event. | Fail open on errors/timeouts, `RetryAfter` watchdog, unattributed failures skip caching entirely (Job goes through the normal filter path). |
+| A hint misses a relevant event. | Fail open on hint errors, `RetryAfter` watchdog, unattributed failures skip caching entirely (Job goes through the normal filter path). |
 | Wrong plugin attribution. | Populate `Status.Plugin` in session wrappers; unit tests for `PredicateFn`, `PrePredicateFn`, `JobEnqueueable`, `JobReady`. |
 | Cache uses stale plugin registrations. | Registrations are copied into records. Later registrations apply only to new records; old records are bounded by the watchdog. |
 | Fairness drift. | Jobs stay in `ssn.Jobs`; only selected expensive checks are skipped. |
-| Hot `Pod` event path. | Event index by per-rejection subscription; callbacks outside lock; per-callback timeout. |
+| Hot `Pod` event path. | Event index by per-rejection subscription; only subscribed records run a hint. |
 | Extender behavior unknown. | Jobs rejected by the extender are not cached; they are re-evaluated every session, matching today's behavior. |
 | Preemption progress suppressed. | Jobs with pipelined tasks are excluded from the cache, so `preempt` / `reclaim` retries are never skipped. |
 
@@ -623,7 +692,7 @@ normally rather than guessing from an arbitrary representative Pod.
 - Failure attribution: `Status.Plugin` filled by `PredicateFn`/`PrePredicateFn` wrappers;
   bool extension points populate `jobRejections`; unattributed errors and rejections
   from plugins without a `HintProvider` cause the Job to be skipped from caching.
-- `UnschedulableJobCache`: `Record`, index creation, `ShouldSkip`, `RetryAfter` expiry, PodGroup update/delete invalidation, `OnEvent`, timeout/error fail-open, wildcard, concurrent event and record.
+- `UnschedulableJobCache`: `Record`, index creation, `ShouldSkip`, `RetryAfter` expiry, PodGroup update/delete invalidation, `OnEvent`, error fail-open, wildcard, concurrent event and record.
 - `predicates` adapter: event mapping and per-Pod-to-per-Job aggregation.
 
 **Integration**
@@ -632,8 +701,9 @@ normally rather than guessing from an arbitrary representative Pod.
 - Session close records rejections from `NodesFitErrors` and `jobRejections`.
 - Skipped Jobs remain in `ssn.Jobs` and fairness plugin outputs match the baseline.
 - `preempt` and `reclaim` still evaluate Jobs with `SkipPredicate=true`.
-- A Job whose tasks are pipelined by `preempt` / `reclaim` is not recorded, and any
-  existing record is dropped.
+- A Job whose tasks are pipelined by `preempt` / `reclaim` is not recorded, any
+  existing record is dropped, and `ShouldSkip` returns false so `allocate` keeps
+  placing its remaining tasks.
 
 **Benchmarks**
 
