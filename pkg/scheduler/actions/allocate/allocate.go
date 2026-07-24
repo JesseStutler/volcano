@@ -829,8 +829,14 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 				fitErrors.SetHyperNode(hyperNode)
 			}
 			job.NodesFitErrors[task.UID] = fitErrors
-			// Record the predicate failure for the unschedulable-job cache.
-			ssn.AddRejection(job.UID, api.PredicatesPluginName, api.RejectionPredicate, task.UID)
+			// Record the failing predicate plugins for the unschedulable-job cache,
+			// mirroring kube-scheduler which stores every plugin that returned
+			// Unschedulable rather than a single generic name.
+			if fitErrors != nil {
+				for plugin := range fitErrors.UnschedulablePlugins() {
+					ssn.AddRejection(job.UID, plugin, api.RejectionPredicate, task.UID)
+				}
+			}
 			// Assume that all left tasks are allocatable, but can not meet gang-scheduling min member,
 			// so we should break from continuously allocating.
 			// otherwise, should continue to find other allocatable task

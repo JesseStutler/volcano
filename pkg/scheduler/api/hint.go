@@ -97,9 +97,6 @@ const (
 	RejectionEnqueue RejectionSource = "enqueue"
 )
 
-// PredicatesPluginName is the registered name of the Volcano predicates plugin.
-const PredicatesPluginName = "predicates"
-
 // Rejection describes one plugin decision that made a Job unschedulable in a session.
 type Rejection struct {
 	// Plugin is the registered HintProvider name, e.g. "predicates/nodeaffinity".

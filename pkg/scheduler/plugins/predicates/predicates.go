@@ -330,9 +330,16 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 
 	ssn.RegisterBinder(pp.Name(), pp)
 
-	// Register this plugin as a HintProvider so the unschedulable-job cache can
-	// wake Jobs it rejected when a relevant node/pod event occurs.
-	ssn.AddHintProvider(pp.Name(), pp)
+	// Register each wrapped filter plugin as its own HintProvider, keyed by the
+	// k8s plugin name, so a Job's rejection can be attributed to the exact
+	// plugins that failed it and only their events wake it.
+	for name, plugin := range pp.FilterPlugins {
+		ext, ok := plugin.(fwk.EnqueueExtensions)
+		if !ok {
+			continue
+		}
+		ssn.AddHintProvider(name, &filterHintProvider{name: name, ext: ext})
+	}
 
 	// Add SimulateAddTask function
 	ssn.AddSimulateAddTaskFn(pp.Name(), func(ctx context.Context, cycleState fwk.CycleState, taskToSchedule *api.TaskInfo, taskToAdd *api.TaskInfo, nodeInfo *api.NodeInfo) error {
@@ -436,29 +443,29 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 	})
 }
 
-// EventsToRegister implements api.HintProvider. It adapts the QueueingHint
-// declarations of the wrapped kube-scheduler filter plugins into Volcano cluster
-// events.
-func (pp *PredicatesPlugin) EventsToRegister(ctx context.Context) ([]api.ClusterEventWithHint, error) {
-	var result []api.ClusterEventWithHint
-	for name, plugin := range pp.FilterPlugins {
-		ext, ok := plugin.(fwk.EnqueueExtensions)
-		if !ok {
-			continue
-		}
-		events, err := ext.EventsToRegister(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range events {
-			result = append(result, api.ClusterEventWithHint{
-				Event: api.ClusterEvent{
-					Resource:   e.Event.Resource,
-					ActionType: e.Event.ActionType,
-				},
-				HintFn: wrapPodHint(name, e.QueueingHintFn),
-			})
-		}
+// filterHintProvider adapts a single wrapped kube-scheduler filter plugin
+// (implementing fwk.EnqueueExtensions) into an api.HintProvider.
+type filterHintProvider struct {
+	name string
+	ext  fwk.EnqueueExtensions
+}
+
+// EventsToRegister implements api.HintProvider. It adapts the wrapped filter
+// plugin's QueueingHint declarations into Volcano cluster events.
+func (f *filterHintProvider) EventsToRegister(ctx context.Context) ([]api.ClusterEventWithHint, error) {
+	events, err := f.ext.EventsToRegister(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]api.ClusterEventWithHint, 0, len(events))
+	for _, e := range events {
+		result = append(result, api.ClusterEventWithHint{
+			Event: api.ClusterEvent{
+				Resource:   e.Event.Resource,
+				ActionType: e.Event.ActionType,
+			},
+			HintFn: wrapPodHint(f.name, e.QueueingHintFn),
+		})
 	}
 	return result, nil
 }
@@ -751,6 +758,9 @@ func (pp *PredicatesPlugin) Predicate(task *api.TaskInfo, node *api.NodeInfo, st
 			status := plugin.Filter(context.TODO(), state, task.Pod, nodeInfo)
 			filterStatus := api.ConvertPredicateStatus(status)
 			if filterStatus.Code != api.Success {
+				if filterStatus.Plugin == "" {
+					filterStatus.Plugin = name
+				}
 				predicateStatus = append(predicateStatus, filterStatus)
 				if util.ShouldAbort(filterStatus) {
 					return predicateStatus, false, fmt.Errorf("plugin %s predicates failed %s", name, status.Message())
@@ -805,6 +815,9 @@ func (pp *PredicatesPlugin) Predicate(task *api.TaskInfo, node *api.NodeInfo, st
 		status := plugin.Filter(context.TODO(), state, task.Pod, nodeInfo)
 		filterStatus := api.ConvertPredicateStatus(status)
 		if filterStatus.Code != api.Success {
+			if filterStatus.Plugin == "" {
+				filterStatus.Plugin = name
+			}
 			predicateStatus = append(predicateStatus, filterStatus)
 			if util.ShouldAbort(filterStatus) {
 				return api.NewFitErrWithStatus(task, node, predicateStatus...)
