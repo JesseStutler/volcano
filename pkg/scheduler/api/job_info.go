@@ -406,6 +406,11 @@ type JobInfo struct {
 	// * value means workload can use all the revocable node for during node active revocable time.
 	RevocableZone string
 	Budget        *DisruptionBudget
+
+	// Skip is derived from the unschedulable-job cache at OpenSession. enqueue
+	// reads Skip.Enqueue; allocate and backfill read Skip.Allocate and Skip.Tasks.
+	// Zero value means the Job is evaluated normally this session.
+	Skip SkipDecision
 }
 
 // NewJobInfo creates a new jobInfo for set of tasks

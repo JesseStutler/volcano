@@ -406,9 +406,8 @@ func (sc *SchedulerCache) AddPod(obj interface{}) {
 	}
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
 	err := sc.addPod(pod)
+	sc.Mutex.Unlock()
 	if err != nil {
 		klog.Errorf("Failed to add pod <%s/%s> into cache: %v",
 			pod.Namespace, pod.Name, err)
@@ -417,6 +416,7 @@ func (sc *SchedulerCache) AddPod(obj interface{}) {
 	if pod.Spec.NodeName == "" {
 		metrics.UpdateTaskScheduleDuration(metrics.TaskStageWatched, metrics.Duration(pod.CreationTimestamp.Time))
 	}
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Add}, nil, pod)
 	klog.V(3).Infof("Added pod <%s/%v> into cache.", pod.Namespace, pod.Name)
 }
 
@@ -434,14 +434,14 @@ func (sc *SchedulerCache) UpdatePod(oldObj, newObj interface{}) {
 	}
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
 	err := sc.updatePod(oldPod, newPod)
+	sc.Mutex.Unlock()
 	if err != nil {
 		klog.Errorf("Failed to update pod %v in cache: %v", oldPod.Name, err)
 		return
 	}
 
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Update}, oldPod, newPod)
 	klog.V(4).Infof("Updated pod <%s/%v> in cache.", oldPod.Namespace, oldPod.Name)
 }
 
@@ -464,14 +464,14 @@ func (sc *SchedulerCache) DeletePod(obj interface{}) {
 	}
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
 	err := sc.deletePod(pod)
+	sc.Mutex.Unlock()
 	if err != nil {
 		klog.Errorf("Failed to delete pod %v from cache: %v", pod.Name, err)
 		return
 	}
 
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}, pod, nil)
 	klog.V(3).Infof("Deleted pod <%s/%v> from cache.", pod.Namespace, pod.Name)
 }
 
@@ -585,6 +585,7 @@ func (sc *SchedulerCache) AddNode(obj interface{}, isInInitialList bool) {
 		sc.nodeInitialEventTracker.Add(node.Name)
 		sc.hyperNodesInitialEventTracker.Add(string(hyperNodeEventSourceNode) + "/" + node.Name)
 	}
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil, node)
 }
 
 // UpdateNode update node to scheduler cache
@@ -603,6 +604,7 @@ func (sc *SchedulerCache) UpdateNode(oldObj, newObj interface{}) {
 	if !reflect.DeepEqual(oldNode.GetLabels(), newNode.GetLabels()) {
 		sc.hyperNodesQueue.Add(schedulercache.QueueObjectWrapper{Object: string(hyperNodeEventSourceNode) + "/" + newNode.Name, IsInInitialList: false})
 	}
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Update}, oldNode, newNode)
 }
 
 // DeleteNode delete node from scheduler cache
@@ -624,6 +626,7 @@ func (sc *SchedulerCache) DeleteNode(obj interface{}) {
 	}
 	sc.nodeQueue.Add(schedulercache.QueueObjectWrapper{Object: node.Name, IsInInitialList: false})
 	sc.hyperNodesQueue.Add(schedulercache.QueueObjectWrapper{Object: string(hyperNodeEventSourceNode) + "/" + node.Name, IsInInitialList: false})
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Delete}, node, nil)
 }
 
 func (sc *SchedulerCache) SyncNode(nodeName string) error {
@@ -865,12 +868,13 @@ func (sc *SchedulerCache) AddPodGroupV1beta1(obj interface{}) {
 	klog.V(4).Infof("Add PodGroup(%s) into cache, spec(%#v)", ss.Name, ss.Spec)
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	if err := sc.setPodGroup(pg); err != nil {
+	err := sc.setPodGroup(pg)
+	sc.Mutex.Unlock()
+	if err != nil {
 		klog.Errorf("Failed to add PodGroup %s into cache: %v", ss.Name, err)
 		return
 	}
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: schedulingapi.PodGroupEvent, ActionType: fwk.Add}, nil, pg)
 }
 
 // UpdatePodGroupV1beta1 add podgroup to scheduler cache
@@ -901,12 +905,18 @@ func (sc *SchedulerCache) UpdatePodGroupV1beta1(oldObj, newObj interface{}) {
 	pg := &schedulingapi.PodGroup{PodGroup: podgroup, Version: schedulingapi.PodGroupVersionV1Beta1}
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	if err := sc.updatePodGroup(pg); err != nil {
+	err := sc.updatePodGroup(pg)
+	sc.Mutex.Unlock()
+	if err != nil {
 		klog.Errorf("Failed to update SchedulingSpec %s into cache: %v", pg.Name, err)
 		return
 	}
+	oldPg := &schedulingapi.PodGroup{Version: schedulingapi.PodGroupVersionV1Beta1}
+	oldConverted := scheduling.PodGroup{}
+	if err := scheme.Scheme.Convert(oldSS, &oldConverted, nil); err == nil {
+		oldPg.PodGroup = oldConverted
+	}
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: schedulingapi.PodGroupEvent, ActionType: fwk.Update}, oldPg, pg)
 }
 
 // DeletePodGroupV1beta1 delete podgroup from scheduler cache
@@ -953,10 +963,10 @@ func (sc *SchedulerCache) AddQueueV1beta1(obj interface{}) {
 	}
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
 	klog.V(4).Infof("Add Queue(%s) into cache, spec(%#v)", ss.Name, ss.Spec)
 	sc.addQueue(queue)
+	sc.Mutex.Unlock()
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: schedulingapi.QueueEvent, ActionType: fwk.Add}, nil, queue)
 }
 
 // UpdateQueueV1beta1 update queue to scheduler cache
@@ -983,8 +993,9 @@ func (sc *SchedulerCache) UpdateQueueV1beta1(oldObj, newObj interface{}) {
 	}
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
 	sc.updateQueue(newQueue)
+	sc.Mutex.Unlock()
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: schedulingapi.QueueEvent, ActionType: fwk.Update}, oldSS, newQueue)
 }
 
 // DeleteQueueV1beta1 delete queue from the scheduler cache

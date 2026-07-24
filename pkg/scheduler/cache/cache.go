@@ -189,6 +189,12 @@ type SchedulerCache struct {
 
 	binderRegistry *BinderRegistry
 
+	// hintRegistry holds the HintProviders declared by plugins during OpenSession.
+	hintRegistry *HintRegistry
+	// unschedulableCache records Jobs that stayed unschedulable so later sessions
+	// can skip their redundant filter work until a subscribed event wakes them.
+	unschedulableCache *UnschedulableJobCache
+
 	// sharedDRAManager is used in DRA plugin, contains resourceClaimTracker, resourceSliceLister and deviceClassLister
 	sharedDRAManager fwk.SharedDRAManager
 
@@ -615,6 +621,8 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 	}
 
 	sc.binderRegistry = NewBinderRegistry()
+	sc.hintRegistry = NewHintRegistry()
+	sc.unschedulableCache = NewUnschedulableJobCache(sc.hintRegistry, sc.getJobInfo)
 
 	// add all events handlers
 	sc.addEventHandler()
@@ -871,6 +879,9 @@ func (sc *SchedulerCache) Run(stopCh <-chan struct{}) {
 	go wait.Until(sc.processCleanupJob, 0, stopCh)
 
 	go wait.Until(sc.processBindTask, time.Millisecond*20, stopCh)
+
+	// Expire stale unschedulable-job cache records so their retries resume.
+	sc.unschedulableCache.StartWatchdog(stopCh)
 
 	// Get metrics data
 	klog.V(3).Infof("Start metrics collection, metricsConf is %v", sc.metricsConf)
@@ -1838,6 +1849,48 @@ func (sc *SchedulerCache) RegisterBinder(name string, binder interface{}) {
 		sc.binderRegistry = NewBinderRegistry()
 	}
 	sc.binderRegistry.Register(name, binder)
+}
+
+// AddHintProvider registers a plugin's HintProvider into the cache-scoped
+// HintRegistry.
+func (sc *SchedulerCache) AddHintProvider(name string, p schedulingapi.HintProvider) {
+	if sc.hintRegistry == nil {
+		sc.hintRegistry = NewHintRegistry()
+	}
+	sc.hintRegistry.Register(name, p)
+}
+
+// RecordUnschedulable stores the rejections observed for job at CloseSession.
+func (sc *SchedulerCache) RecordUnschedulable(job *schedulingapi.JobInfo, rejections []schedulingapi.Rejection) {
+	if sc.unschedulableCache == nil {
+		return
+	}
+	sc.unschedulableCache.Record(job, rejections)
+}
+
+// GetCachedRejections returns the rejections recorded for job in the previous
+// session, or nil when the Job should be evaluated normally.
+func (sc *SchedulerCache) GetCachedRejections(job *schedulingapi.JobInfo) []schedulingapi.Rejection {
+	if sc.unschedulableCache == nil {
+		return nil
+	}
+	return sc.unschedulableCache.GetCachedRejections(job)
+}
+
+// ForgetUnschedulable drops the cached record for jobID.
+func (sc *SchedulerCache) ForgetUnschedulable(jobID schedulingapi.JobID) {
+	if sc.unschedulableCache == nil {
+		return
+	}
+	sc.unschedulableCache.Forget(jobID)
+}
+
+// getJobInfo returns the current JobInfo for jobID or nil when it is no longer
+// tracked. It is the jobGetter used by the UnschedulableJobCache.
+func (sc *SchedulerCache) getJobInfo(jobID schedulingapi.JobID) *schedulingapi.JobInfo {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+	return sc.Jobs[jobID]
 }
 
 func (sc *SchedulerCache) OnSessionOpen() {

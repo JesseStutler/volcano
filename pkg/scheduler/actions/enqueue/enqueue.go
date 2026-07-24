@@ -68,6 +68,11 @@ func (enqueue *Action) Execute(ssn *framework.Session) {
 		}
 
 		if job.IsPending() {
+			if job.Skip.Enqueue {
+				klog.V(4).Infof("Skip enqueueing Job <%s/%s>: suppressed by unschedulable-job cache",
+					job.Namespace, job.Name)
+				continue
+			}
 			if _, found := jobsMap[job.Queue]; !found {
 				jobsMap[job.Queue] = util.NewPriorityQueue(ssn.JobOrderFn)
 			}

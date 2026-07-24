@@ -330,6 +330,10 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 
 	ssn.RegisterBinder(pp.Name(), pp)
 
+	// Register this plugin as a HintProvider so the unschedulable-job cache can
+	// wake Jobs it rejected when a relevant node/pod event occurs.
+	ssn.AddHintProvider(pp.Name(), pp)
+
 	// Add SimulateAddTask function
 	ssn.AddSimulateAddTaskFn(pp.Name(), func(ctx context.Context, cycleState fwk.CycleState, taskToSchedule *api.TaskInfo, taskToAdd *api.TaskInfo, nodeInfo *api.NodeInfo) error {
 		podInfoToAdd, err := k8sframework.NewPodInfo(taskToAdd.Pod)
@@ -430,6 +434,68 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 		}
 		return nil
 	})
+}
+
+// EventsToRegister implements api.HintProvider. It adapts the QueueingHint
+// declarations of the wrapped kube-scheduler filter plugins into Volcano cluster
+// events.
+func (pp *PredicatesPlugin) EventsToRegister(ctx context.Context) ([]api.ClusterEventWithHint, error) {
+	var result []api.ClusterEventWithHint
+	for name, plugin := range pp.FilterPlugins {
+		ext, ok := plugin.(fwk.EnqueueExtensions)
+		if !ok {
+			continue
+		}
+		events, err := ext.EventsToRegister(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range events {
+			result = append(result, api.ClusterEventWithHint{
+				Event: api.ClusterEvent{
+					Resource:   e.Event.Resource,
+					ActionType: e.Event.ActionType,
+				},
+				HintFn: wrapPodHint(name, e.QueueingHintFn),
+			})
+		}
+	}
+	return result, nil
+}
+
+// wrapPodHint adapts a kube-scheduler QueueingHintFn (which reasons about a
+// single Pod) into a Volcano JobHintFn. The event is treated as a wake-up if the
+// wrapped hint says any rejected task's Pod may now be schedulable.
+func wrapPodHint(plugin string, hintFn fwk.QueueingHintFn) api.JobHintFn {
+	return func(logger klog.Logger, job *api.JobInfo, rejection api.Rejection, oldObj, newObj any) (api.HintResult, error) {
+		if hintFn == nil {
+			// No hint means "always retry on this event".
+			return api.HintWakeup, nil
+		}
+
+		tasks := rejection.Tasks
+		if len(tasks) == 0 {
+			for tid := range job.TaskStatusIndex[api.Pending] {
+				tasks = append(tasks, tid)
+			}
+		}
+
+		for _, tid := range tasks {
+			task, ok := job.Tasks[tid]
+			if !ok || task.Pod == nil {
+				continue
+			}
+			hint, err := hintFn(logger, task.Pod, oldObj, newObj)
+			if err != nil {
+				// On error, upstream semantics treat the hint as Queue.
+				return api.HintWakeup, err
+			}
+			if hint == fwk.Queue {
+				return api.HintWakeup, nil
+			}
+		}
+		return api.HintSkip, nil
+	}
 }
 
 // PrePredicate runs all PreFilter plugins for the given task.

@@ -132,6 +132,12 @@ func (backfill *Action) pickUpPendingTasks(ssn *framework.Session) []*api.TaskIn
 			continue
 		}
 
+		if job.Skip.Allocate {
+			klog.V(4).Infof("Job <%s/%s> Queue <%s> skip backfill, reason: suppressed by unschedulable-job cache",
+				job.Namespace, job.Name, job.Queue)
+			continue
+		}
+
 		queue, found := ssn.Queues[job.Queue]
 		if !found {
 			continue
@@ -143,6 +149,10 @@ func (backfill *Action) pickUpPendingTasks(ssn *framework.Session) []*api.TaskIn
 			}
 
 			if task.SchGated {
+				continue
+			}
+
+			if job.Skip.SkipTask(task.UID) {
 				continue
 			}
 

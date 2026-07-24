@@ -168,6 +168,12 @@ func (alloc *Action) buildAllocateContext() *allocateContext {
 			continue
 		}
 
+		if job.Skip.Allocate {
+			klog.V(4).Infof("Job <%s/%s> Queue <%s> skip allocate, reason: suppressed by unschedulable-job cache",
+				job.Namespace, job.Name, job.Queue)
+			continue
+		}
+
 		if _, found := ssn.Queues[job.Queue]; !found {
 			klog.Warningf("Skip adding Job <%s/%s> because its queue %s is not found",
 				job.Namespace, job.Name, job.Queue)
@@ -254,6 +260,13 @@ func (alloc *Action) organizeJobWorksheet(job *api.JobInfo) *JobWorksheet {
 		}
 
 		for _, task := range subJob.TaskStatusIndex[api.Pending] {
+			// Skip tasks the unschedulable-job cache has flagged as still failing.
+			if job.Skip.SkipTask(task.UID) {
+				klog.V(4).Infof("Task <%v/%v> skipped: suppressed by unschedulable-job cache.",
+					task.Namespace, task.Name)
+				continue
+			}
+
 			// Skip tasks with external (non-Volcano) scheduling gates
 			// Allow Volcano-managed gates (they'll be handled by capacity plugin)
 			if task.SchGated && !api.HasOnlyVolcanoSchedulingGate(task.Pod) {
@@ -816,6 +829,8 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 				fitErrors.SetHyperNode(hyperNode)
 			}
 			job.NodesFitErrors[task.UID] = fitErrors
+			// Record the predicate failure for the unschedulable-job cache.
+			ssn.AddRejection(job.UID, api.PredicatesPluginName, api.RejectionPredicate, task.UID)
 			// Assume that all left tasks are allocatable, but can not meet gang-scheduling min member,
 			// so we should break from continuously allocating.
 			// otherwise, should continue to find other allocatable task

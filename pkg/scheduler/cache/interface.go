@@ -94,6 +94,20 @@ type Cache interface {
 	// RegisterBinder registers the passed binder to the cache's binderRegistry
 	RegisterBinder(name string, binder interface{})
 
+	// AddHintProvider registers a plugin's HintProvider into the cache-scoped
+	// HintRegistry used by the unschedulable-job cache.
+	AddHintProvider(name string, p api.HintProvider)
+
+	// RecordUnschedulable stores the rejections observed for job at CloseSession.
+	RecordUnschedulable(job *api.JobInfo, rejections []api.Rejection)
+
+	// GetCachedRejections returns the rejections recorded for job in the previous
+	// session, or nil when the Job should be evaluated normally.
+	GetCachedRejections(job *api.JobInfo) []api.Rejection
+
+	// ForgetUnschedulable drops the cached unschedulable record for jobID.
+	ForgetUnschedulable(jobID api.JobID)
+
 	// SharedDRAManager returns the shared DRAManager
 	SharedDRAManager() fwk.SharedDRAManager
 

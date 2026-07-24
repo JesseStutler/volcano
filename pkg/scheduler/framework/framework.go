@@ -54,6 +54,7 @@ func OpenSession(cache cache.Cache, tiers []conf.Tier, configurations []conf.Con
 	}
 
 	ssn.InitCycleState()
+	ssn.applyCachedSkips()
 	metrics.UpdateOpenSessionDuration(time.Since(openStart))
 
 	return ssn
@@ -66,6 +67,8 @@ func CloseSession(ssn *Session) {
 		plugin.OnSessionClose(ssn)
 		metrics.UpdatePluginDuration(plugin.Name(), metrics.OnSessionClose, metrics.Duration(onSessionCloseStart))
 	}
+
+	ssn.reconcileUnschedulableCache()
 
 	closeSession(ssn)
 }

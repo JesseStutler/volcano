@@ -161,6 +161,12 @@ type Session struct {
 	// The key is task's UID, value is the CycleState.
 	cycleStatesMap sync.Map
 
+	// jobRejections accumulates, during a session, the plugin rejections that made
+	// each Job unschedulable. It is drained at CloseSession into the
+	// unschedulable-job cache. Keyed by Job ID.
+	jobRejections   map[api.JobID][]api.Rejection
+	jobRejectionsMu sync.Mutex
+
 	NodesInShard sets.Set[string]
 }
 
@@ -225,6 +231,7 @@ func openSession(cache cache.Cache) *Session {
 		subJobOrderFns:                map[string]api.CompareFn{},
 		hyperNodeGradientForJobFns:    map[string]api.HyperNodeGradientForJobFn{},
 		hyperNodeGradientForSubJobFns: map[string]api.HyperNodeGradientForSubJobFn{},
+		jobRejections:                 map[api.JobID][]api.Rejection{},
 	}
 
 	snapshot := cache.Snapshot()
