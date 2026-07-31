@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -47,6 +48,7 @@ import (
 	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	topologyv1alpha1 "volcano.sh/apis/pkg/apis/topology/v1alpha1"
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
+	"volcano.sh/volcano/pkg/features"
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/cache"
 	"volcano.sh/volcano/pkg/scheduler/conf"
@@ -164,14 +166,16 @@ type Session struct {
 	// jobRejections accumulates, during a session, the plugin rejections that made
 	// each Job unschedulable. It is drained at CloseSession into the
 	// unschedulable-job cache. Keyed by Job ID.
-	jobRejections   map[api.JobID][]api.Rejection
-	jobRejectionsMu sync.Mutex
+	jobRejections                map[api.JobID][]api.Rejection
+	jobRejectionsMu              sync.Mutex
+	unschedulableJobCacheEnabled bool
 
 	NodesInShard sets.Set[string]
 }
 
 func openSession(cache cache.Cache) *Session {
 	cache.OnSessionOpen()
+	unschedulableJobCacheEnabled := utilfeature.DefaultFeatureGate.Enabled(features.UnschedulableJobCache)
 	ssn := &Session{
 		UID:             uuid.NewUUID(),
 		kubeClient:      cache.Client(),
@@ -231,7 +235,10 @@ func openSession(cache cache.Cache) *Session {
 		subJobOrderFns:                map[string]api.CompareFn{},
 		hyperNodeGradientForJobFns:    map[string]api.HyperNodeGradientForJobFn{},
 		hyperNodeGradientForSubJobFns: map[string]api.HyperNodeGradientForSubJobFn{},
-		jobRejections:                 map[api.JobID][]api.Rejection{},
+		unschedulableJobCacheEnabled:  unschedulableJobCacheEnabled,
+	}
+	if unschedulableJobCacheEnabled {
+		ssn.jobRejections = make(map[api.JobID][]api.Rejection)
 	}
 
 	snapshot := cache.Snapshot()

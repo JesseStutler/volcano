@@ -940,12 +940,20 @@ func (sc *SchedulerCache) DeletePodGroupV1beta1(obj interface{}) {
 	jobID := schedulingapi.JobID(fmt.Sprintf("%s/%s", ss.Namespace, ss.Name))
 
 	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	if err := sc.deletePodGroup(jobID); err != nil {
+	err := sc.deletePodGroup(jobID)
+	sc.Mutex.Unlock()
+	if err != nil {
 		klog.Errorf("Failed to delete podgroup %s from cache: %v", ss.Name, err)
 		return
 	}
+
+	podgroup := scheduling.PodGroup{}
+	if err := scheme.Scheme.Convert(ss, &podgroup, nil); err != nil {
+		klog.Errorf("Failed to convert podgroup from %T to %T", ss, podgroup)
+		return
+	}
+	pg := &schedulingapi.PodGroup{PodGroup: podgroup, Version: schedulingapi.PodGroupVersionV1Beta1}
+	sc.unschedulableCache.OnEvent(schedulingapi.ClusterEvent{Resource: schedulingapi.PodGroupEvent, ActionType: fwk.Delete}, pg, nil)
 }
 
 // AddQueueV1beta1 add queue to scheduler cache

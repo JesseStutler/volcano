@@ -434,17 +434,6 @@ func (cp *capacityPlugin) Name() string {
 	return PluginName
 }
 
-// EventsToRegister implements api.HintProvider. A Job rejected by capacity may
-// become schedulable on a Queue change, a PodGroup update/delete, or a Pod
-// delete. A nil HintFn means any of these events wakes the Job.
-func (cp *capacityPlugin) EventsToRegister(_ context.Context) ([]api.ClusterEventWithHint, error) {
-	return []api.ClusterEventWithHint{
-		{Event: api.ClusterEvent{Resource: api.QueueEvent, ActionType: fwk.Add | fwk.Update}},
-		{Event: api.ClusterEvent{Resource: api.PodGroupEvent, ActionType: fwk.Update | fwk.Delete}},
-		{Event: api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}},
-	}, nil
-}
-
 func (cp *capacityPlugin) OnSessionOpen(ssn *framework.Session) {
 	cp.parseArguments()
 

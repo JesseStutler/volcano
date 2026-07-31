@@ -22,6 +22,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 
 	fwk "k8s.io/kube-scheduler/framework"
 
@@ -967,6 +968,10 @@ func (ssn *Session) PrePredicateFn(task *api.TaskInfo) error {
 			}
 			err := pfn(task)
 			if err != nil {
+				var rejection *api.PrePredicateError
+				if errors.As(err, &rejection) {
+					ssn.AddRejection(task.Job, rejection.Plugin, api.RejectionPredicate, task.UID)
+				}
 				return err
 			}
 		}
@@ -1231,6 +1236,9 @@ func (ssn *Session) RegisterBinder(name string, binder interface{}) {
 // HintRegistry, so the unschedulable-job cache can wake Jobs this plugin rejected
 // when a subscribed cluster event fires.
 func (ssn *Session) AddHintProvider(name string, p api.HintProvider) {
+	if !ssn.unschedulableJobCacheEnabled {
+		return
+	}
 	ssn.cache.AddHintProvider(name, p)
 }
 
@@ -1238,12 +1246,45 @@ func (ssn *Session) AddHintProvider(name string, p api.HintProvider) {
 // unschedulable through the given source, optionally naming the failed tasks.
 // Rejections are drained into the unschedulable-job cache at CloseSession.
 func (ssn *Session) AddRejection(job api.JobID, plugin string, source api.RejectionSource, tasks ...api.TaskID) {
+	if !ssn.unschedulableJobCacheEnabled {
+		return
+	}
+	var uniqueTasks []api.TaskID
+	if len(tasks) > 0 {
+		uniqueTasks = make([]api.TaskID, 0, len(tasks))
+	}
+	seenTasks := make(map[api.TaskID]struct{}, len(tasks))
+	for _, task := range tasks {
+		if _, found := seenTasks[task]; found {
+			continue
+		}
+		uniqueTasks = append(uniqueTasks, task)
+		seenTasks[task] = struct{}{}
+	}
 	ssn.jobRejectionsMu.Lock()
 	defer ssn.jobRejectionsMu.Unlock()
+	for i := range ssn.jobRejections[job] {
+		rejection := &ssn.jobRejections[job][i]
+		if rejection.Plugin != plugin || rejection.Source != source {
+			continue
+		}
+		existingTasks := make(map[api.TaskID]struct{}, len(rejection.Tasks))
+		for _, task := range rejection.Tasks {
+			existingTasks[task] = struct{}{}
+		}
+		for _, task := range uniqueTasks {
+			if _, found := existingTasks[task]; found {
+				continue
+			}
+			rejection.Tasks = append(rejection.Tasks, task)
+			existingTasks[task] = struct{}{}
+		}
+		return
+	}
 	ssn.jobRejections[job] = append(ssn.jobRejections[job], api.Rejection{
 		Plugin: plugin,
 		Source: source,
-		Tasks:  tasks,
+		Tasks:  uniqueTasks,
 	})
 }
 
@@ -1258,6 +1299,9 @@ func (ssn *Session) rejectionsForJob(job api.JobID) []api.Rejection {
 // unschedulable-job cache at OpenSession. Jobs without a cached record keep the
 // zero-value Skip and are evaluated normally.
 func (ssn *Session) applyCachedSkips() {
+	if !ssn.unschedulableJobCacheEnabled {
+		return
+	}
 	for _, job := range ssn.Jobs {
 		rejections := ssn.cache.GetCachedRejections(job)
 		if len(rejections) == 0 {
@@ -1272,6 +1316,9 @@ func (ssn *Session) applyCachedSkips() {
 // reconcileUnschedulableCache updates the unschedulable-job cache at CloseSession
 // to match what actually happened to each Job this session.
 func (ssn *Session) reconcileUnschedulableCache() {
+	if !ssn.unschedulableJobCacheEnabled {
+		return
+	}
 	for jobID, job := range ssn.Jobs {
 		// Jobs making progress (allocated to readiness or pipelined via
 		// preemption) must not be cached.
@@ -1283,6 +1330,10 @@ func (ssn *Session) reconcileUnschedulableCache() {
 		// A Job that was evaluated and still produced rejections is (re)cached
 		// with the fresh rejections.
 		if rejections := ssn.rejectionsForJob(jobID); len(rejections) > 0 {
+			scope := ssn.queueScope(job.Queue)
+			for i := range rejections {
+				rejections[i].Queues = scope
+			}
 			ssn.cache.RecordUnschedulable(job, rejections)
 			continue
 		}
@@ -1295,4 +1346,29 @@ func (ssn *Session) reconcileUnschedulableCache() {
 
 		ssn.cache.ForgetUnschedulable(jobID)
 	}
+}
+
+// queueScope returns queueID together with its ancestor queues, walking
+// Queue.Spec.Parent through ssn.Queues. The result scopes quota-plugin hint
+// wakeups: only resource changes within these queues can affect a quota
+// decision for a Job in queueID. The walk stops at the root, a missing parent,
+// or a cycle.
+func (ssn *Session) queueScope(queueID api.QueueID) []api.QueueID {
+	scope := []api.QueueID{queueID}
+	seen := map[api.QueueID]struct{}{queueID: {}}
+	current := queueID
+	for {
+		qi, ok := ssn.Queues[current]
+		if !ok || qi.Queue == nil || qi.Queue.Spec.Parent == "" {
+			break
+		}
+		parent := api.QueueID(qi.Queue.Spec.Parent)
+		if _, dup := seen[parent]; dup {
+			break
+		}
+		seen[parent] = struct{}{}
+		scope = append(scope, parent)
+		current = parent
+	}
+	return scope
 }

@@ -133,6 +133,7 @@ func (alloc *Action) Execute(ssn *framework.Session) {
 	// 5. use ssn.NodeOrderFn to judge the best node and assign it to T
 
 	alloc.session = ssn
+	ssn.AddHintProvider(resourceFitHintProviderName, &resourceFitHintProvider{})
 	alloc.recorder = NewRecorder()
 	actx := alloc.buildAllocateContext()
 	klog.V(3).Infof("Try to allocate resource to %d Queues", actx.queues.Len())
@@ -829,9 +830,8 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 				fitErrors.SetHyperNode(hyperNode)
 			}
 			job.NodesFitErrors[task.UID] = fitErrors
-			// Record the failing predicate plugins for the unschedulable-job cache,
-			// mirroring kube-scheduler which stores every plugin that returned
-			// Unschedulable rather than a single generic name.
+			// Record every predicate plugin that rejected the task on the checked
+			// nodes, rather than using a single aggregate plugin name.
 			if fitErrors != nil {
 				for plugin := range fitErrors.UnschedulablePlugins() {
 					ssn.AddRejection(job.UID, plugin, api.RejectionPredicate, task.UID)
@@ -1005,7 +1005,11 @@ func (alloc *Action) predicate(task *api.TaskInfo, node *api.NodeInfo) error {
 	// Check for Resource Predicate
 	var statusSets api.StatusSets
 	if ok, resources := task.InitResreq.LessEqualWithResourcesName(node.FutureIdle(), api.Zero); !ok {
-		statusSets = append(statusSets, &api.Status{Code: api.Unschedulable, Reason: api.WrapInsufficientResourceReason(resources)})
+		statusSets = append(statusSets, &api.Status{
+			Code:   api.Unschedulable,
+			Reason: api.WrapInsufficientResourceReason(resources),
+			Plugin: resourceFitHintProviderName,
+		})
 		return api.NewFitErrWithStatus(task, node, statusSets...)
 	}
 	return alloc.session.PredicateForAllocateAction(task, node)

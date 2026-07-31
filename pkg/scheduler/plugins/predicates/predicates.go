@@ -330,17 +330,21 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 
 	ssn.RegisterBinder(pp.Name(), pp)
 
-	// Register each wrapped filter plugin as its own HintProvider, keyed by the
-	// k8s plugin name, so a Job's rejection can be attributed to the exact
-	// plugins that failed it and only their events wake it.
+	// Register each wrapped Filter or PreFilter plugin by its k8s plugin name.
+	hintPlugins := make(map[string]fwk.Plugin, len(pp.FilterPlugins)+len(pp.PreFilterPlugins))
 	for name, plugin := range pp.FilterPlugins {
+		hintPlugins[name] = plugin
+	}
+	for name, plugin := range pp.PreFilterPlugins {
+		hintPlugins[name] = plugin
+	}
+	for name, plugin := range hintPlugins {
 		ext, ok := plugin.(fwk.EnqueueExtensions)
 		if !ok {
 			continue
 		}
-		ssn.AddHintProvider(name, &filterHintProvider{name: name, ext: ext})
+		ssn.AddHintProvider(name, &kubeHintProvider{ext: ext})
 	}
-
 	// Add SimulateAddTask function
 	ssn.AddSimulateAddTaskFn(pp.Name(), func(ctx context.Context, cycleState fwk.CycleState, taskToSchedule *api.TaskInfo, taskToAdd *api.TaskInfo, nodeInfo *api.NodeInfo) error {
 		podInfoToAdd, err := k8sframework.NewPodInfo(taskToAdd.Pod)
@@ -441,68 +445,6 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 		}
 		return nil
 	})
-}
-
-// filterHintProvider adapts a single wrapped kube-scheduler filter plugin
-// (implementing fwk.EnqueueExtensions) into an api.HintProvider.
-type filterHintProvider struct {
-	name string
-	ext  fwk.EnqueueExtensions
-}
-
-// EventsToRegister implements api.HintProvider. It adapts the wrapped filter
-// plugin's QueueingHint declarations into Volcano cluster events.
-func (f *filterHintProvider) EventsToRegister(ctx context.Context) ([]api.ClusterEventWithHint, error) {
-	events, err := f.ext.EventsToRegister(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]api.ClusterEventWithHint, 0, len(events))
-	for _, e := range events {
-		result = append(result, api.ClusterEventWithHint{
-			Event: api.ClusterEvent{
-				Resource:   e.Event.Resource,
-				ActionType: e.Event.ActionType,
-			},
-			HintFn: wrapPodHint(f.name, e.QueueingHintFn),
-		})
-	}
-	return result, nil
-}
-
-// wrapPodHint adapts a kube-scheduler QueueingHintFn (which reasons about a
-// single Pod) into a Volcano JobHintFn. The event is treated as a wake-up if the
-// wrapped hint says any rejected task's Pod may now be schedulable.
-func wrapPodHint(plugin string, hintFn fwk.QueueingHintFn) api.JobHintFn {
-	return func(logger klog.Logger, job *api.JobInfo, rejection api.Rejection, oldObj, newObj any) (api.HintResult, error) {
-		if hintFn == nil {
-			// No hint means "always retry on this event".
-			return api.HintWakeup, nil
-		}
-
-		tasks := rejection.Tasks
-		if len(tasks) == 0 {
-			for tid := range job.TaskStatusIndex[api.Pending] {
-				tasks = append(tasks, tid)
-			}
-		}
-
-		for _, tid := range tasks {
-			task, ok := job.Tasks[tid]
-			if !ok || task.Pod == nil {
-				continue
-			}
-			hint, err := hintFn(logger, task.Pod, oldObj, newObj)
-			if err != nil {
-				// On error, upstream semantics treat the hint as Queue.
-				return api.HintWakeup, err
-			}
-			if hint == fwk.Queue {
-				return api.HintWakeup, nil
-			}
-		}
-		return api.HintSkip, nil
-	}
 }
 
 // PrePredicate runs all PreFilter plugins for the given task.
@@ -979,6 +921,11 @@ func handleSkipPrePredicatePlugin(status *fwk.Status, state *k8sframework.CycleS
 		state.GetSkipFilterPlugins().Insert(pluginName)
 		klog.V(5).Infof("The predicate of plugin %s will skip execution for pod <%s/%s>, because the status returned by pre-predicate is skip",
 			pluginName, task.Namespace, task.Name)
+	} else if status.Code() == fwk.Unschedulable || status.Code() == fwk.UnschedulableAndUnresolvable {
+		return &api.PrePredicateError{
+			Plugin: pluginName,
+			Reason: fmt.Sprintf("plugin %s pre-predicates failed %s", pluginName, status.Message()),
+		}
 	} else if !status.IsSuccess() {
 		return fmt.Errorf("plugin %s pre-predicates failed %s", pluginName, status.Message())
 	}

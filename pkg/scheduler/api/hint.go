@@ -88,8 +88,8 @@ type HintProvider interface {
 type RejectionSource string
 
 const (
-	// RejectionPredicate comes from PredicateFn / PrePredicateFn, including
-	// allocate's inline node-fit check (attributed to predicates/noderesources).
+	// RejectionPredicate comes from a PredicateFn or PrePredicateFn failure, or
+	// from the built-in node resource check.
 	RejectionPredicate RejectionSource = "predicate"
 	// RejectionAllocatable comes from the Allocatable extension point.
 	RejectionAllocatable RejectionSource = "allocatable"
@@ -106,6 +106,11 @@ type Rejection struct {
 	// Tasks holds the failed task IDs; nil only for RejectionEnqueue, which is
 	// a whole-PodGroup decision.
 	Tasks []TaskID
+	// Queues is the Job's queue and its ancestors, populated at record time.
+	// A resource change confined to a queue outside this set cannot affect a
+	// quota decision for the Job, so quota-plugin hints use it to scope wakeups.
+	// Empty when the recording context has no queue hierarchy available.
+	Queues []QueueID
 }
 
 // SkipDecision names the work an action should skip for a pending Job this

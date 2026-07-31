@@ -315,3 +315,50 @@ func TestHyperNodeGradientForJobFn_NoPluginKeepsCurrentFallback(t *testing.T) {
 	result := ssn.HyperNodeGradientForJobFn(&api.JobInfo{}, root, api.PurposeEvict)
 	assert.Equal(t, [][]*api.HyperNodeInfo{{root}}, result)
 }
+
+func TestAddRejectionDeduplicatesTasks(t *testing.T) {
+	ssn := &Session{
+		unschedulableJobCacheEnabled: true,
+		jobRejections:                make(map[api.JobID][]api.Rejection),
+	}
+
+	ssn.AddRejection("job", "plugin-a", api.RejectionPredicate, "task-a", "task-a")
+	ssn.AddRejection("job", "plugin-a", api.RejectionPredicate, "task-b", "task-a")
+	ssn.AddRejection("job", "plugin-a", api.RejectionAllocatable, "task-a")
+	ssn.AddRejection("job", "plugin-b", api.RejectionPredicate, "task-a")
+
+	assert.Equal(t, []api.Rejection{
+		{Plugin: "plugin-a", Source: api.RejectionPredicate, Tasks: []api.TaskID{"task-a", "task-b"}},
+		{Plugin: "plugin-a", Source: api.RejectionAllocatable, Tasks: []api.TaskID{"task-a"}},
+		{Plugin: "plugin-b", Source: api.RejectionPredicate, Tasks: []api.TaskID{"task-a"}},
+	}, ssn.rejectionsForJob("job"))
+}
+
+func TestPrePredicateFnRecordsUnschedulablePlugin(t *testing.T) {
+	enabled := true
+	newSession := func(fn api.PrePredicateFn) *Session {
+		ssn := &Session{
+			Tiers:                        []conf.Tier{{Plugins: []conf.PluginOption{{Name: "predicates", EnabledPredicate: &enabled}}}},
+			prePredicateFns:              make(map[string]api.PrePredicateFn),
+			unschedulableJobCacheEnabled: true,
+			jobRejections:                make(map[api.JobID][]api.Rejection),
+		}
+		ssn.AddPrePredicateFn("predicates", fn)
+		return ssn
+	}
+	task := &api.TaskInfo{UID: "task", Job: "job"}
+
+	ssn := newSession(func(*api.TaskInfo) error {
+		return &api.PrePredicateError{Plugin: "NodeAffinity", Reason: "no matching node"}
+	})
+	assert.EqualError(t, ssn.PrePredicateFn(task), "no matching node")
+	assert.Equal(t, []api.Rejection{{
+		Plugin: "NodeAffinity",
+		Source: api.RejectionPredicate,
+		Tasks:  []api.TaskID{"task"},
+	}}, ssn.rejectionsForJob("job"))
+
+	ssn = newSession(func(*api.TaskInfo) error { return fmt.Errorf("internal failure") })
+	assert.EqualError(t, ssn.PrePredicateFn(task), "internal failure")
+	assert.Empty(t, ssn.rejectionsForJob("job"))
+}

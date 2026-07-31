@@ -621,8 +621,10 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 	}
 
 	sc.binderRegistry = NewBinderRegistry()
-	sc.hintRegistry = NewHintRegistry()
-	sc.unschedulableCache = NewUnschedulableJobCache(sc.hintRegistry, sc.getJobInfo)
+	if utilfeature.DefaultFeatureGate.Enabled(features.UnschedulableJobCache) {
+		sc.hintRegistry = NewHintRegistry()
+		sc.unschedulableCache = NewUnschedulableJobCache(sc.hintRegistry, sc.getJobInfo)
+	}
 
 	// add all events handlers
 	sc.addEventHandler()
@@ -1854,34 +1856,22 @@ func (sc *SchedulerCache) RegisterBinder(name string, binder interface{}) {
 // AddHintProvider registers a plugin's HintProvider into the cache-scoped
 // HintRegistry.
 func (sc *SchedulerCache) AddHintProvider(name string, p schedulingapi.HintProvider) {
-	if sc.hintRegistry == nil {
-		sc.hintRegistry = NewHintRegistry()
-	}
 	sc.hintRegistry.Register(name, p)
 }
 
 // RecordUnschedulable stores the rejections observed for job at CloseSession.
 func (sc *SchedulerCache) RecordUnschedulable(job *schedulingapi.JobInfo, rejections []schedulingapi.Rejection) {
-	if sc.unschedulableCache == nil {
-		return
-	}
 	sc.unschedulableCache.Record(job, rejections)
 }
 
 // GetCachedRejections returns the rejections recorded for job in the previous
 // session, or nil when the Job should be evaluated normally.
 func (sc *SchedulerCache) GetCachedRejections(job *schedulingapi.JobInfo) []schedulingapi.Rejection {
-	if sc.unschedulableCache == nil {
-		return nil
-	}
 	return sc.unschedulableCache.GetCachedRejections(job)
 }
 
 // ForgetUnschedulable drops the cached record for jobID.
 func (sc *SchedulerCache) ForgetUnschedulable(jobID schedulingapi.JobID) {
-	if sc.unschedulableCache == nil {
-		return
-	}
 	sc.unschedulableCache.Forget(jobID)
 }
 
