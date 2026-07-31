@@ -38,6 +38,8 @@ import (
 	commonutil "volcano.sh/volcano/pkg/util"
 )
 
+const resourceFitHintProviderName = "predicates-resource-fit"
+
 type allocateContext struct {
 	queues              *util.PriorityQueue                 // queue of *api.QueueInfo
 	jobsByQueue         map[api.QueueID]*util.PriorityQueue // queue of *api.JobInfo
@@ -133,7 +135,6 @@ func (alloc *Action) Execute(ssn *framework.Session) {
 	// 5. use ssn.NodeOrderFn to judge the best node and assign it to T
 
 	alloc.session = ssn
-	ssn.AddHintProvider(resourceFitHintProviderName, &resourceFitHintProvider{})
 	alloc.recorder = NewRecorder()
 	actx := alloc.buildAllocateContext()
 	klog.V(3).Infof("Try to allocate resource to %d Queues", actx.queues.Len())

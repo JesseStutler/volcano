@@ -45,6 +45,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumezone"
+	"volcano.sh/volcano/pkg/scheduler/plugins/predicates/hintprovider"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/cache"
@@ -330,7 +331,7 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 
 	ssn.RegisterBinder(pp.Name(), pp)
 
-	// Register each wrapped Filter or PreFilter plugin by its k8s plugin name.
+	// Add hint provider for PredicateFn and PrePredicateFn
 	hintPlugins := make(map[string]fwk.Plugin, len(pp.FilterPlugins)+len(pp.PreFilterPlugins))
 	for name, plugin := range pp.FilterPlugins {
 		hintPlugins[name] = plugin
@@ -343,8 +344,11 @@ func (pp *PredicatesPlugin) OnSessionOpen(ssn *framework.Session) {
 		if !ok {
 			continue
 		}
-		ssn.AddHintProvider(name, &kubeHintProvider{ext: ext})
+		ssn.AddHintProvider(name, &hintprovider.KubeHintProvider{Ext: ext})
 	}
+	// Volcano has its own built-in node resource predicate, which is not a wrapped k8s plugin. Also register it as a hint provider.
+	ssn.AddHintProvider(hintprovider.ResourceFitHintProviderName, &hintprovider.ResourceFitHintProvider{})
+
 	// Add SimulateAddTask function
 	ssn.AddSimulateAddTaskFn(pp.Name(), func(ctx context.Context, cycleState fwk.CycleState, taskToSchedule *api.TaskInfo, taskToAdd *api.TaskInfo, nodeInfo *api.NodeInfo) error {
 		podInfoToAdd, err := k8sframework.NewPodInfo(taskToAdd.Pod)
@@ -921,16 +925,23 @@ func handleSkipPrePredicatePlugin(status *fwk.Status, state *k8sframework.CycleS
 		state.GetSkipFilterPlugins().Insert(pluginName)
 		klog.V(5).Infof("The predicate of plugin %s will skip execution for pod <%s/%s>, because the status returned by pre-predicate is skip",
 			pluginName, task.Namespace, task.Name)
-	} else if status.Code() == fwk.Unschedulable || status.Code() == fwk.UnschedulableAndUnresolvable {
+		return nil
+	}
+
+	if status.IsSuccess() {
+		return nil
+	}
+
+	if status.Code() == fwk.Unschedulable || status.Code() == fwk.UnschedulableAndUnresolvable {
+		// Preserve the rejecting plugin so its events can trigger a retry.
 		return &api.PrePredicateError{
 			Plugin: pluginName,
 			Reason: fmt.Sprintf("plugin %s pre-predicates failed %s", pluginName, status.Message()),
 		}
-	} else if !status.IsSuccess() {
-		return fmt.Errorf("plugin %s pre-predicates failed %s", pluginName, status.Message())
 	}
 
-	return nil
+	// Other errors such as fwk.Error, we should return an error to stop scheduling and log the error.
+	return fmt.Errorf("plugin %s pre-predicates failed %s", pluginName, status.Message())
 }
 
 func (pp *PredicatesPlugin) OnSessionClose(ssn *framework.Session) {}

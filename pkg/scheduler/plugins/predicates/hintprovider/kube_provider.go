@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package predicates
+package hintprovider
 
 import (
 	"context"
@@ -25,16 +25,16 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 )
 
-// kubeHintProvider adapts a wrapped kube-scheduler scheduling plugin
+// KubeHintProvider adapts a wrapped kube-scheduler scheduling plugin
 // (implementing fwk.EnqueueExtensions) into an api.HintProvider.
-type kubeHintProvider struct {
-	ext fwk.EnqueueExtensions
+type KubeHintProvider struct {
+	Ext fwk.EnqueueExtensions
 }
 
 // EventsToRegister implements api.HintProvider. It adapts the wrapped plugin's
 // QueueingHint declarations into Volcano cluster events.
-func (f *kubeHintProvider) EventsToRegister(ctx context.Context) ([]api.ClusterEventWithHint, error) {
-	events, err := f.ext.EventsToRegister(ctx)
+func (f *KubeHintProvider) EventsToRegister(ctx context.Context) ([]api.ClusterEventWithHint, error) {
+	events, err := f.Ext.EventsToRegister(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package allocate
+package hintprovider
 
 import (
 	"context"
@@ -27,11 +27,11 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 )
 
-const resourceFitHintProviderName = "allocate-resource-fit"
+const ResourceFitHintProviderName = "predicates-resource-fit"
 
-type resourceFitHintProvider struct{}
+type ResourceFitHintProvider struct{}
 
-func (p *resourceFitHintProvider) EventsToRegister(context.Context) ([]api.ClusterEventWithHint, error) {
+func (p *ResourceFitHintProvider) EventsToRegister(context.Context) ([]api.ClusterEventWithHint, error) {
 	return []api.ClusterEventWithHint{
 		{
 			Event:  api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete | fwk.Update},
@@ -51,9 +51,13 @@ func resourceFitPodHint(_ klog.Logger, job *api.JobInfo, rejection api.Rejection
 	}
 
 	if newObj == nil {
+		// 1. Deleting a rejected task changes the Job and triggers a retry.
 		if rejectionIncludesPod(rejection, oldPod) {
 			return api.HintWakeup, nil
 		}
+
+		// 2. Deleting an unrelated pending or terminated Pod frees no node
+		// resources; deleting a scheduled Pod may free requested resources.
 		if oldPod.Spec.NodeName == "" || podTerminated(oldPod) {
 			return api.HintSkip, nil
 		}
@@ -64,12 +68,19 @@ func resourceFitPodHint(_ klog.Logger, job *api.JobInfo, rejection api.Rejection
 	if !ok || newPod == nil {
 		return api.HintWakeup, fmt.Errorf("expected new object to be *v1.Pod, got %T", newObj)
 	}
+
+	// 3. Updating a Pod that was already terminated does not free resources.
 	if podTerminated(oldPod) {
 		return api.HintSkip, nil
 	}
+
+	// 4. Updating an unrelated pending Pod does not affect node resources.
 	if oldPod.Spec.NodeName == "" && !rejectionIncludesPod(rejection, oldPod) {
 		return api.HintSkip, nil
 	}
+
+	// 5. A Pod becoming terminal releases all of its requests; otherwise retry
+	// only when the update reduces a resource requested by a rejected task.
 	if podTerminated(newPod) {
 		return resourceChangeHint(job, rejection, api.EmptyResource(), api.GetPodResourceRequest(oldPod)), nil
 	}
@@ -82,6 +93,7 @@ func resourceFitNodeHint(_ klog.Logger, job *api.JobInfo, rejection api.Rejectio
 	if !ok || newNode == nil {
 		return api.HintWakeup, fmt.Errorf("expected new object to be *v1.Node, got %T", newObj)
 	}
+	// 1. A newly added Node may provide capacity for a rejected task.
 	if oldObj == nil {
 		return api.HintWakeup, nil
 	}
@@ -90,6 +102,8 @@ func resourceFitNodeHint(_ klog.Logger, job *api.JobInfo, rejection api.Rejectio
 		return api.HintWakeup, fmt.Errorf("expected old object to be *v1.Node, got %T", oldObj)
 	}
 
+	// 2. A Node update triggers a retry only when requested allocatable
+	// resources increase.
 	return resourceChangeHint(job, rejection, api.NewResource(oldNode.Status.Allocatable), api.NewResource(newNode.Status.Allocatable)), nil
 }
 
