@@ -197,7 +197,7 @@ var (
 		prometheus.CounterOpts{
 			Subsystem: VolcanoSubSystemName,
 			Name:      "unschedulable_job_cache_skips_total",
-			Help:      "Number of scheduling stages skipped because a Job matched the unschedulable-job cache.",
+			Help:      "Number of scheduling action passes that skipped a Job or one of its tasks because it matched the unschedulable-job cache.",
 		}, []string{"job_namespace", "job_name", "stage"},
 	)
 
@@ -251,8 +251,8 @@ func UpdateOpenSessionDuration(duration time.Duration) {
 	openSessionDuration.Observe(DurationInMilliseconds(duration))
 }
 
-// RegisterUnschedulableJobCacheSkip records one scheduling stage suppressed by
-// the unschedulable-job cache.
+// RegisterUnschedulableJobCacheSkip records one scheduling action pass that
+// skipped a Job or one of its tasks through the unschedulable-job cache.
 func RegisterUnschedulableJobCacheSkip(namespace, jobName, stage string) {
 	unschedulableJobCacheSkips.WithLabelValues(namespace, jobName, stage).Inc()
 }

@@ -176,6 +176,9 @@ func (alloc *Action) buildAllocateContext() *allocateContext {
 				job.Namespace, job.Name, job.Queue)
 			continue
 		}
+		if hasPendingCachedTask(job) {
+			metrics.RegisterUnschedulableJobCacheSkip(job.Namespace, job.Name, alloc.Name())
+		}
 
 		if _, found := ssn.Queues[job.Queue]; !found {
 			klog.Warningf("Skip adding Job <%s/%s> because its queue %s is not found",
@@ -212,6 +215,15 @@ func (alloc *Action) buildAllocateContext() *allocateContext {
 	}
 
 	return actx
+}
+
+func hasPendingCachedTask(job *api.JobInfo) bool {
+	for taskID := range job.TaskStatusIndex[api.Pending] {
+		if job.Skip.SkipTask(taskID) {
+			return true
+		}
+	}
+	return false
 }
 
 func (alloc *Action) organizeJobWorksheet(job *api.JobInfo) *JobWorksheet {

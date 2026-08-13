@@ -24,6 +24,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -57,7 +58,8 @@ func SchedulerCounterValue(ctx context.Context, client kubernetes.Interface, nam
 		return 0, fmt.Errorf("read scheduler metrics: %w", err)
 	}
 
-	families, err := (&expfmt.TextParser{}).TextToMetricFamilies(strings.NewReader(string(raw)))
+	parser := expfmt.NewTextParser(model.UTF8Validation)
+	families, err := parser.TextToMetricFamilies(strings.NewReader(string(raw)))
 	if err != nil {
 		return 0, fmt.Errorf("parse scheduler metrics: %w", err)
 	}

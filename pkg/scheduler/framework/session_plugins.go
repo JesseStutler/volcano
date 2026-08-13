@@ -1317,15 +1317,16 @@ func (ssn *Session) reconcileUnschedulableCache() {
 		return
 	}
 	for jobID, job := range ssn.Jobs {
-		// The Job made progress this session, either allocated enough tasks to be
-		// ready or had tasks pipelined by preemption, so drop any cached record.
-		if len(job.TaskStatusIndex[api.Pipelined]) > 0 || job.IsReady() {
+		// A pipelined Job must remain visible to allocate/preempt in the next
+		// session. Do not cache even if another task was freshly rejected.
+		if len(job.TaskStatusIndex[api.Pipelined]) > 0 {
 			ssn.unschedulableCache.ForgetUnschedulable(jobID)
 			continue
 		}
 
-		// A Job that was evaluated and still produced rejections is (re)cached
-		// with the fresh rejections.
+		// Cache fresh rejections even when an elastic Job is already ready. Its
+		// rejected surplus tasks are still redundant work, while ComputeSkip
+		// keeps the Job eligible to schedule every other pending task.
 		if rejections := ssn.rejectionsForJob(jobID); len(rejections) > 0 {
 			scope := ssn.queueScope(job.Queue)
 			for i := range rejections {
@@ -1336,7 +1337,8 @@ func (ssn *Session) reconcileUnschedulableCache() {
 		}
 
 		// No fresh rejections: if the Job was skipped this session, leave its
-		// existing record untouched; otherwise ensure no stale record remains.
+		// existing record untouched. This includes ready elastic Jobs whose
+		// surplus rejected tasks were intentionally skipped.
 		if job.Skip.Skipped() {
 			continue
 		}

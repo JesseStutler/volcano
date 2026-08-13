@@ -92,15 +92,6 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			targetNode, availableSlots := e2eutil.ComputeNode(ctx, smallRequest())
 			Expect(targetNode).NotTo(BeEmpty())
 			Expect(availableSlots).To(BeNumerically(">=", 2))
-			skipBaseline := schedulerMetricValue(ctx, skipMetricName, map[string]string{
-				"job_namespace": ctx.Namespace,
-				"job_name":      "node-label-wakeup",
-				"stage":         "allocate",
-			})
-			wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, map[string]string{
-				"job_namespace": ctx.Namespace,
-				"job_name":      "node-label-wakeup",
-			})
 			job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
 				Name:      "node-label-wakeup",
 				Namespace: ctx.Namespace,
@@ -121,12 +112,22 @@ var _ = Describe("Unschedulable Job Cache", func() {
 					Command: "sleep 300",
 				}},
 			})
+			metricJobName := schedulerJobName(job)
+			skipBaseline := schedulerMetricValue(ctx, skipMetricName, map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      metricJobName,
+				"stage":         "allocate",
+			})
+			wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      metricJobName,
+			})
 			By("waiting for the Job to become unschedulable")
 			Expect(e2eutil.WaitJobStatePending(ctx, job)).To(Succeed())
 			Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
 			waitForMetricIncrease(ctx, skipMetricName, map[string]string{
 				"job_namespace": job.Namespace,
-				"job_name":      job.Name,
+				"job_name":      metricJobName,
 				"stage":         "allocate",
 			}, skipBaseline)
 			expectJobUnbound(ctx, job)
@@ -154,7 +155,7 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			By("verifying the Node event wakes and schedules the Job")
 			waitForMetricIncrease(ctx, wakeupMetricName, map[string]string{
 				"job_namespace": job.Namespace,
-				"job_name":      job.Name,
+				"job_name":      metricJobName,
 				"resource":      string(fwk.Node),
 			}, wakeupBaseline)
 			waitForJobReady(ctx, job)
@@ -165,7 +166,7 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			}
 		})
 
-		It("skips a resource-blocked Job until a scheduled Pod is deleted", func() {
+		It("skips a resource-blocked gang Job until a scheduled Pod is deleted", func() {
 			ctx := e2eutil.InitTestContext(e2eutil.Options{
 				NodesNumLimit: 1,
 				NodesResourceLimit: v1.ResourceList{
@@ -182,35 +183,35 @@ var _ = Describe("Unschedulable Job Cache", func() {
 				RestartPolicy: v1.RestartPolicyNever,
 			})
 			Expect(e2eutil.WaitPodReady(ctx, blocker)).To(Succeed())
+			job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
+				Name:      "pod-delete-wakeup",
+				Namespace: ctx.Namespace,
+				Min:       2,
+				Tasks: []e2eutil.TaskSpec{{
+					Name:    "worker",
+					Img:     e2eutil.DefaultBusyBoxImage,
+					Rep:     2,
+					Min:     2,
+					Req:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("500m")},
+					Command: "sleep 300",
+				}},
+			})
+			metricJobName := schedulerJobName(job)
 			skipBaseline := schedulerMetricValue(ctx, skipMetricName, map[string]string{
 				"job_namespace": ctx.Namespace,
-				"job_name":      "pod-delete-wakeup",
+				"job_name":      metricJobName,
 				"stage":         "allocate",
 			})
 			wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, map[string]string{
 				"job_namespace": ctx.Namespace,
-				"job_name":      "pod-delete-wakeup",
-			})
-
-			job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
-				Name:      "pod-delete-wakeup",
-				Namespace: ctx.Namespace,
-				Min:       1,
-				Tasks: []e2eutil.TaskSpec{{
-					Name:    "worker",
-					Img:     e2eutil.DefaultBusyBoxImage,
-					Rep:     1,
-					Min:     1,
-					Req:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("1")},
-					Command: "sleep 300",
-				}},
+				"job_name":      metricJobName,
 			})
 			By("waiting for the Job to be cached and skipped")
 			Expect(e2eutil.WaitJobStatePending(ctx, job)).To(Succeed())
 			Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
 			waitForMetricIncrease(ctx, skipMetricName, map[string]string{
 				"job_namespace": job.Namespace,
-				"job_name":      job.Name,
+				"job_name":      metricJobName,
 				"stage":         "allocate",
 			}, skipBaseline)
 			expectJobUnbound(ctx, job)
@@ -221,21 +222,103 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			By("verifying the Pod delete event wakes and schedules the Job")
 			waitForMetricIncrease(ctx, wakeupMetricName, map[string]string{
 				"job_namespace": job.Namespace,
-				"job_name":      job.Name,
+				"job_name":      metricJobName,
 				"resource":      string(fwk.Pod),
 			}, wakeupBaseline)
 			waitForJobReady(ctx, job)
+			Expect(e2eutil.GetTasksOfJob(ctx, job)).To(HaveLen(2))
+		})
+
+		It("skips only rejected surplus tasks of a ready elastic Job", func() {
+			ctx := e2eutil.InitTestContext(e2eutil.Options{
+				NodesNumLimit: 1,
+				NodesResourceLimit: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse("1"),
+					v1.ResourceMemory: resource.MustParse("256Mi"),
+				},
+			})
+			defer e2eutil.CleanupTestContext(ctx)
+
+			By("reserving enough CPU that one surplus task cannot fit")
+			blocker := e2eutil.CreatePod(ctx, e2eutil.PodSpec{
+				Name:          "elastic-cache-blocker",
+				Req:           v1.ResourceList{v1.ResourceCPU: resource.MustParse("400m")},
+				RestartPolicy: v1.RestartPolicyNever,
+			})
+			Expect(e2eutil.WaitPodReady(ctx, blocker)).To(Succeed())
+
+			const externalGate = "volcano.sh/unschedulable-cache-e2e-hold"
+			job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
+				Name:      "elastic-task-subset-skip",
+				Namespace: ctx.Namespace,
+				Min:       1,
+				Tasks: []e2eutil.TaskSpec{
+					{
+						Name:    "initial-progress",
+						Img:     e2eutil.DefaultBusyBoxImage,
+						Rep:     1,
+						Req:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("100m")},
+						Command: "sleep 300",
+					},
+					{
+						Name:    "cached-rejection",
+						Img:     e2eutil.DefaultBusyBoxImage,
+						Rep:     1,
+						Req:     v1.ResourceList{v1.ResourceCPU: resource.MustParse("700m")},
+						Command: "sleep 300",
+					},
+					{
+						Name:     "later-progress",
+						Img:      e2eutil.DefaultBusyBoxImage,
+						Rep:      1,
+						Req:      v1.ResourceList{v1.ResourceCPU: resource.MustParse("100m")},
+						SchGates: []v1.PodSchedulingGate{{Name: externalGate}},
+						Command:  "sleep 300",
+					},
+				},
+			})
+			skipLabels := map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      schedulerJobName(job),
+				"stage":         "allocate",
+			}
+			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
+
+			By("waiting for one task to run and the rejected surplus task to be cached")
+			waitForJobReady(ctx, job)
+			waitForJobTaskCounts(ctx, job, 1, 2)
+			waitForMetricIncrease(ctx, skipMetricName, skipLabels, skipBaseline)
+
+			var gatedTaskName string
+			for _, task := range e2eutil.GetTasksOfJob(ctx, job) {
+				if len(task.Spec.SchedulingGates) > 0 {
+					gatedTaskName = task.Name
+				}
+			}
+			Expect(gatedTaskName).NotTo(BeEmpty())
+
+			By("removing an unrelated task's external gate while the rejection remains cached")
+			gatePatch := []byte(`[{"op":"replace","path":"/spec/schedulingGates","value":[]}]`)
+			_, err := ctx.Kubeclient.CoreV1().Pods(ctx.Namespace).Patch(context.TODO(), gatedTaskName,
+				types.JSONPatchType, gatePatch, metav1.PatchOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying the non-rejected task progresses while the cached 700m task stays unbound")
+			waitForJobTaskCounts(ctx, job, 2, 1)
+			Eventually(func() bool {
+				for _, task := range e2eutil.GetTasksOfJob(ctx, job) {
+					request := task.Spec.Containers[0].Resources.Requests[v1.ResourceCPU]
+					if request.Cmp(resource.MustParse("700m")) == 0 {
+						return task.Spec.NodeName == ""
+					}
+				}
+				return false
+			}, eventWakeupTimeout, 500*time.Millisecond).Should(BeTrue())
 		})
 
 		It("does not affect Jobs that can be scheduled normally", func() {
 			ctx := e2eutil.InitTestContext(e2eutil.Options{})
 			defer e2eutil.CleanupTestContext(ctx)
-			skipBaseline := schedulerMetricValue(ctx, skipMetricName, map[string]string{
-				"job_namespace": ctx.Namespace,
-				"job_name":      "cached-blocked-job",
-				"stage":         "allocate",
-			})
-
 			blockedJob := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
 				Name:      "cached-blocked-job",
 				Namespace: ctx.Namespace,
@@ -256,11 +339,17 @@ var _ = Describe("Unschedulable Job Cache", func() {
 					Command: "sleep 300",
 				}},
 			})
+			metricJobName := schedulerJobName(blockedJob)
+			skipBaseline := schedulerMetricValue(ctx, skipMetricName, map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      metricJobName,
+				"stage":         "allocate",
+			})
 			Expect(e2eutil.WaitJobStatePending(ctx, blockedJob)).To(Succeed())
 			Expect(e2eutil.WaitJobUnschedulable(ctx, blockedJob)).To(Succeed())
 			waitForMetricIncrease(ctx, skipMetricName, map[string]string{
 				"job_namespace": blockedJob.Namespace,
-				"job_name":      blockedJob.Name,
+				"job_name":      metricJobName,
 				"stage":         "allocate",
 			}, skipBaseline)
 			expectJobUnbound(ctx, blockedJob)
@@ -317,12 +406,6 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			})
 			waitForJobReady(ctx, lowJob)
 
-			skipLabels := map[string]string{
-				"job_namespace": ctx.Namespace,
-				"job_name":      "cache-preemptor",
-				"stage":         "allocate",
-			}
-			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
 			highJob := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
 				Name:      "cache-preemptor",
 				Namespace: ctx.Namespace,
@@ -337,6 +420,12 @@ var _ = Describe("Unschedulable Job Cache", func() {
 					Command: "sleep 300",
 				}},
 			})
+			skipLabels := map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      schedulerJobName(highJob),
+				"stage":         "allocate",
+			}
+			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
 			Expect(e2eutil.WaitJobUnschedulable(ctx, highJob)).To(Succeed())
 			waitForMetricIncrease(ctx, skipMetricName, skipLabels, skipBaseline)
 			expectJobUnbound(ctx, highJob)
@@ -352,17 +441,6 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			ctx := e2eutil.InitTestContext(e2eutil.Options{})
 			defer e2eutil.CleanupTestContext(ctx)
 
-			expirationLabels := map[string]string{
-				"job_namespace": ctx.Namespace,
-				"job_name":      "watchdog-retry",
-			}
-			skipLabels := map[string]string{
-				"job_namespace": ctx.Namespace,
-				"job_name":      "watchdog-retry",
-				"stage":         "allocate",
-			}
-			expirationBaseline := schedulerMetricValue(ctx, watchdogExpirationMetricName, expirationLabels)
-			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
 			job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
 				Name:      "watchdog-retry",
 				Namespace: ctx.Namespace,
@@ -383,6 +461,17 @@ var _ = Describe("Unschedulable Job Cache", func() {
 					Command: "sleep 300",
 				}},
 			})
+			expirationLabels := map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      schedulerJobName(job),
+			}
+			skipLabels := map[string]string{
+				"job_namespace": ctx.Namespace,
+				"job_name":      schedulerJobName(job),
+				"stage":         "allocate",
+			}
+			expirationBaseline := schedulerMetricValue(ctx, watchdogExpirationMetricName, expirationLabels)
+			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
 
 			By("waiting for the Job to be cached without triggering a matching event")
 			Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
@@ -488,19 +577,6 @@ func runQueueCapabilityWakeupCase(pluginName, queueName, jobName string) {
 	})
 	defer e2eutil.CleanupTestContext(ctx)
 
-	skipLabels := map[string]string{
-		"job_namespace": ctx.Namespace,
-		"job_name":      jobName,
-		"stage":         "enqueue",
-	}
-	wakeupLabels := map[string]string{
-		"job_namespace": ctx.Namespace,
-		"job_name":      jobName,
-		"resource":      string(api.QueueEvent),
-	}
-	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
-	wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
-
 	job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
 		Name:      jobName,
 		Namespace: ctx.Namespace,
@@ -518,12 +594,24 @@ func runQueueCapabilityWakeupCase(pluginName, queueName, jobName string) {
 			Command: "sleep 300",
 		}},
 	})
+	skipLabels := map[string]string{
+		"job_namespace": ctx.Namespace,
+		"job_name":      schedulerJobName(job),
+		"stage":         "enqueue",
+	}
+	wakeupLabels := map[string]string{
+		"job_namespace": ctx.Namespace,
+		"job_name":      schedulerJobName(job),
+		"resource":      string(api.QueueEvent),
+	}
+	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
+	wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
 
 	By(fmt.Sprintf("waiting for %s to reject and cache the Job", pluginName))
 	Expect(e2eutil.WaitJobStatePending(ctx, job)).To(Succeed())
 	Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
 	waitForMetricIncrease(ctx, skipMetricName, skipLabels, skipBaseline)
-	expectJobUnbound(ctx, job)
+	expectNoJobTaskBound(ctx, job)
 
 	By("raising the Queue capability above the Job's minimum request")
 	updateQueueCPUCapability(ctx, queueName, "1")
@@ -581,12 +669,12 @@ func runTaskQuotaWakeupCase(pluginName, queueName, jobName string) {
 
 	skipLabels := map[string]string{
 		"job_namespace": ctx.Namespace,
-		"job_name":      jobName,
+		"job_name":      schedulerJobName(job),
 		"stage":         "allocate",
 	}
 	wakeupLabels := map[string]string{
 		"job_namespace": ctx.Namespace,
-		"job_name":      jobName,
+		"job_name":      schedulerJobName(job),
 		"resource":      string(api.QueueEvent),
 	}
 	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
@@ -684,12 +772,12 @@ func runTaskPodReleaseWakeupCase(pluginName, queueName, jobName string) {
 
 	skipLabels := map[string]string{
 		"job_namespace": ctx.Namespace,
-		"job_name":      jobName,
+		"job_name":      schedulerJobName(job),
 		"stage":         "allocate",
 	}
 	wakeupLabels := map[string]string{
 		"job_namespace": ctx.Namespace,
-		"job_name":      jobName,
+		"job_name":      schedulerJobName(job),
 		"resource":      string(fwk.Pod),
 	}
 	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
@@ -763,7 +851,7 @@ func configureScheduler(pluginName, actions string) {
 }
 
 func waitForJobPodGroupPhase(ctx *e2eutil.TestContext, job *batchv1alpha1.Job, phase schedulingv1beta1.PodGroupPhase) {
-	podGroupName := job.Name + "-" + string(job.UID)
+	podGroupName := schedulerJobName(job)
 	Eventually(func() schedulingv1beta1.PodGroupPhase {
 		podGroup, err := ctx.Vcclient.SchedulingV1beta1().PodGroups(job.Namespace).Get(
 			context.TODO(), podGroupName, metav1.GetOptions{})
@@ -772,6 +860,12 @@ func waitForJobPodGroupPhase(ctx *e2eutil.TestContext, job *batchv1alpha1.Job, p
 		}
 		return podGroup.Status.Phase
 	}, eventWakeupTimeout, 500*time.Millisecond).Should(Equal(phase))
+}
+
+// schedulerJobName returns the PodGroup name used as the scheduler's JobInfo
+// name and, consequently, as the job_name label on scheduler metrics.
+func schedulerJobName(job *batchv1alpha1.Job) string {
+	return job.Name + "-" + string(job.UID)
 }
 
 func smallRequest() v1.ResourceList {
@@ -794,6 +888,20 @@ func waitForJobReady(ctx *e2eutil.TestContext, job *batchv1alpha1.Job) {
 		"the Job should satisfy minAvailable after the matching event")
 }
 
+func waitForJobTaskCounts(ctx *e2eutil.TestContext, job *batchv1alpha1.Job, bound, unbound int) {
+	Eventually(func() []int {
+		counts := []int{0, 0}
+		for _, task := range e2eutil.GetTasksOfJob(ctx, job) {
+			if task.Spec.NodeName == "" {
+				counts[1]++
+			} else {
+				counts[0]++
+			}
+		}
+		return counts
+	}, eventWakeupTimeout, 500*time.Millisecond).Should(Equal([]int{bound, unbound}))
+}
+
 func waitForMetricIncrease(ctx *e2eutil.TestContext, name string, labels map[string]string, baseline float64) {
 	Expect(e2eutil.WaitSchedulerCounterIncrease(context.TODO(), ctx.Kubeclient, name, labels, baseline, eventWakeupTimeout)).To(Succeed())
 }
@@ -807,6 +915,16 @@ func schedulerMetricValue(ctx *e2eutil.TestContext, name string, labels map[stri
 func expectJobUnbound(ctx *e2eutil.TestContext, job *batchv1alpha1.Job) {
 	tasks := e2eutil.GetTasksOfJob(ctx, job)
 	Expect(tasks).NotTo(BeEmpty())
+	expectTasksUnbound(tasks)
+}
+
+// expectNoJobTaskBound also accepts an empty task list. A Job rejected during
+// enqueue may not have Task Pods until its PodGroup is admitted.
+func expectNoJobTaskBound(ctx *e2eutil.TestContext, job *batchv1alpha1.Job) {
+	expectTasksUnbound(e2eutil.GetTasksOfJob(ctx, job))
+}
+
+func expectTasksUnbound(tasks []*v1.Pod) {
 	for _, task := range tasks {
 		Expect(task.Spec.NodeName).To(BeEmpty())
 	}

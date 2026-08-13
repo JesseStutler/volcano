@@ -455,6 +455,15 @@ func TestReconcileUnschedulableCache(t *testing.T) {
 			wantState: "forgotten",
 		},
 		{
+			name: "records fresh rejection for ready elastic Job",
+			prepare: func(ssn *Session, job *api.JobInfo) {
+				job.MinAvailable = 1
+				job.TaskStatusIndex[api.Running] = api.TasksMap{"running": {UID: "running"}}
+				ssn.AddRejection(job.UID, "plugin", api.RejectionPredicate, "extra")
+			},
+			wantState: "recorded",
+		},
+		{
 			name: "forgets pipelined Job",
 			prepare: func(_ *Session, job *api.JobInfo) {
 				job.TaskStatusIndex[api.Pipelined] = api.TasksMap{"task": {UID: "task"}}
@@ -472,6 +481,15 @@ func TestReconcileUnschedulableCache(t *testing.T) {
 			name: "keeps record for skipped Job",
 			prepare: func(_ *Session, job *api.JobInfo) {
 				job.Skip.Enqueue = true
+			},
+			wantState: "unchanged",
+		},
+		{
+			name: "keeps task-subset record for ready elastic Job",
+			prepare: func(_ *Session, job *api.JobInfo) {
+				job.MinAvailable = 1
+				job.TaskStatusIndex[api.Running] = api.TasksMap{"running": {UID: "running"}}
+				job.Skip.Tasks = map[api.TaskID]struct{}{"extra": {}}
 			},
 			wantState: "unchanged",
 		},

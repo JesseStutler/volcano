@@ -25,6 +25,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 type ConfigMapCase struct {
@@ -79,15 +80,25 @@ func (c *ConfigMapCase) UndoChanged() error {
 	if len(c.undoData) == 0 {
 		return nil
 	}
-	for filename, old := range c.undoData {
-		c.ocm.Data[filename] = old
-	}
 	atLeast := time.Second // at least 1s wait between 2 configmap-change
 	if dur := time.Now().Sub(c.startTs); dur < atLeast {
 		time.Sleep(atLeast - dur)
 	}
-	cm, err := KubeClient.CoreV1().ConfigMaps(c.NameSpace).Update(context.TODO(), c.ocm, metav1.UpdateOptions{})
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	var cm *v1.ConfigMap
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current, err := KubeClient.CoreV1().ConfigMaps(c.NameSpace).Get(context.TODO(), c.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		for filename, old := range c.undoData {
+			current.Data[filename] = old
+		}
+		cm, err = KubeClient.CoreV1().ConfigMaps(c.NameSpace).Update(context.TODO(), current, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
+		return err
+	}
 	c.ocm = cm
 
 	// add pod/volcano-scheduler.annotation to update Mounted-ConfigMaps immediately

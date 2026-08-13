@@ -143,6 +143,9 @@ func (backfill *Action) pickUpPendingTasks(ssn *framework.Session) []*api.TaskIn
 				job.Namespace, job.Name, job.Queue)
 			continue
 		}
+		if hasPendingCachedTask(job) {
+			metrics.RegisterUnschedulableJobCacheSkip(job.Namespace, job.Name, backfill.Name())
+		}
 
 		queue, found := ssn.Queues[job.Queue]
 		if !found {
@@ -214,4 +217,13 @@ func (backfill *Action) pickUpPendingTasks(ssn *framework.Session) []*api.TaskIn
 		}
 	}
 	return pendingTasks
+}
+
+func hasPendingCachedTask(job *api.JobInfo) bool {
+	for taskID, task := range job.TaskStatusIndex[api.Pending] {
+		if task.BestEffort && !task.SchGated && job.Skip.SkipTask(taskID) {
+			return true
+		}
+	}
+	return false
 }

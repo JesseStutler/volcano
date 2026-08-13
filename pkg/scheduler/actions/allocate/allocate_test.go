@@ -277,6 +277,49 @@ func TestAllocate(t *testing.T) {
 	}
 }
 
+func TestAllocateRespectsCachedTaskSubset(t *testing.T) {
+	trueValue := true
+	tiers := []conf.Tier{{Plugins: []conf.PluginOption{
+		{Name: gang.PluginName, EnabledJobReady: &trueValue, EnabledJobPipelined: &trueValue},
+		{Name: proportion.PluginName, EnabledQueueOrder: &trueValue, EnabledAllocatable: &trueValue},
+		{Name: predicates.PluginName, EnabledPredicate: &trueValue},
+		{Name: nodeorder.PluginName, EnabledNodeOrder: &trueValue},
+	}}}
+	test := uthelper.TestCommonStruct{
+		Name: "cached task subset",
+		Plugins: map[string]framework.PluginBuilder{
+			gang.PluginName:       gang.New,
+			proportion.PluginName: proportion.New,
+			predicates.PluginName: predicates.New,
+			nodeorder.PluginName:  nodeorder.New,
+		},
+		PodGroups: []*schedulingv1.PodGroup{
+			util.BuildPodGroup("pg1", "c1", "c1", 1, nil, schedulingv1.PodGroupInqueue),
+		},
+		Pods: []*v1.Pod{
+			util.BuildPod("c1", "cached", "", v1.PodPending, api.BuildResourceList("1", "1G"), "pg1", nil, nil),
+			util.BuildPod("c1", "eligible", "", v1.PodPending, api.BuildResourceList("1", "1G"), "pg1", nil, nil),
+		},
+		Nodes: []*v1.Node{
+			util.BuildNode("n1", api.BuildResourceList("2", "4Gi", []api.ScalarResource{{Name: "pods", Value: "10"}}...), nil),
+		},
+		Queues: []*schedulingv1.Queue{
+			util.BuildQueue("c1", 1, nil),
+		},
+		ExpectBindMap:  map[string]string{"c1/eligible": "n1"},
+		ExpectBindsNum: 1,
+	}
+	ssn := test.RegisterSession(tiers, nil)
+	defer test.Close()
+	ssn.Jobs["c1/pg1"].Skip = api.SkipDecision{
+		Tasks: map[api.TaskID]struct{}{"c1-cached": {}},
+	}
+	test.Run([]framework.Action{New()})
+	if err := test.CheckBind(0); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // BenchmarkAllocate can help analyze the performance differences before and after changes to the scheduling framework. Currently, it is hardcoded to schedule 1000 pods
 func BenchmarkAllocate(b *testing.B) {
 	plugins := map[string]framework.PluginBuilder{
