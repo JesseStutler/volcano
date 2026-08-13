@@ -20,9 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
-	fwk "k8s.io/kube-scheduler/framework"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 )
@@ -74,27 +72,5 @@ func (r *HintRegistry) eventsForPlugin(name string) []api.ClusterEventWithHint {
 	}
 	out := make([]api.ClusterEventWithHint, len(events))
 	copy(out, events)
-	return out
-}
-
-// hasPlugin reports whether the plugin declared any hints.
-func (r *HintRegistry) hasPlugin(name string) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	_, ok := r.eventsByPlugin[name]
-	return ok
-}
-
-// subscribedResources returns the union of all event resources declared across
-// every registered plugin.
-func (r *HintRegistry) subscribedResources() sets.Set[fwk.EventResource] {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := sets.New[fwk.EventResource]()
-	for _, events := range r.eventsByPlugin {
-		for _, e := range events {
-			out.Insert(e.Event.Resource)
-		}
-	}
 	return out
 }

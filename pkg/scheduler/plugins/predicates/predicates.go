@@ -45,11 +45,11 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumezone"
-	"volcano.sh/volcano/pkg/scheduler/plugins/predicates/hintprovider"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/cache"
 	"volcano.sh/volcano/pkg/scheduler/framework"
+	"volcano.sh/volcano/pkg/scheduler/plugins/predicates/hintprovider"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util/k8s"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util/nodescore"
