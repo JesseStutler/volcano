@@ -36,11 +36,9 @@ func (p *fakeHintProvider) EventsToRegister(context.Context) ([]api.ClusterEvent
 	return p.events, nil
 }
 
-func newTestUnschedulableCache(jobs map[api.JobID]*api.JobInfo) (*UnschedulableJobCache, *HintRegistry) {
+func newTestUnschedulableCache() (*UnschedulableJobCache, *HintRegistry) {
 	registry := NewHintRegistry()
-	cache := NewUnschedulableJobCache(registry, func(jobID api.JobID) *api.JobInfo {
-		return jobs[jobID]
-	}, DefaultMaxSkipDuration)
+	cache := NewUnschedulableJobCache(registry, DefaultMaxSkipDuration)
 	return cache, registry
 }
 
@@ -74,7 +72,7 @@ func TestUnschedulableJobCacheRecordAndGet(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			job := api.NewJobInfo("job")
-			cache, registry := newTestUnschedulableCache(map[api.JobID]*api.JobInfo{job.UID: job})
+			cache, registry := newTestUnschedulableCache()
 			if test.registerHints {
 				registerTestHint(registry, "plugin", api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
 			}
@@ -122,7 +120,7 @@ func TestUnschedulableJobCacheReplaceAndForget(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			job := api.NewJobInfo("job")
-			cache, registry := newTestUnschedulableCache(map[api.JobID]*api.JobInfo{job.UID: job})
+			cache, registry := newTestUnschedulableCache()
 			wake := func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
 				return api.HintWakeup, nil
 			}
@@ -173,7 +171,7 @@ func TestUnschedulableJobCacheOnEvent(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			job := api.NewJobInfo("job")
-			cache, registry := newTestUnschedulableCache(map[api.JobID]*api.JobInfo{job.UID: job})
+			cache, registry := newTestUnschedulableCache()
 
 			hintCalls := 0
 			hintFn := func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
@@ -193,6 +191,38 @@ func TestUnschedulableJobCacheOnEvent(t *testing.T) {
 				t.Fatalf("record cached = %v, want %v", gotCached, test.wantCached)
 			}
 		})
+	}
+}
+
+func TestOnEventDoesNotForgetNewerRecord(t *testing.T) {
+	job := api.NewJobInfo("job")
+	cache, registry := newTestUnschedulableCache()
+	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+	hintStarted := make(chan struct{})
+	releaseHint := make(chan struct{})
+	registerTestHint(registry, "old-plugin", event, func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+		close(hintStarted)
+		<-releaseHint
+		return api.HintWakeup, nil
+	})
+	registerTestHint(registry, "new-plugin", event, func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+		return api.HintSkip, nil
+	})
+	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "old-plugin", Source: api.RejectionPredicate}})
+
+	dispatched := make(chan struct{})
+	go func() {
+		defer close(dispatched)
+		cache.OnEvent(event, nil, nil)
+	}()
+	<-hintStarted
+	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "new-plugin", Source: api.RejectionPredicate}})
+	close(releaseHint)
+	<-dispatched
+
+	want := []api.Rejection{{Plugin: "new-plugin", Source: api.RejectionPredicate}}
+	if got := cache.GetCachedRejections(job); !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetCachedRejections() = %#v, want newer record %#v", got, want)
 	}
 }
 
@@ -216,7 +246,7 @@ func TestUnschedulableJobCacheForgetExpired(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			job := api.NewJobInfo("job")
-			cache, registry := newTestUnschedulableCache(map[api.JobID]*api.JobInfo{job.UID: job})
+			cache, registry := newTestUnschedulableCache()
 			registerTestHint(registry, "plugin", api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
 			cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
 
@@ -237,9 +267,7 @@ func TestUnschedulableJobCacheUsesConfiguredMaxSkipDuration(t *testing.T) {
 	job := api.NewJobInfo("job")
 	registry := NewHintRegistry()
 	const maxSkipDuration = 10 * time.Second
-	cache := NewUnschedulableJobCache(registry, func(api.JobID) *api.JobInfo {
-		return job
-	}, maxSkipDuration)
+	cache := NewUnschedulableJobCache(registry, maxSkipDuration)
 	registerTestHint(registry, "plugin", api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
 
 	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})

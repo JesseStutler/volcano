@@ -628,7 +628,7 @@ func newSchedulerCache(config *rest.Config, schedulerNames []string, defaultQueu
 			maxSkipDuration = options.ServerOpts.UnschedulableJobCacheMaxSkipDuration
 		}
 		sc.hintRegistry = NewHintRegistry()
-		sc.unschedulableCache = NewUnschedulableJobCache(sc.hintRegistry, sc.getJobInfo, maxSkipDuration)
+		sc.unschedulableCache = NewUnschedulableJobCache(sc.hintRegistry, maxSkipDuration)
 	}
 
 	// add all events handlers
@@ -1181,6 +1181,7 @@ func (sc *SchedulerCache) taskUnschedulable(task *schedulingapi.TaskInfo, reason
 
 func (sc *SchedulerCache) deleteJob(job *schedulingapi.JobInfo) {
 	klog.V(3).Infof("Try to delete Job <%v:%v/%v>", job.UID, job.Namespace, job.Name)
+	sc.unschedulableCache.ForgetUnschedulable(job.UID)
 
 	key := sc.generateDeletedJobsKey(job)
 	sc.DeletedJobs.Add(key)
@@ -1902,18 +1903,6 @@ func (sc *SchedulerCache) RegisterBinder(name string, binder interface{}) {
 // nil when the UnschedulableJobCache feature is disabled.
 func (sc *SchedulerCache) UnschedulableCache() UnschedulableCache {
 	return sc.unschedulableCache
-}
-
-// getJobInfo returns the current JobInfo for jobID or nil when it is no longer
-// tracked. It is the jobGetter used by the UnschedulableJobCache.
-func (sc *SchedulerCache) getJobInfo(jobID schedulingapi.JobID) *schedulingapi.JobInfo {
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-	job := sc.Jobs[jobID]
-	if job == nil {
-		return nil
-	}
-	return job.Clone()
 }
 
 func (sc *SchedulerCache) OnSessionOpen() {

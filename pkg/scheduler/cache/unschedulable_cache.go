@@ -50,6 +50,7 @@ type hintSubscription struct {
 // unschedulableRecord is one cached Job's state.
 type unschedulableRecord struct {
 	jobID      api.JobID
+	job        *api.JobInfo
 	rejections []api.Rejection
 
 	lastFailedAt time.Time
@@ -77,19 +78,13 @@ type UnschedulableJobCache struct {
 
 	registry *HintRegistry
 
-	// jobGetter returns the current JobInfo for a JobID, or nil when the Job is
-	// no longer tracked by the scheduler cache.
-	jobGetter func(api.JobID) *api.JobInfo
-
 	maxSkipDuration time.Duration
 }
 
 var _ UnschedulableCache = (*UnschedulableJobCache)(nil)
 
 // NewUnschedulableJobCache creates an UnschedulableJobCache backed by registry.
-// jobGetter must return the current JobInfo for a JobID (nil if unknown).
-
-func NewUnschedulableJobCache(registry *HintRegistry, jobGetter func(api.JobID) *api.JobInfo, maxSkipDuration time.Duration) *UnschedulableJobCache {
+func NewUnschedulableJobCache(registry *HintRegistry, maxSkipDuration time.Duration) *UnschedulableJobCache {
 	if maxSkipDuration <= 0 {
 		maxSkipDuration = DefaultMaxSkipDuration
 	}
@@ -98,7 +93,6 @@ func NewUnschedulableJobCache(registry *HintRegistry, jobGetter func(api.JobID) 
 		byResource:      make(map[fwk.EventResource]sets.Set[api.JobID]),
 		wildcard:        sets.New[api.JobID](),
 		registry:        registry,
-		jobGetter:       jobGetter,
 		maxSkipDuration: maxSkipDuration,
 	}
 }
@@ -109,7 +103,8 @@ func (c *UnschedulableJobCache) AddHintProvider(name string, provider api.HintPr
 }
 
 // RecordUnschedulable inserts (or replaces) the Job with the rejections observed at
-// CloseSession and copies the matching hint callbacks out of the registry. It
+// CloseSession and copies the matching hint callbacks out of the registry. The
+// caller must not mutate the session-local Job snapshot after this call. It
 // returns without inserting if any rejection's plugin has no HintProvider.
 func (c *UnschedulableJobCache) RecordUnschedulable(job *api.JobInfo, rejections []api.Rejection) {
 	if c == nil || job == nil || len(rejections) == 0 {
@@ -139,7 +134,11 @@ func (c *UnschedulableJobCache) RecordUnschedulable(job *api.JobInfo, rejections
 
 	now := time.Now()
 	rec := &unschedulableRecord{
-		jobID:         job.UID,
+		jobID: job.UID,
+		// The framework passes its session-local Job snapshot after all session
+		// mutations have completed. Retain that immutable snapshot instead of
+		// locking and cloning the live scheduler-cache Job for every event.
+		job:           job,
 		rejections:    rejections,
 		lastFailedAt:  now,
 		retryAfter:    now.Add(c.maxSkipDuration),
@@ -218,64 +217,57 @@ func (c *UnschedulableJobCache) removeJobFromEventIndexLocked(jobID api.JobID) {
 }
 
 // OnEvent is invoked by the informer dispatchers. It runs the hints subscribed to
-// ev and Forgets any Job whose hint returns HintWakeup (or errors). A Job whose
-// backing JobInfo is gone is also dropped.
+// ev and Forgets any Job whose hint returns HintWakeup (or errors).
 func (c *UnschedulableJobCache) OnEvent(ev api.ClusterEvent, oldObj, newObj any) {
 	if c == nil {
 		return
 	}
 	c.mu.RLock()
-	candidates := sets.New[api.JobID]()
-	if s := c.byResource[ev.Resource]; s != nil {
-		candidates = candidates.Union(s)
+	resourceCandidates := c.byResource[ev.Resource]
+	candidates := make([]*unschedulableRecord, 0, len(resourceCandidates)+c.wildcard.Len())
+	for jobID := range resourceCandidates {
+		if rec := c.records[jobID]; rec != nil {
+			candidates = append(candidates, rec)
+		}
 	}
-	if c.wildcard.Len() > 0 {
-		candidates = candidates.Union(c.wildcard)
+	// A record can subscribe both to the concrete resource and WildCard. Avoid
+	// dispatching it twice without allocating a temporary union set.
+	for jobID := range c.wildcard {
+		if resourceCandidates.Has(jobID) {
+			continue
+		}
+		if rec := c.records[jobID]; rec != nil {
+			candidates = append(candidates, rec)
+		}
 	}
 	c.mu.RUnlock()
 
-	if candidates.Len() == 0 {
+	if len(candidates) == 0 {
 		return
 	}
 
-	for jobID := range candidates {
-		job := c.jobGetter(jobID)
-		if job == nil {
-			c.ForgetUnschedulable(jobID)
-			continue
-		}
-		if c.shouldWake(ev, jobID, job, oldObj, newObj) {
-			metrics.RegisterUnschedulableJobCacheWakeup(job.Namespace, job.Name, string(ev.Resource), ev.ActionType.String())
-			c.ForgetUnschedulable(jobID)
+	for _, rec := range candidates {
+		if shouldWake(rec, ev, oldObj, newObj) {
+			metrics.RegisterUnschedulableJobCacheWakeup(rec.job.Namespace, rec.job.Name, string(ev.Resource), ev.ActionType.String())
+			c.forgetRecord(rec)
 		}
 	}
 }
 
-// shouldWake runs the Job's subscriptions matching ev and reports whether any of
-// them asks to wake the Job. A nil HintFn wakes on any match; a hint error is
-// treated as a wake.
-func (c *UnschedulableJobCache) shouldWake(ev api.ClusterEvent, jobID api.JobID, job *api.JobInfo, oldObj, newObj any) bool {
-	c.mu.RLock()
-	rec, ok := c.records[jobID]
-	var subs []hintSubscription
-	if ok {
-		subs = rec.subscriptions
-	}
-	c.mu.RUnlock()
-	if !ok {
-		return false
-	}
-
-	for _, sub := range subs {
+// shouldWake runs the record's subscriptions matching ev and reports whether
+// any of them asks to wake the Job. Records are immutable after publication, so
+// event dispatch can safely inspect a record snapshot without holding c.mu.
+func shouldWake(rec *unschedulableRecord, ev api.ClusterEvent, oldObj, newObj any) bool {
+	for _, sub := range rec.subscriptions {
 		if !eventMatches(sub.event, ev) {
 			continue
 		}
 		if sub.hintFn == nil {
 			return true
 		}
-		result, err := sub.hintFn(job, sub.rejection, oldObj, newObj)
+		result, err := sub.hintFn(rec.job, sub.rejection, oldObj, newObj)
 		if err != nil {
-			klog.V(4).Infof("Hint %s errored for job %s, waking: %v", sub.plugin, jobID, err)
+			klog.V(4).Infof("Hint %s errored for job %s, waking: %v", sub.plugin, rec.jobID, err)
 			return true
 		}
 		if result == api.HintWakeup {
@@ -283,6 +275,21 @@ func (c *UnschedulableJobCache) shouldWake(ev api.ClusterEvent, jobID api.JobID,
 		}
 	}
 	return false
+}
+
+// forgetRecord removes rec only if it is still the current record. A scheduling
+// session may have replaced the record after OnEvent took its snapshot; in that
+// case the replacement already reflects cluster state at the newer session and
+// must not be removed by the older dispatch.
+func (c *UnschedulableJobCache) forgetRecord(rec *unschedulableRecord) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.records[rec.jobID] != rec {
+		return
+	}
+	c.removeJobFromEventIndexLocked(rec.jobID)
+	delete(c.records, rec.jobID)
+	klog.V(4).Infof("Forgot unschedulable job %s", rec.jobID)
 }
 
 // eventMatches reports whether an incoming event satisfies a declared
@@ -308,19 +315,17 @@ func (c *UnschedulableJobCache) StartWatchdog(stopCh <-chan struct{}) {
 func (c *UnschedulableJobCache) forgetExpired() {
 	now := time.Now()
 	c.mu.RLock()
-	var expired []api.JobID
-	for id, rec := range c.records {
+	var expired []*unschedulableRecord
+	for _, rec := range c.records {
 		if !now.Before(rec.retryAfter) {
-			expired = append(expired, id)
+			expired = append(expired, rec)
 		}
 	}
 	c.mu.RUnlock()
 
-	for _, id := range expired {
-		klog.V(4).Infof("Watchdog forgetting expired unschedulable job %s", id)
-		if job := c.jobGetter(id); job != nil {
-			metrics.RegisterUnschedulableJobCacheWatchdogExpiration(job.Namespace, job.Name)
-		}
-		c.ForgetUnschedulable(id)
+	for _, rec := range expired {
+		klog.V(4).Infof("Watchdog forgetting expired unschedulable job %s", rec.jobID)
+		metrics.RegisterUnschedulableJobCacheWatchdogExpiration(rec.job.Namespace, rec.job.Name)
+		c.forgetRecord(rec)
 	}
 }

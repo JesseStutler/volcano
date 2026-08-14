@@ -163,6 +163,21 @@ func buildOwnerReference(owner string) metav1.OwnerReference {
 	}
 }
 
+func TestDeleteJobForgetsUnschedulableRecord(t *testing.T) {
+	job := api.NewJobInfo("job")
+	unschedulableCache, registry := newTestUnschedulableCache()
+	registerTestHint(registry, "plugin", api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
+	unschedulableCache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+
+	schedulerCache := NewDefaultMockSchedulerCache("volcano")
+	schedulerCache.unschedulableCache = unschedulableCache
+	schedulerCache.deleteJob(job)
+
+	if got := unschedulableCache.GetCachedRejections(job); got != nil {
+		t.Fatalf("GetCachedRejections() = %#v after deleteJob, want nil", got)
+	}
+}
+
 func TestGetOrCreateJob(t *testing.T) {
 	owner1 := buildOwnerReference("j1")
 	owner2 := buildOwnerReference("j2")

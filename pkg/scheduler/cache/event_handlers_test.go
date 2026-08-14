@@ -391,7 +391,7 @@ func TestUpdatePodGroupUnschedulableCache(t *testing.T) {
 			jobID := api.JobID(namespace + "/" + name)
 			job := api.NewJobInfo(jobID)
 			jobs := map[api.JobID]*api.JobInfo{jobID: job}
-			unschedulableCache, registry := newTestUnschedulableCache(jobs)
+			unschedulableCache, registry := newTestUnschedulableCache()
 			registerTestHint(registry, plugin, api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
 			rejections := []api.Rejection{{Plugin: plugin, Source: api.RejectionPredicate}}
 			unschedulableCache.RecordUnschedulable(job, rejections)

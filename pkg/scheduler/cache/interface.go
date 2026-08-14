@@ -116,7 +116,8 @@ type UnschedulableCache interface {
 	AddHintProvider(name string, p api.HintProvider)
 
 	// RecordUnschedulable stores the plugin rejections observed for a Job in the
-	// current session.
+	// current session. The Job is the session-local snapshot and must not be
+	// mutated after this call while its record remains cached.
 	RecordUnschedulable(job *api.JobInfo, rejections []api.Rejection)
 
 	// GetCachedRejections returns the rejections that may be reused to skip work
