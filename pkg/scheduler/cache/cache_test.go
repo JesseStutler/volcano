@@ -39,6 +39,7 @@ import (
 	kubetesting "k8s.io/client-go/testing"
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	fwk "k8s.io/kube-scheduler/framework"
 
 	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
@@ -86,6 +87,46 @@ func buildNode(name string, alloc v1.ResourceList) *v1.Node {
 	}
 }
 
+func TestEventMatchesSpecificUpdate(t *testing.T) {
+	tests := []struct {
+		name     string
+		sub      fwk.ActionType
+		incoming fwk.ActionType
+		want     bool
+	}{
+		{
+			name:     "general subscription matches scale down",
+			sub:      fwk.Update,
+			incoming: fwk.UpdatePodScaleDown,
+			want:     true,
+		},
+		{
+			name:     "scale down subscription ignores unclassified update",
+			sub:      fwk.UpdatePodScaleDown,
+			incoming: fwk.Update,
+			want:     false,
+		},
+		{
+			name:     "scale down subscription matches scale down",
+			sub:      fwk.UpdatePodScaleDown,
+			incoming: fwk.UpdatePodScaleDown,
+			want:     true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := eventMatches(
+				api.ClusterEvent{Resource: fwk.Pod, ActionType: test.sub},
+				api.ClusterEvent{Resource: fwk.Pod, ActionType: test.incoming},
+			)
+			if got != test.want {
+				t.Fatalf("eventMatches() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func buildPod(ns, n, nn string,
 	p v1.PodPhase, req v1.ResourceList,
 	owner []metav1.OwnerReference, labels map[string]string) *v1.Pod {
@@ -119,6 +160,21 @@ func buildOwnerReference(owner string) metav1.OwnerReference {
 	return metav1.OwnerReference{
 		Controller: &controller,
 		UID:        types.UID(owner),
+	}
+}
+
+func TestDeleteJobForgetsUnschedulableRecord(t *testing.T) {
+	job := api.NewJobInfo("job")
+	unschedulableCache, registry := newTestUnschedulableCache()
+	registerTestHint(registry, "plugin", api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
+	unschedulableCache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+
+	schedulerCache := NewDefaultMockSchedulerCache("volcano")
+	schedulerCache.unschedulableCache = unschedulableCache
+	schedulerCache.deleteJob(job)
+
+	if got := unschedulableCache.GetCachedRejections(job); got != nil {
+		t.Fatalf("GetCachedRejections() = %#v after deleteJob, want nil", got)
 	}
 }
 

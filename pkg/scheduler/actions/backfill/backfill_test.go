@@ -66,6 +66,7 @@ func TestPickUpPendingTasks(t *testing.T) {
 		queues          []*schedulingv1beta1.Queue
 		podGroups       []*schedulingv1beta1.PodGroup
 		PriorityClasses map[string]*schedulingapi.PriorityClass
+		skip            map[api.JobID]api.SkipDecision
 		expectedResult  []string
 	}{
 		{
@@ -125,6 +126,38 @@ func TestPickUpPendingTasks(t *testing.T) {
 				"pg1-besteffort-task-1",
 			},
 		},
+		{
+			name: "cached task subset does not suppress other best-effort tasks",
+			pendingPods: []*v1.Pod{
+				util.BuildPodWithPriority("default", "pg1-besteffort-task-1", "", v1.PodPending, nil, "pg1", nil, nil, &priority1),
+				util.BuildPodWithPriority("default", "pg1-besteffort-task-2", "", v1.PodPending, nil, "pg1", nil, nil, &priority1),
+			},
+			queues: []*schedulingv1beta1.Queue{
+				util.BuildQueue("q1", 1, nil),
+			},
+			podGroups: []*schedulingv1beta1.PodGroup{
+				util.BuildPodGroupWithPrio("pg1", "default", "q1", 1, map[string]int32{"": 1}, schedulingv1beta1.PodGroupInqueue, ""),
+			},
+			skip: map[api.JobID]api.SkipDecision{
+				"default/pg1": {Tasks: map[api.TaskID]struct{}{"default-pg1-besteffort-task-1": {}}},
+			},
+			expectedResult: []string{"pg1-besteffort-task-2"},
+		},
+		{
+			name: "cached whole Job suppresses all best-effort tasks",
+			pendingPods: []*v1.Pod{
+				util.BuildPodWithPriority("default", "pg1-besteffort-task-1", "", v1.PodPending, nil, "pg1", nil, nil, &priority1),
+			},
+			queues: []*schedulingv1beta1.Queue{
+				util.BuildQueue("q1", 1, nil),
+			},
+			podGroups: []*schedulingv1beta1.PodGroup{
+				util.BuildPodGroupWithPrio("pg1", "default", "q1", 1, map[string]int32{"": 1}, schedulingv1beta1.PodGroupInqueue, ""),
+			},
+			skip: map[api.JobID]api.SkipDecision{
+				"default/pg1": {Allocate: true},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -156,6 +189,9 @@ func TestPickUpPendingTasks(t *testing.T) {
 		}
 
 		ssn := framework.OpenSession(schedulerCache, tilers, []conf.Configuration{})
+		for jobID, decision := range tc.skip {
+			ssn.Jobs[jobID].Skip = decision
+		}
 		for _, pod := range tc.pipelinedPods {
 			jobID := api.NewTaskInfo(pod).Job
 			stmt := framework.NewStatement(ssn)
