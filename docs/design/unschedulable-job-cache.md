@@ -142,11 +142,20 @@ passed, which prevents a Job from staying cached forever if a hint is ever misse
 
 `HintProvider` is an optional interface that a plugin implements to declare the
 cluster events that could invalidate its previous unschedulable decisions. Each
-declaration is a `ClusterEventWithHint`, which is a `(ClusterEvent, JobHintFn)` pair.
-`ClusterEvent` names the change to watch, and `JobHintFn` decides, for a given Job,
-whether a particular occurrence of that event may make the Job schedulable. If
-`JobHintFn` is `nil`, every occurrence of the event wakes Jobs blocked by this
-plugin.
+declaration is a `ClusterEventWithHint`. `ClusterEvent` identifies the change to
+watch, and `JobHintFn` decides whether one occurrence of that change may make a
+previously rejected Job schedulable. If `JobHintFn` is nil, every occurrence of
+the declared event wakes Jobs rejected by that plugin.
+
+A declaration may also provide a secondary index: a cache-maintained map from
+plugin-defined `HintKey`s to cached Job IDs. Without a secondary index, an event
+checks every cached Job rejected by the same plugin and subscribed to the same
+event. These Jobs form an **event bucket**. With a secondary index, the cache first
+selects only Jobs that share a `HintKey` with the event. A Job selected for the
+final `JobHintFn` evaluation is a **candidate Job**. The key match only reduces the
+candidate set; it never decides whether a Job wakes. Jobs for which `JobKeysFn`
+cannot provide usable keys belong to the bucket's **fallback set** and remain
+candidate Jobs for every matching event.
 
 #### Types
 
@@ -195,28 +204,99 @@ type JobHintFn func(
     oldObj, newObj any,
 ) (HintResult, error)
 
-// ClusterEventWithHint pairs one cluster event a plugin cares about with the
-// callback used to check whether that event may help a specific Job. A nil
-// HintFn means every occurrence of Event wakes Jobs blocked by this plugin.
+// HintKey identifies one scheduling condition that both a rejected Job and a
+// later cluster event can name. The plugin that owns the index defines the key
+// format and meaning.
+type HintKey string
+
+// MaxHintKeysPerSubscription bounds the key set returned for one Job or event.
+// Larger Job key sets put that Job in fallback; larger event key sets select the
+// full event bucket.
+const MaxHintKeysPerSubscription = 256
+
+// JobKeysFn returns every HintKey that may be relevant to one rejected Job for
+// one event declaration. job is the immutable Job snapshot retained from the
+// completed session, and rejection is the declaring plugin's rejection from that
+// session. For correctness, any event that can make HintFn return HintWakeup must
+// share at least one key with this result.
+//
+// Returning an error, no keys, or more than MaxHintKeysPerSubscription keys
+// disables secondary-index selection for this Job and event declaration. The
+// cache then evaluates the Job for every matching event.
+type JobKeysFn func(job *JobInfo, rejection Rejection) ([]HintKey, error)
+
+// EventKeysFn returns every HintKey affected by one occurrence of a declared
+// cluster event. oldObj is nil for Add, and newObj is nil for Delete. For
+// correctness, this result must share at least one key with every rejected Job
+// that the event can make schedulable.
+//
+// A zero-length result with a nil error, whether the slice itself is nil or
+// non-nil, means that this event affects no indexed Job; the cache still evaluates
+// Jobs in fallback. A function that cannot determine complete event keys must
+// return an error. An error or more than
+// MaxHintKeysPerSubscription keys makes the cache evaluate every Job in the
+// matching event bucket.
+type EventKeysFn func(oldObj, newObj any) ([]HintKey, error)
+
+// ClusterEventWithHint describes how one plugin reacts to one cluster event.
 type ClusterEventWithHint struct {
-    Event  ClusterEvent
+    // Event identifies the cluster change that can affect the plugin's previous
+    // rejection.
+    Event ClusterEvent
+
+    // JobKeysFn follows the JobKeysFn contract above. It runs when a Job record
+    // is inserted. A nil value puts the Job in fallback and requires EventKeysFn
+    // to be nil too.
+    JobKeysFn JobKeysFn
+
+    // EventKeysFn follows the EventKeysFn contract above. It runs once for each
+    // matching event bucket. A nil value requires JobKeysFn to be nil too.
+    EventKeysFn EventKeysFn
+
+    // HintFn follows the JobHintFn contract above and makes the final decision
+    // for each candidate Job. A nil value means every matching event wakes the
+    // Job, so the declaration cannot use secondary-index selection.
     HintFn JobHintFn
 }
 
 // HintProvider lets a plugin declare the events that can change its previous
 // unschedulable decisions.
 type HintProvider interface {
-    // EventsToRegister returns every (event, hint) pair this plugin subscribes
-    // to. It is called once per registration; the result is stored verbatim.
+    // EventsToRegister returns every event declaration owned by this plugin.
+    // It is called once per registration; the result is stored verbatim.
     EventsToRegister(ctx context.Context) ([]ClusterEventWithHint, error)
 }
 ```
 
-#### Example
+`JobKeysFn` and `EventKeysFn` are optional and must be provided together. The two
+functions must satisfy one rule: if an event can make a rejected Job schedulable,
+their results must have at least one key in common. A Job may be omitted from the
+candidate set only when `JobKeysFn` returned a complete key set for that Job. If
+`JobKeysFn` is absent, returns an error, returns no keys, or returns more than 256
+keys, that Job joins `fallback` and is evaluated for every matching event. If
+`EventKeysFn` errors or returns more than 256 keys, the cache evaluates the full
+event bucket. A zero-length result with a nil error means the event affects no
+indexed Jobs, so the cache evaluates only `fallback`. A declaration with a nil
+`HintFn` puts every Job in `fallback` because every matching event must wake them.
+
+#### Examples
 
 A `NodeAffinity` hint registered for `Node/UpdateNodeLabel` compares `oldObj` and
 `newObj` node labels against the Job's node selector. It returns `HintWakeup`
 only when the new labels may satisfy the selector, and `HintSkip` otherwise.
+
+Resource Fit shows how the optional index narrows that final evaluation:
+
+1. A task requests CPU and fails Resource Fit on `node-a`. The rejection records
+   the key `pod-release/node-a/cpu`.
+2. Deleting a memory-only Pod on `node-a` produces
+   `pod-release/node-a/memory`. The keys do not match, so the rejected Job is not
+   a candidate for this event.
+3. Deleting a CPU-consuming Pod on `node-a` produces
+   `pod-release/node-a/cpu`. The key matches, so the cache runs Resource Fit's
+   `JobHintFn` for the Job.
+4. `JobHintFn`, not the key match, makes the final `HintWakeup` or `HintSkip`
+   decision.
 
 #### Registration
 
@@ -247,8 +327,10 @@ type HintRegistry struct {
     eventsByPlugin map[string][]ClusterEventWithHint
 }
 
-// Register calls p.EventsToRegister(context.TODO()) once. A successful non-empty
-// result replaces the plugin entry; an error or empty result removes it.
+// Register calls p.EventsToRegister(context.TODO()) once. A successful, non-empty,
+// and valid result replaces the plugin entry. An error, an empty result, or
+// duplicate declarations for one ClusterEvent remove the plugin entry and log the
+// registration failure.
 //
 //   @param name plugin name used as the map key; must match Rejection.Plugin so
 //               RecordUnschedulable can look the hints up by rejecting plugin.
@@ -261,6 +343,17 @@ Overwriting matches `BinderRegistry`'s replacement behavior. `HintRegistry` and
 registry, so that each extension point keeps its own registration signature, and the
 cache still has a single place to hold every session-to-cache extension.
 
+One plugin may register at most one declaration for the same `ClusterEvent`. If a
+registration contains duplicates, the registry logs the error and removes that
+plugin's registry entry; already-recorded Jobs keep their copied declarations.
+Across later registrations under the same plugin name, `JobKeysFn`, `EventKeysFn`, and the
+`HintKey` format for an existing event must keep the same meaning. This
+scheduler-lifetime stability rule lets old and new records safely share one event
+bucket without a generation identifier. A plugin that needs to change its key
+meaning must use a new plugin name or restart the scheduler. `HintFn` may be
+replaced because each Job record keeps the version copied when that record was
+created.
+
 `HintRegistry` is the only bridge from session-scoped plugins to cache-scoped
 dispatch. §3 covers how `RecordUnschedulable` reads from it at `CloseSession`, and §4 covers how
 informer handlers reach the cache through it.
@@ -268,17 +361,29 @@ informer handlers reach the cache through it.
 ### 2. Failure Recording
 
 The cache stores one `Rejection` per plugin and extension point that rejected a
-Job. Repeated failures merge their task IDs. Different tasks can therefore
-accumulate different predicate rejections, while `Allocatable` and
-`JobEnqueueable` record the first rejecting plugin in their callback chain.
+Job. Repeated failures merge their task IDs and secondary-index keys. Different
+tasks can therefore accumulate different predicate rejections, while
+`Allocatable` and `JobEnqueueable` record the first rejecting plugin in their
+registered function chain.
 
 ```go
 // Rejection describes one plugin decision that made a Job unschedulable in a session.
 type Rejection struct {
-    Plugin string          // registered HintProvider name, e.g. "NodeAffinity".
-    Source RejectionSource // extension point that emitted the rejection.
-    Tasks  []TaskID        // failed task IDs; nil only for RejectionEnqueue.
-    Queues []QueueID       // Job Queue followed by its known ancestors.
+    // Plugin is the registered HintProvider name, for example "NodeAffinity".
+    Plugin string
+
+    // Source is the extension point that emitted the rejection.
+    Source RejectionSource
+
+    // Tasks contains the rejected task IDs. It is nil only for RejectionEnqueue.
+    Tasks []TaskID
+
+    // Queues contains the Job's Queue followed by its known ancestors.
+    Queues []QueueID
+
+    // HintKeys contains the complete secondary-index keys collected while this
+    // rejection was produced. It is nil when complete keys are unavailable.
+    HintKeys []HintKey
 }
 
 type RejectionSource string
@@ -289,6 +394,20 @@ const (
     RejectionEnqueue     RejectionSource = "enqueue"     // JobEnqueueable
 )
 ```
+
+The scheduler records `Rejection.HintKeys` at the point where a failure occurs,
+because that code still has the rejected task, rejected node, and insufficient
+resource dimensions. Repeated rejections for the same `(Plugin, Source)` merge
+and deduplicate both `Tasks` and `HintKeys`. The 256-key limit applies after the
+merge. If any merged rejection lacks complete keys, or if the merged result
+exceeds the limit, `HintKeys` becomes nil. The cache then evaluates this Job for
+every event in each matching event bucket.
+
+When the cache records the Job, each event declaration runs its `JobKeysFn` to
+validate the rejection keys and select only the keys relevant to that event. For
+example, the Resource Fit declaration for `Pod/Delete` selects Pod-release keys
+and ignores Node-growth keys. `JobKeysFn` cannot make incomplete rejection data
+complete; it must return an error or no keys instead.
 
 Both `RejectionPredicate` and `RejectionAllocatable` carry `Tasks`, because
 their extension points run per task and can fail for a subset of a Job's tasks.
@@ -321,7 +440,16 @@ synthetic plugin name `predicates-resource-fit` and records them as
 `RejectionPredicate` on the same footing as any other per-task predicate
 failure. The synthetic plugin registers hints on capacity-changing events
 (`Node/Add`, `Node/UpdateNodeAllocatable`, `Pod/Delete`) so the wake path
-works the same way as other predicates.
+works the same way as other predicates. It also records the rejected node and
+insufficient resource dimensions as secondary-index keys for every candidate node
+that failed Resource Fit in the completed scheduling attempt. Deleting a
+CPU-consuming Pod on `node-a` therefore selects every Job whose complete failure
+set contains a CPU shortage on `node-a`, including Jobs that also failed on other
+nodes. It does not select a Job when its complete Resource Fit failure set contains
+no CPU shortage on `node-a`; if the scheduler cannot build that complete set, the
+Job uses full-bucket delivery instead of the index. `Node/Add` uses
+resource-dimension keys without an old node name, so a newly added node can still
+reach every Job whose requested dimensions it may satisfy.
 
 #### Recording rejections
 
@@ -434,7 +562,7 @@ through the normal filter path every session, which matches today's behavior.
 
 `UnschedulableJobCache` lives on `SchedulerCache`. It records unschedulable Jobs by
 `JobID`, together with the rejection list collected at `CloseSession` and the hint
-callbacks copied from `HintRegistry`.
+functions copied from `HintRegistry`.
 
 The normal retry lifecycle is:
 
@@ -467,7 +595,7 @@ stateDiagram-v2
     Evaluating --> Cached: CloseSession RecordUnschedulable
     Cached --> Cached: GetCachedRejections applied
     Cached --> Cached: hint = HintSkip
-    Cached --> Evaluating: ForgetUnschedulable (hint / PodGroup / watchdog)
+    Cached --> Evaluating: ForgetUnschedulable (hint / workload / watchdog)
     Progressing --> [*]
 ```
 
@@ -491,8 +619,9 @@ so the next `OpenSession` finds none and evaluates the Job normally:
    If every hint returns `HintSkip`, the record is kept and the Job stays **Cached**
    (the `Cached → Cached` self-loop). This is the primary path, since a real cluster
    change plausibly fixes the earlier rejection.
-2. **PodGroup change (invalidation).** A spec update or delete forgets the record
-   directly; status-only updates remain hint events.
+2. **Workload change (snapshot invalidation).** A Pod add, scheduling-input
+   update, or delete forgets the record for that Pod's Job. A PodGroup spec update
+   or delete does the same. PodGroup status-only updates remain hint events.
 3. **RetryAfter watchdog (safety net).** A background goroutine runs on a fixed
    interval and forgets any record whose `RetryAfter` has passed. It runs off the
    scheduling path, so it does not add scanning work to `OpenSession`, and it
@@ -505,7 +634,7 @@ so the next `OpenSession` finds none and evaluates the Job normally:
 // UnschedulableCache stores Jobs rejected in previous scheduling sessions and
 // exposes the operations needed by scheduler sessions.
 type UnschedulableCache interface {
-    // AddHintProvider registers a plugin's event subscriptions and hint callbacks.
+    // AddHintProvider registers the events and hint functions declared by a plugin.
     AddHintProvider(name string, p api.HintProvider)
 
     // RecordUnschedulable stores the plugin rejections observed for a Job in the
@@ -526,29 +655,74 @@ type UnschedulableCache interface {
 
 #### Cache state
 
-The cache keeps one record per Job, plus a reverse index so `OnEvent` can find
-the affected Jobs without scanning every record:
+The cache keeps one primary record per Job. It also groups records into event
+buckets. An event bucket is uniquely identified by a plugin and one declared
+`ClusterEvent`; therefore, an incoming event never evaluates Jobs rejected only
+by unrelated plugins or subscribed only to unrelated events.
+
+Every bucket stores all of its Jobs in `jobs`. Jobs with complete secondary-index
+keys also appear in `byHintKey`. Jobs without usable keys appear in `fallback`.
+Here, **fallback** means that secondary-index selection is unavailable for that
+Job, so every occurrence of the bucket's event must evaluate it.
 
 ```go
-// UnschedulableJobCache stores rejected Jobs and routes matching cluster events
-// to their captured hint callbacks.
+// eventIndexKey identifies one event bucket.
+type eventIndexKey struct {
+    // plugin is the HintProvider that rejected the Jobs in this bucket.
+    plugin string
+
+    // event is the cluster change to which the Jobs subscribed.
+    event api.ClusterEvent
+}
+
+// eventBucket stores the Jobs subscribed to one plugin and event pair.
+type eventBucket struct {
+    // eventKeysFn follows the EventKeysFn contract from §1. An error selects all
+    // Jobs in jobs; an empty successful result selects only fallback.
+    eventKeysFn api.EventKeysFn
+
+    // jobs contains every Job in the bucket and supports full-bucket delivery.
+    jobs sets.Set[api.JobID]
+
+    // fallback contains Jobs for which secondary-index selection is unavailable.
+    fallback sets.Set[api.JobID]
+
+    // byHintKey maps each complete Job key to the Jobs that recorded that key.
+    byHintKey map[api.HintKey]sets.Set[api.JobID]
+}
+
+// recordIndexEntry identifies one event-bucket membership owned by a Job record.
+// It lets replacement, wake-up, and expiry remove every stale index entry.
+type recordIndexEntry struct {
+    // resource selects byResource or wildcard when locating the bucket.
+    resource fwk.EventResource
+
+    // key identifies the plugin and event bucket.
+    key eventIndexKey
+
+    // fallback reports whether this Job belongs to the bucket's fallback set.
+    fallback bool
+
+    // hintKeys lists the byHintKey entries that contain this Job.
+    hintKeys []api.HintKey
+}
+
+// UnschedulableJobCache stores rejected Jobs and finds the Jobs that must
+// evaluate each incoming cluster event.
 type UnschedulableJobCache struct {
     mu sync.RWMutex
 
     // records is the primary store: one entry per cached Job.
     records map[api.JobID]*unschedulableRecord
 
-    // byResource narrows event dispatch to Jobs interested in a resource.
-    // wildcard holds Jobs subscribed to fwk.WildCard as the resource.
-    byResource map[fwk.EventResource]sets.Set[api.JobID]
-    wildcard sets.Set[api.JobID]
+    // byResource holds event buckets grouped by their declared resource.
+    byResource map[fwk.EventResource]map[eventIndexKey]*eventBucket
+
+    // wildcard holds event buckets declared for every resource.
+    wildcard map[eventIndexKey]*eventBucket
 
     // registry provides the latest plugin hint declarations for new records.
     registry *HintRegistry
-
-    // jobGetter returns a cloned JobInfo snapshot under the SchedulerCache lock,
-    // or nil when the Job is gone.
-    jobGetter func(api.JobID) *api.JobInfo
 
     // maxSkipDuration bounds how long a record can suppress retries.
     maxSkipDuration time.Duration
@@ -556,37 +730,58 @@ type UnschedulableJobCache struct {
 
 // unschedulableRecord is the cached state for one Job.
 type unschedulableRecord struct {
-    // jobID identifies the cached Job; rejections drive Skip derivation in the
-    // next OpenSession.
-    jobID      api.JobID
+    // jobID identifies the cached Job.
+    jobID api.JobID
+
+    // job is the immutable JobInfo from the completed scheduling session.
+    // A workload update invalidates the record before this value can become stale.
+    job *api.JobInfo
+
+    // rejections contains the plugin decisions reused by the next session.
     rejections []api.Rejection
 
     // lastFailedAt and retryAfter define the watchdog retry window.
     lastFailedAt time.Time
     retryAfter   time.Time
 
-    // subscriptions and resources are snapshots, not references to the registry.
+    // subscriptions contains the event declarations copied when the Job is recorded.
     subscriptions []hintSubscription
-    resources     sets.Set[fwk.EventResource]
+
+    // indexEntries contains every event-bucket membership owned by this record.
+    indexEntries []recordIndexEntry
 }
 
-// hintSubscription pairs a plugin name with its hint callback, plus the plugin's
-// own Rejection so the callback can inspect the exact decision it made in the
-// previous session.
+// hintSubscription is one event declaration copied for one plugin rejection.
 type hintSubscription struct {
-    plugin    string
-    event     api.ClusterEvent
+    // plugin identifies the HintProvider that produced the declaration.
+    plugin string
+
+    // event identifies the cluster change that can affect the rejection.
+    event api.ClusterEvent
+
+    // rejection is the plugin decision from the completed session.
     rejection api.Rejection
-    hintFn    api.JobHintFn
+
+    // jobKeysFn follows the JobKeysFn contract from §1 and runs when the record
+    // is inserted. An error or empty result puts this Job in fallback.
+    jobKeysFn api.JobKeysFn
+
+    // eventKeysFn follows the EventKeysFn contract from §1 and runs when the
+    // event occurs. An error requires full-bucket delivery.
+    eventKeysFn api.EventKeysFn
+
+    // hintFn follows the JobHintFn contract from §1 and makes the final decision
+    // for this Job. A nil value means every matching event wakes the Job.
+    hintFn api.JobHintFn
 }
 ```
 
-`subscriptions` holds the same `(event, hintFn)` pairs a plugin declares through
-`ClusterEventWithHint` (§1), narrowed to the plugins that rejected this Job and
-indexed by resource for fast candidate lookup. A nil `HintFn` wakes only after its
-event matches; it is unrelated to the resource wildcard. `RecordUnschedulable`
-builds it by looking each rejection's plugin up in the cache's global
-`HintRegistry` and copying the matching entries.
+`RecordUnschedulable` looks up each rejecting plugin in `HintRegistry` and copies
+that plugin's event declarations into `subscriptions`. It then creates one
+`recordIndexEntry` for each copied declaration. If both key functions are present
+and `JobKeysFn` returns a complete key set, the entry names those keys. Otherwise
+the entry sets `fallback=true`. A declaration with a nil `HintFn` also uses
+`fallback=true`, because every matching event must wake the Job.
 
 It is a **snapshot** rather than a live reference to `HintRegistry`. A Job
 cached in an earlier session must keep waking the same way it was recorded,
@@ -601,7 +796,7 @@ down.
 | `CloseSession`, evaluated Job still pending | `RecordUnschedulable(job, rejections)` | Store or replace the record and rebuild event subscriptions. |
 | `OpenSession`, pending Job | `GetCachedRejections(job)` | Return the previous session's rejections, or nil to evaluate the Job normally. |
 | `CloseSession`, Job became ready or gained a pipelined task | `ForgetUnschedulable(job.UID)` | Remove the record. |
-| PodGroup spec update/delete informer | `ForgetUnschedulable(jobID)` | Job spec/lifecycle changed; evaluate it again. |
+| Pod add/update/delete or PodGroup scheduling-input update/delete informer | `ForgetUnschedulable(jobID)` | The cached session snapshot may be stale; evaluate the current Job again. |
 | Subscribed cluster event (informer) | `OnEvent(ev, oldObj, newObj)` | Run matching hints and wake Jobs that may need retry. |
 | Watchdog goroutine, `now >= RetryAfter` | `ForgetUnschedulable(jobID)` | Off-path cleanup of stale records so a Job is never cached forever. |
 
@@ -630,7 +825,8 @@ A record is removed or bypassed by these triggers:
 | Trigger | Effect |
 |---|---|
 | A subscribed cluster event whose hint returns `HintWakeup` or errors | `ForgetUnschedulable` (via `OnEvent`) |
-| `PodGroup` spec update or delete | `ForgetUnschedulable` (from the informer handler) |
+| A Pod add, scheduling-input update, or deletion belonging to the Job | `ForgetUnschedulable` directly; the event is still delivered to other Jobs' hints |
+| `PodGroup` spec update or delete | `ForgetUnschedulable` directly |
 | `now >= RetryAfter` | the watchdog calls `ForgetUnschedulable`; the next session re-evaluates the Job |
 
 `RecordUnschedulable` sets retry timing like this:
@@ -652,32 +848,122 @@ events through `OnEvent`.
 
 #### Subscribed event set
 
-`OnEvent` finds candidate records by resource and then matches the action on each
-subscription. Node and Pod updates use kube-scheduler's classified actions. A Pod
-transitioning to a terminal phase is treated as `Pod/Delete` because it releases
-its node resources.
+`OnEvent` first selects buckets declared for the event's resource, and then checks
+whether the event action matches each bucket's declared action. Node and Pod
+updates use kube-scheduler's classified actions. A Pod transitioning to a terminal
+phase is treated as `Pod/Delete` because it releases its node resources.
 
 #### Handler registration
 
 Volcano dispatches into `UnschedulableJobCache` beside the existing cache-update
-handlers on supported informers. Each handler
-normalizes the informer callback into a `ClusterEvent` and calls
+handlers on supported informers. Each handler converts an informer notification
+into a `ClusterEvent` and calls
 `UnschedulableJobCache.OnEvent(ev, oldObj, newObj)`. PodGroup spec updates and
 deletes invalidate the Job directly, while status updates are delivered to hints.
+Pod add, scheduling-input update, and delete handlers also invalidate the Pod's own
+Job directly before delivering the event to other Jobs, because the retained
+session snapshot no longer represents that Job.
 
 #### Delivery
 
-`OnEvent` uses the `byResource` / `wildcard` index (§3) to find candidate records
-subscribed to the event, runs each Job's matching hints, and forgets a Job as
-soon as one hint returns `HintWakeup`. A hint that returns an error is treated
-as `HintWakeup` too, so a broken hint can never keep a Job cached forever. Jobs
-whose hints all return `HintSkip` stay cached until another event fires or the
-`RetryAfter` watchdog (§3) lets them retry.
+`OnEvent` processes each matching event bucket in four steps:
+
+1. If the bucket has an `EventKeysFn`, run it once for the incoming event.
+2. If it returns one or more keys, select the union of Jobs stored under those
+   keys and Jobs in `fallback`. If it returns zero keys with no error, select only
+   `fallback`. If it errors or exceeds the key limit, select every Job in `jobs`.
+   The selected records are the candidate Jobs.
+3. Run the matching `JobHintFn` for each candidate Job.
+4. Forget a Job as soon as one hint returns `HintWakeup` or an error. Keep the Job
+   cached if every matching hint returns `HintSkip`.
+
+Treating a hint error as `HintWakeup` prevents a faulty hint from keeping a Job
+cached forever. A Job whose hints all return `HintSkip` remains cached until
+another event fires or the `RetryAfter` watchdog (§3) lets it retry.
 
 The cache lock is held only while copying candidate IDs and immutable subscription
-snapshots. `JobHintFn` callbacks run after the lock is released, so plugin code cannot
-block cache reads/writes or create lock-order cycles. Delete handlers unwrap
+snapshots. `JobHintFn` functions run after the lock is released, so plugin code
+cannot block cache reads/writes or create lock-order cycles. Delete handlers unwrap
 `cache.DeletedFinalStateUnknown` before dispatching the concrete object to hints.
+
+#### Dispatch cost model
+
+High-rate events need a different cost analysis from `OpenSession`. For example,
+Resource Fit subscribes to `Pod/Delete`, so a busy cluster may deliver many events
+between two scheduling sessions. The cache narrows the work in two stages:
+
+```text
+J: all cached Jobs
+    -> plugin/resource/action lookup
+N: Jobs in the matching eventBucket.jobs set
+    -> byHintKey matches union eventBucket.fallback
+K: candidate Jobs whose final HintFn runs
+```
+
+`eventBucket` makes the first reduction from `J` to `N`: Jobs rejected by another
+plugin or subscribed to another event are not considered. The secondary index
+makes the second reduction from `N` to `K`. `K` includes both key matches and Jobs
+in `fallback`, with duplicates removed, so `K <= N`.
+
+Let `R` be the event rate and `T_hint` the cost of one final `HintFn` evaluation.
+Without secondary keys, every event evaluates the full matching bucket:
+
+```text
+event cost per second = R * N * T_hint
+```
+
+With secondary keys, let `T_index` be the cost of creating the event keys and
+looking them up:
+
+```text
+event cost per second = R * (T_index + K * T_hint)
+```
+
+This addresses only event handling. To decide whether the cache is beneficial as
+a whole, compare it with the redundant scheduling work it removes. Let `S` be the
+scheduling-session rate, `T_filter` the filter work for one unchanged
+unschedulable Job in one session, and `W` the number of cached Jobs per second
+returned to normal filtering by hint wake-ups, hint errors, direct workload
+invalidation, or watchdog expiry. The following comparison isolates the filter and
+event-dispatch terms raised by high `Pod/Delete` churn; benchmarks measure record
+insertion, cache lookup, and removal costs separately:
+
+```text
+cache disabled: S * N * T_filter
+cache enabled:  R * (T_index + K * T_hint) + W * T_filter
+```
+
+The cache is a net CPU win when the enabled cost is lower than the disabled cost.
+If there is no secondary index, then `K = N`. Ignoring `T_index` and `W` shows the
+high-churn concern directly:
+
+```text
+T_hint < (S / R) * T_filter
+```
+
+At one session per second and 50 events per second, each hint would need to be
+about 50 times cheaper than the avoided filter work. The secondary index changes
+that threshold. Let `p = K / N` be the fraction of the event bucket selected for
+final hint evaluation:
+
+```text
+T_hint < (S / (R * p)) * T_filter
+```
+
+This threshold applies when `p > 0`; the required cost ratio is relaxed by
+`N / K`. When `K = 0`, no final hint runs and the event term is only `R * T_index`.
+This is the reason for adding the Resource Fit index: a Pod deletion normally
+names one node and the resource dimensions it releases, so unrelated Resource Fit
+rejections stay out of `K`. The model does not assume that `K` is always small. If
+all Jobs share a key, or many Jobs are in `fallback`, `K` approaches `N` and the
+index provides little benefit.
+
+The index adds memory as well as CPU work. If `H` is the total number of Job-key
+memberships in a bucket, `byHintKey` uses `O(H)` additional entries alongside the
+`jobs` and `fallback` sets. The 256-key limit bounds one Job's contribution and
+moves an over-limit Job to `fallback`. An absent or failing key function, or an
+excessive event key set, uses full-bucket delivery, so the optimization cannot
+suppress a wake-up that the final `HintFn` could produce.
 
 ```mermaid
 sequenceDiagram
@@ -688,7 +974,7 @@ sequenceDiagram
     Informer->>Dispatch: Add / Update / Delete object
     Dispatch->>Dispatch: normalize to ClusterEvent
     Dispatch->>UJC: OnEvent(ev, oldObj, newObj)
-    UJC->>UJC: look up candidates via byResource / wildcard
+    UJC->>UJC: look up plugin/event buckets and optional HintKeys
     UJC->>UJC: run each Job's matching hints
     UJC-->>UJC: Forget Job on HintWakeup / error
 ```
@@ -784,6 +1070,12 @@ can invoke the upstream hints directly without reimplementing them. Volcano's
 uses the upstream plugin name (for example, `NodeAffinity`) as its stable identity.
 `RecordUnschedulable` uses that name to copy only the hints for filters that actually rejected the Job.
 
+The adapter intentionally does not duplicate upstream plugin semantics in
+secondary-index key functions in the Alpha release. Wrapped plugins therefore
+evaluate every Job in the matching event bucket with their upstream
+`QueueingHintFn`. A wrapped plugin can add a secondary index later without
+changing the cache API.
+
 #### From per-Pod to per-Job
 
 The upstream `QueueingHintFn` is Pod-level. It answers "could this event make
@@ -794,7 +1086,7 @@ func(logger klog.Logger, pod *v1.Pod, oldObj, newObj any) (fwk.QueueingHint, err
 ```
 
 Volcano's `JobHintFn` asks the same question for a whole Job. `wrapPodHint`
-turns the per-Pod callback into a per-Job one. `Rejection.Tasks` (§2) records
+turns the per-Pod hint function into a per-Job hint function. `Rejection.Tasks` (§2) records
 exactly the task IDs that failed this filter in the previous session, so the
 wrapper runs the upstream hint only for those Pods — other tasks passed the
 filter and cannot be why the Job is blocked on it.
@@ -843,8 +1135,14 @@ Jobs. Everything else follows as its rejection path is wired up.
 | `InterPodAffinity`, `PodTopologySpread` | PodTopology | adapter | `Pod/Add`, `Pod/Delete`, `Node/UpdateNodeLabel` |
 | `NodeVolumeLimits`, `VolumeZone`, `VolumeBinding` | Storage | adapter | PVC/PV/StorageClass/CSINode events |
 | `DynamicResources` | Device | adapter | ResourceClaim/DeviceClass/Node allocatable events |
-| `predicates-resource-fit` | Resource | native (synthetic) | §2 synthetic name for `allocate`'s inline node-fit check; `Node/Add`, `Node/UpdateNodeAllocatable`, `Pod/Delete` |
+| `predicates-resource-fit` | Resource | native (synthetic, indexed) | §2 synthetic name for `allocate`'s inline node-fit check; indexed by rejected task, node, and insufficient resource dimension |
 | `capacity`, `proportion` | Queue | native | Queue, PodGroup completion/deletion, Pod deletion |
+
+P0 describes HintProvider coverage, not secondary-index coverage. Resource Fit
+is the only provider-specific secondary index in the Alpha implementation. The
+other native and adapted providers initially evaluate every Job in the matching
+event bucket with their final `HintFn`. Selective indexes can be added independently
+after measuring their event rates and the number of Jobs evaluated per event.
 
 **P1 — follow-up**
 
@@ -861,7 +1159,7 @@ Jobs. Everything else follows as its rejection path is wired up.
 |---|---|---|---|
 | `network-topology-aware` | HyperNode | native | HyperNode, node label events |
 
-**No `HintProvider` (fallback)**
+**Plugins without `HintProvider`**
 
 `extender`, and any other plugin that does not implement `HintProvider`, keep
 today's behavior: Jobs they reject are not cached and go through the normal
@@ -871,10 +1169,10 @@ filter path every session.
 
 | Risk | Mitigation |
 |---|---|
-| A hint misses a relevant event, keeping a Job cached too long. | Fail open on hint errors; the `RetryAfter` watchdog forgets the record; rejections from plugins without a `HintProvider` are not cached at all (§7). |
-| Stale plugin registrations after a re-register. | `RecordUnschedulable` snapshots the hints at cache-write time; later registrations only apply to new records, and old records are bounded by the watchdog. |
+| A hint misses a relevant event, keeping a Job cached too long. | Treat hint errors as `HintWakeup`; the `RetryAfter` watchdog forgets the record; rejections from plugins without a `HintProvider` are not cached at all (§7). |
+| A plugin changes its secondary-index meaning after Jobs have been recorded. | A plugin's key functions and key format must remain stable for the scheduler process lifetime; changing them requires a new plugin name or scheduler restart. Each record still snapshots its final `HintFn`. |
 | Fairness drift from skipping Jobs. | Cached Jobs stay in `ssn.Jobs`; DRF, capacity, proportion and gang accounting see the full pending demand (§5). |
-| Hot `Pod` event path spending time on unrelated Jobs. | `byResource` / `wildcard` index dispatches only to records subscribed to the event; hints for others never run. |
+| Hot `Pod` event path spending time on unrelated Jobs. | Plugin/event buckets avoid unrelated subscriptions; optional necessary-condition keys further reduce the Jobs that need final hint evaluation. Incomplete keys safely use full-bucket delivery. |
 | Preemption progress suppressed by the cache. | Jobs with pipelined tasks are excluded from the cache (§3, §5), so `preempt`/`reclaim` retries are never skipped. |
 
 ## Alternatives Considered
@@ -882,7 +1180,7 @@ filter path every session.
 - **All-plugins-must-return-`HintWakeup` policy.** Rejected. Needs per-plugin wake state on each record, and one missed hint leaves the Job stuck until the watchdog.
 - **Drop unschedulable Jobs from `ssn.Jobs`.** Rejected. DRF, capacity and proportion need to see pending demand or fairness drifts.
 - **Persist records in PodGroup status or annotations.** Rejected. Adds API-server writes on every rejection and races with user updates. Records live in memory and rebuild from the first post-restart session.
-- **Reimplement kube-scheduler hints in Volcano.** Rejected. The upstream callback API is public and already captures plugin-specific logic; wrapping it costs adapter code once.
+- **Reimplement kube-scheduler hints in Volcano.** Rejected. The upstream hint API is public and already captures plugin-specific logic; wrapping it costs adapter code once.
 - **Task-granularity cache records.** Rejected as the cache key, though task-level
   detail is still kept inside each Job record. Volcano schedules and gates at
   Job/PodGroup granularity, so `GetCachedRejections`, gang thresholds and the action
@@ -896,40 +1194,36 @@ filter path every session.
 
 ## Test Plan
 
-**Unit tests**
+The unit tests cover internal safety rules. End-to-end tests focus on common user
+workflows rather than repeating every internal fallback variant.
 
-Standard package-level unit tests cover the core logic: `HintRegistry` lifecycle
-and re-registration; rejection recording at each extension point (`PredicateFn`,
-`Allocatable`, `JobEnqueueable`, plus the synthetic `predicates-resource-fit`);
-`UnschedulableJobCache` operations (`RecordUnschedulable`, `GetCachedRejections`,
-`ForgetUnschedulable`, `OnEvent`, watchdog expiry, `byResource` / `wildcard`
-dispatch, hint-error fail-open); `ComputeSkip` against Job, role, and flat SubJob
-thresholds; and the
-`predicates` adapter's per-Pod-to-per-Job aggregation.
+### Unit tests
 
-**Benchmarks**
+| Area | Core coverage |
+|---|---|
+| Registration and recording | `HintRegistry` lifecycle; duplicate-event rejection; rejections from `PredicateFn`, `Allocatable`, `JobEnqueueable`, and `predicates-resource-fit`; merging task IDs and keys. |
+| Cache lifecycle | Record, read, replace, forget, event wake-up, watchdog expiry, and direct Pod/PodGroup invalidation. |
+| Secondary-index safety | Matching and non-matching keys; mixed indexed and fallback Jobs; empty, erroneous, incomplete, and over-limit keys; index cleanup after replacement and removal. |
+| Resource Fit | Keys for every node and insufficient resource dimension; a Pod deletion on any recorded node selects the Job; a release on an unrelated node or dimension does not. |
+| Scheduling behavior | Whole-Job and task-subset `ComputeSkip`; per-Pod to per-Job upstream hint aggregation; hint errors treated as `HintWakeup`; nil hints use full-bucket delivery. |
 
-`benchmark/testcases/unschedulable-job-cache/`: 5,000 pending PodGroups with mixed
-rejection sources. Compare `allocate` latency, session duration, bind throughput,
-and cache memory before and after the cache is enabled.
+### Benchmarks
 
-**End-to-end**
+| Workload | Comparison | Main measurements |
+|---|---|---|
+| Continuous schedulable Job arrivals behind unchanged unschedulable Jobs | Cache disabled vs enabled | Job/Pod throughput, session latency, predicate calls, scheduler CPU. |
+| Sustained `Pod/Delete` churn | Cache disabled vs full-bucket delivery vs Resource Fit indexing | Event CPU, `N`, `K/N`, hint evaluations, wake-ups, session latency, and retained memory. |
+| Dispatch microbenchmark | Full-bucket delivery vs indexed delivery at several `K/N` values | Time and allocations per event; record/replace cost at the key limit. |
 
-- **Wake on a matching cluster event.** A Job blocked on a node label is
-  cached after the first session; adding a node with the matching label
-  drops the record and places the Job in the next session.
-- **Gang whole-Job skip.** A gang Job whose `minAvailable` is unreachable in
-  the current cluster is cached; no task is popped for it until a `Pod/Delete`
-  frees enough capacity, at which point the record wakes and the Job is
-  placed.
-- **Task-subset skip.** An elastic gang Job whose `minAvailable` is already met
-  by running tasks has extra tasks rejected on capacity; later sessions skip
-  only those cached tasks and keep evaluating the Job's other tasks normally.
-- **Preemption is not suppressed.** A cached Job is chosen as a preemption
-  target; `preempt` selects victims, `allocate` pipelines the Job's tasks, and
-  the record is dropped instead of refreshed.
-- **Watchdog safety net.** A cached Job whose subscribed events never fire is
-  re-evaluated after the configured maximum skip duration.
+### End-to-end tests
+
+| User scenario | Setup and action | Expected result |
+|---|---|---|
+| Resource shortage recovers | A multi-replica gang Job cannot reach `minAvailable`; deleting a resource-consuming Pod on any candidate node frees enough capacity. | The Job stays cached before the deletion, wakes on the matching `Pod/Delete`, and reaches `minAvailable`. |
+| New capacity appears | A Job is blocked by node resources or labels; add a suitable Node or update the relevant Node property. | The matching hint wakes the Job and normal scheduling places it on the newly suitable Node. |
+| Schedulable Jobs continue to make progress | Keep high-priority, multi-replica unschedulable Jobs pending while continuously submitting lower-priority Jobs that fit. | Cached Jobs do not repeatedly consume the allocation loop, and newly submitted schedulable Jobs continue to bind. |
+| Workload changes while cached | Add, update, or delete a Pod belonging to a cached Job, or update/delete its PodGroup. | The stale record is removed and the next session evaluates the current workload state. |
+| Preemption remains available | A cached high-priority Job can become schedulable by preempting lower-priority tasks. | Preemption still selects victims; a pipelined task removes the cached record and allocation continues normally. |
 
 ## Related Issues
 
