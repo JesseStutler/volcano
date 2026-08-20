@@ -107,16 +107,40 @@ func TestUnschedulableJobCacheDoesNotRecordAcrossMatchingSessionEvent(t *testing
 		return api.HintSkip, nil
 	})
 
-	sessionCache, ok := any(cache).(interface{ BeginSession() })
-	if !ok {
-		t.Fatal("UnschedulableJobCache does not provide a session event barrier")
-	}
-	sessionCache.BeginSession()
+	cache.BeginSession()
 	cache.OnEvent(event, nil, nil)
 	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
 
 	if got := cache.GetCachedRejections(job); got != nil {
 		t.Fatalf("GetCachedRejections() = %#v, want nil after a matching event occurred during the session", got)
+	}
+}
+
+func TestUnschedulableJobCacheDoesNotRecordAfterJobInvalidationDuringSession(t *testing.T) {
+	job := api.NewJobInfo("job")
+	cache, registry := newTestUnschedulableCache()
+	registerTestHint(registry, "plugin", api.ClusterEvent{Resource: api.PodGroupEvent, ActionType: fwk.Update}, nil)
+
+	cache.BeginSession()
+	cache.ForgetUnschedulable(job.UID)
+	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+
+	if got := cache.GetCachedRejections(job); got != nil {
+		t.Fatalf("GetCachedRejections() = %#v, want nil after Job invalidation during the session", got)
+	}
+}
+
+func TestUnschedulableJobCacheRecordsAfterInvalidationBeforeSession(t *testing.T) {
+	job := api.NewJobInfo("job")
+	cache, registry := newTestUnschedulableCache()
+	registerTestHint(registry, "plugin", api.ClusterEvent{Resource: api.PodGroupEvent, ActionType: fwk.Update}, nil)
+
+	cache.ForgetUnschedulable(job.UID)
+	cache.BeginSession()
+	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+
+	if got := cache.GetCachedRejections(job); len(got) != 1 {
+		t.Fatalf("GetCachedRejections() = %#v, want one rejection after a pre-session invalidation", got)
 	}
 }
 
@@ -131,12 +155,12 @@ func TestUnschedulableJobCacheReplaceAndForget(t *testing.T) {
 		wantCached         bool
 	}{
 		{
-			name:       "replacement ignores old subscription",
+			name:       "replacement ignores old registered event",
 			event:      nodeEvent,
 			wantCached: true,
 		},
 		{
-			name:  "replacement uses new subscription",
+			name:  "replacement uses new registered event",
 			event: podEvent,
 		},
 		{

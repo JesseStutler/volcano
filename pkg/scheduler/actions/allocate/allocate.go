@@ -34,11 +34,10 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/conf"
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/metrics"
+	"volcano.sh/volcano/pkg/scheduler/plugins/util/resourcefit"
 	"volcano.sh/volcano/pkg/scheduler/util"
 	commonutil "volcano.sh/volcano/pkg/util"
 )
-
-const resourceFitHintProviderName = "predicates-resource-fit"
 
 type allocateContext struct {
 	queues              *util.PriorityQueue                 // queue of *api.QueueInfo
@@ -850,6 +849,12 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 			// Record every predicate plugin that rejected the task on the checked nodes
 			if fitErrors != nil {
 				for plugin := range fitErrors.UnschedulablePlugins() {
+					if plugin == resourcefit.ProviderName {
+						if keys, complete := resourcefit.RejectionKeys(task, fitErrors, ssn.Nodes); complete {
+							ssn.AddRejectionWithKeys(job.UID, plugin, api.RejectionPredicate, keys, task.UID)
+							continue
+						}
+					}
 					ssn.AddRejection(job.UID, plugin, api.RejectionPredicate, task.UID)
 				}
 			}
@@ -1021,9 +1026,10 @@ func (alloc *Action) predicate(task *api.TaskInfo, node *api.NodeInfo) error {
 	var statusSets api.StatusSets
 	if ok, resources := task.InitResreq.LessEqualWithResourcesName(node.FutureIdle(), api.Zero); !ok {
 		statusSets = append(statusSets, &api.Status{
-			Code:   api.Unschedulable,
-			Reason: api.WrapInsufficientResourceReason(resources),
-			Plugin: resourceFitHintProviderName,
+			Code:                  api.Unschedulable,
+			Reason:                api.WrapInsufficientResourceReason(resources),
+			Plugin:                resourcefit.ProviderName,
+			InsufficientResources: resources,
 		})
 		return api.NewFitErrWithStatus(task, node, statusSets...)
 	}

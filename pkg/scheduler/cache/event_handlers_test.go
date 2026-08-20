@@ -476,6 +476,9 @@ func TestPodSchedulingInputChangeInvalidatesUnschedulableCache(t *testing.T) {
 		if job == nil {
 			t.Fatalf("job %s was not created", jobID)
 		}
+		// AddPod invalidates the Job. Begin a scheduler session after those
+		// initial mutations so RecordUnschedulable models CloseSession.
+		unschedulableCache.BeginSession()
 		unschedulableCache.RecordUnschedulable(job.Clone(), []api.Rejection{{
 			Plugin: plugin,
 			Source: api.RejectionPredicate,

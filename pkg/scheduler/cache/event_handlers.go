@@ -1035,10 +1035,7 @@ func (sc *SchedulerCache) UpdatePodGroupV1beta1(oldObj, newObj interface{}) {
 	if oldSS.ResourceVersion == newSS.ResourceVersion {
 		return
 	}
-	if podGroupSchedulingInputsChanged(oldSS, newSS) {
-		jobID := schedulingapi.JobID(fmt.Sprintf("%s/%s", newSS.Namespace, newSS.Name))
-		sc.unschedulableCache.ForgetUnschedulable(jobID)
-	}
+	schedulingInputsChanged := podGroupSchedulingInputsChanged(oldSS, newSS)
 
 	podgroup := scheduling.PodGroup{}
 	if err := scheme.Scheme.Convert(newSS, &podgroup, nil); err != nil {
@@ -1056,6 +1053,10 @@ func (sc *SchedulerCache) UpdatePodGroupV1beta1(oldObj, newObj interface{}) {
 	if err != nil {
 		klog.Errorf("Failed to update SchedulingSpec %s into cache: %v", pg.Name, err)
 		return
+	}
+	if schedulingInputsChanged {
+		jobID := schedulingapi.JobID(fmt.Sprintf("%s/%s", newSS.Namespace, newSS.Name))
+		sc.unschedulableCache.ForgetUnschedulable(jobID)
 	}
 	oldPg := &schedulingapi.PodGroup{Version: schedulingapi.PodGroupVersionV1Beta1}
 	oldConverted := scheduling.PodGroup{}
@@ -1084,8 +1085,6 @@ func (sc *SchedulerCache) DeletePodGroupV1beta1(obj interface{}) {
 	}
 
 	jobID := schedulingapi.JobID(fmt.Sprintf("%s/%s", ss.Namespace, ss.Name))
-	sc.unschedulableCache.ForgetUnschedulable(jobID)
-
 	sc.Mutex.Lock()
 	err := sc.deletePodGroup(jobID)
 	sc.Mutex.Unlock()
@@ -1093,6 +1092,7 @@ func (sc *SchedulerCache) DeletePodGroupV1beta1(obj interface{}) {
 		klog.Errorf("Failed to delete podgroup %s from cache: %v", ss.Name, err)
 		return
 	}
+	sc.unschedulableCache.ForgetUnschedulable(jobID)
 
 	podgroup := scheduling.PodGroup{}
 	if err := scheme.Scheme.Convert(ss, &podgroup, nil); err != nil {

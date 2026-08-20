@@ -112,7 +112,7 @@ type Cache interface {
 // UnschedulableCache is used to store the Jobs that were rejected by plugins in the previous scheduling session.
 // It is used to skip work in the current session when a Job's rejections are still valid.
 type UnschedulableCache interface {
-	// AddHintProvider registers a plugin's event subscriptions and hint callbacks.
+	// AddHintProvider registers the events and hint callbacks handled by a plugin.
 	AddHintProvider(name string, p api.HintProvider)
 
 	// BeginSession records the event boundary immediately before the scheduler
@@ -128,7 +128,8 @@ type UnschedulableCache interface {
 	// for the Job in the current session.
 	GetCachedRejections(job *api.JobInfo) []api.Rejection
 
-	// ForgetUnschedulable removes the cached record for the Job.
+	// ForgetUnschedulable removes the cached record and prevents the current
+	// session from republishing a Job snapshot taken before this call.
 	ForgetUnschedulable(jobID api.JobID)
 }
 
