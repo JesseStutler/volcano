@@ -17,6 +17,7 @@ limitations under the License.
 package cache
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -37,14 +38,18 @@ const (
 	watchdogInterval = time.Minute
 )
 
+var errEventHintKeysOverLimit = errors.New("event hint keys exceed limit")
+
 // hintSubscription pairs a declared event with the plugin hint callback and the
 // plugin's own Rejection. A nil HintFn means every matching occurrence of the
 // event wakes the Job.
 type hintSubscription struct {
-	plugin    string
-	event     api.ClusterEvent
-	rejection api.Rejection
-	hintFn    api.JobHintFn
+	plugin      string
+	event       api.ClusterEvent
+	rejection   api.Rejection
+	jobKeysFn   api.JobKeysFn
+	eventKeysFn api.EventKeysFn
+	hintFn      api.JobHintFn
 }
 
 // unschedulableRecord is one cached Job's state.
@@ -59,8 +64,9 @@ type unschedulableRecord struct {
 	// subscriptions is a snapshot taken at Record time of every (event, hint)
 	// pair that could wake this Job.
 	subscriptions []hintSubscription
-	// resources is the set of event resources this record subscribes to.
-	resources sets.Set[fwk.EventResource]
+	// indexEntries stores the exact event-index buckets that currently contain
+	// this record.
+	indexEntries []recordIndexEntry
 }
 
 // UnschedulableJobCache records Jobs that stayed unschedulable at CloseSession
@@ -71,10 +77,10 @@ type UnschedulableJobCache struct {
 
 	records map[api.JobID]*unschedulableRecord
 
-	// byResource maps each subscribed event resource to the set of Jobs whose
-	// hints care about it. wildcard holds Jobs subscribed against fwk.WildCard.
-	byResource map[fwk.EventResource]sets.Set[api.JobID]
-	wildcard   sets.Set[api.JobID]
+	// byResource maps each subscribed event resource to secondary-index buckets.
+	// wildcard holds subscriptions declared against fwk.WildCard.
+	byResource map[fwk.EventResource]map[eventIndexKey]*eventBucket
+	wildcard   map[eventIndexKey]*eventBucket
 
 	registry *HintRegistry
 
@@ -97,8 +103,8 @@ func NewUnschedulableJobCache(registry *HintRegistry, maxSkipDuration time.Durat
 	}
 	return &UnschedulableJobCache{
 		records:             make(map[api.JobID]*unschedulableRecord),
-		byResource:          make(map[fwk.EventResource]sets.Set[api.JobID]),
-		wildcard:            sets.New[api.JobID](),
+		byResource:          make(map[fwk.EventResource]map[eventIndexKey]*eventBucket),
+		wildcard:            make(map[eventIndexKey]*eventBucket),
 		registry:            registry,
 		lastEventGeneration: make(map[api.ClusterEvent]uint64),
 		maxSkipDuration:     maxSkipDuration,
@@ -132,7 +138,7 @@ func (c *UnschedulableJobCache) RecordUnschedulable(job *api.JobInfo, rejections
 	}
 
 	var subs []hintSubscription
-	resources := sets.New[fwk.EventResource]()
+	var indexEntries []recordIndexEntry
 	for _, r := range rejections {
 		events := c.registry.eventsForPlugin(r.Plugin)
 		if len(events) == 0 {
@@ -142,13 +148,35 @@ func (c *UnschedulableJobCache) RecordUnschedulable(job *api.JobInfo, rejections
 			return
 		}
 		for _, e := range events {
-			subs = append(subs, hintSubscription{
-				plugin:    r.Plugin,
-				event:     e.Event,
-				rejection: r,
-				hintFn:    e.HintFn,
-			})
-			resources.Insert(e.Event.Resource)
+			sub := hintSubscription{
+				plugin:      r.Plugin,
+				event:       e.Event,
+				rejection:   r,
+				jobKeysFn:   e.JobKeysFn,
+				eventKeysFn: e.EventKeysFn,
+				hintFn:      e.HintFn,
+			}
+			subs = append(subs, sub)
+
+			entry := recordIndexEntry{
+				resource: e.Event.Resource,
+				key: eventIndexKey{
+					plugin: r.Plugin,
+					event:  e.Event,
+				},
+				fallback: true,
+			}
+			if sub.jobKeysFn != nil && sub.eventKeysFn != nil {
+				hintKeys, err := sub.jobKeysFn(job, r)
+				if err == nil {
+					hintKeys = uniqueHintKeys(hintKeys)
+				}
+				if err == nil && len(hintKeys) > 0 && len(hintKeys) <= api.MaxHintKeysPerSubscription {
+					entry.fallback = false
+					entry.hintKeys = hintKeys
+				}
+			}
+			indexEntries = append(indexEntries, entry)
 		}
 	}
 
@@ -163,7 +191,7 @@ func (c *UnschedulableJobCache) RecordUnschedulable(job *api.JobInfo, rejections
 		lastFailedAt:  now,
 		retryAfter:    now.Add(c.maxSkipDuration),
 		subscriptions: subs,
-		resources:     resources,
+		indexEntries:  indexEntries,
 	}
 
 	c.mu.Lock()
@@ -174,15 +202,19 @@ func (c *UnschedulableJobCache) RecordUnschedulable(job *api.JobInfo, rejections
 	}
 	c.removeJobFromEventIndexLocked(job.UID)
 	c.records[job.UID] = rec
-	for res := range resources {
-		if res == fwk.WildCard {
-			c.wildcard.Insert(job.UID)
+	for i, entry := range rec.indexEntries {
+		bucket := c.ensureBucketLocked(entry.resource, entry.key, rec.subscriptions[i].eventKeysFn)
+		bucket.jobs.Insert(job.UID)
+		if entry.fallback {
+			bucket.fallback.Insert(job.UID)
 			continue
 		}
-		if c.byResource[res] == nil {
-			c.byResource[res] = sets.New[api.JobID]()
+		for _, hintKey := range entry.hintKeys {
+			if bucket.byHintKey[hintKey] == nil {
+				bucket.byHintKey[hintKey] = sets.New[api.JobID]()
+			}
+			bucket.byHintKey[hintKey].Insert(job.UID)
 		}
-		c.byResource[res].Insert(job.UID)
 	}
 	klog.V(4).Infof("Cached unschedulable job %s with %d rejection(s), retryAfter %v",
 		job.UID, len(rejections), rec.retryAfter)
@@ -219,27 +251,6 @@ func (c *UnschedulableJobCache) ForgetUnschedulable(jobID api.JobID) {
 	klog.V(4).Infof("Forgot unschedulable job %s", jobID)
 }
 
-// removeJobFromEventIndexLocked removes jobID from the byResource and wildcard
-// indexes recorded by its current unschedulableRecord. It does not delete the
-// record itself: RecordUnschedulable calls it before replacing a record, while
-// ForgetUnschedulable calls it before deleting one. The caller must hold c.mu
-// for writing.
-func (c *UnschedulableJobCache) removeJobFromEventIndexLocked(jobID api.JobID) {
-	rec, ok := c.records[jobID]
-	if !ok {
-		return
-	}
-	c.wildcard.Delete(jobID)
-	for res := range rec.resources {
-		if s := c.byResource[res]; s != nil {
-			s.Delete(jobID)
-			if s.Len() == 0 {
-				delete(c.byResource, res)
-			}
-		}
-	}
-}
-
 // OnEvent is invoked by the informer dispatchers. It runs the hints subscribed to
 // ev and Forgets any Job whose hint returns HintWakeup (or errors).
 func (c *UnschedulableJobCache) OnEvent(ev api.ClusterEvent, oldObj, newObj any) {
@@ -252,26 +263,24 @@ func (c *UnschedulableJobCache) OnEvent(ev api.ClusterEvent, oldObj, newObj any)
 	c.lastEventGeneration[ev] = c.eventGeneration
 	c.mu.Unlock()
 
-	c.mu.RLock()
-	resourceCandidates := c.byResource[ev.Resource]
-	candidates := make([]*unschedulableRecord, 0, len(resourceCandidates)+c.wildcard.Len())
-	for jobID := range resourceCandidates {
-		if rec := c.records[jobID]; rec != nil {
-			candidates = append(candidates, rec)
-		}
-	}
-	// A record can subscribe both to the concrete resource and WildCard. Avoid
-	// dispatching it twice without allocating a temporary union set.
-	for jobID := range c.wildcard {
-		if resourceCandidates.Has(jobID) {
+	snapshots := c.matchingBucketSnapshots(ev)
+	for i := range snapshots {
+		if snapshots[i].eventKeysFn == nil {
 			continue
 		}
-		if rec := c.records[jobID]; rec != nil {
-			candidates = append(candidates, rec)
+		hintKeys, err := snapshots[i].eventKeysFn(oldObj, newObj)
+		if err != nil {
+			snapshots[i].err = err
+			continue
 		}
+		hintKeys = uniqueHintKeys(hintKeys)
+		if len(hintKeys) > api.MaxHintKeysPerSubscription {
+			snapshots[i].err = errEventHintKeysOverLimit
+			continue
+		}
+		snapshots[i].hintKeys = hintKeys
 	}
-	c.mu.RUnlock()
-
+	candidates := c.candidatesForSnapshots(snapshots)
 	if len(candidates) == 0 {
 		return
 	}
@@ -323,10 +332,8 @@ func shouldWake(rec *unschedulableRecord, ev api.ClusterEvent, oldObj, newObj an
 	return false
 }
 
-// forgetRecord removes rec only if it is still the current record. A scheduling
-// session may have replaced the record after OnEvent took its snapshot; in that
-// case the replacement already reflects cluster state at the newer session and
-// must not be removed by the older dispatch.
+// forgetRecord removes rec only when it is still current, so an event using an
+// older snapshot cannot remove a replacement record.
 func (c *UnschedulableJobCache) forgetRecord(rec *unschedulableRecord) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -336,17 +343,6 @@ func (c *UnschedulableJobCache) forgetRecord(rec *unschedulableRecord) {
 	c.removeJobFromEventIndexLocked(rec.jobID)
 	delete(c.records, rec.jobID)
 	klog.V(4).Infof("Forgot unschedulable job %s", rec.jobID)
-}
-
-// eventMatches reports whether an incoming event satisfies a declared
-// subscription. A general Update subscription matches a specific update such as
-// UpdatePodScaleDown, but a specific subscription does not match a general Update
-// whose changed property could not be classified.
-func eventMatches(sub, incoming api.ClusterEvent) bool {
-	if sub.Resource != fwk.WildCard && sub.Resource != incoming.Resource {
-		return false
-	}
-	return sub.ActionType&incoming.ActionType != 0 && incoming.ActionType <= sub.ActionType
 }
 
 // StartWatchdog runs the background goroutine that Forgets expired records.

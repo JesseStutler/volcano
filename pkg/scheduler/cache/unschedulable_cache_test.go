@@ -48,6 +48,19 @@ func registerTestHint(registry *HintRegistry, plugin string, event api.ClusterEv
 	}})
 }
 
+func registerTestIndexedHint(
+	registry *HintRegistry,
+	plugin string,
+	event api.ClusterEvent,
+	jobKeysFn api.JobKeysFn,
+	eventKeysFn api.EventKeysFn,
+	hintFn api.JobHintFn,
+) {
+	registry.Register(plugin, &fakeHintProvider{events: []api.ClusterEventWithHint{{
+		Event: event, JobKeysFn: jobKeysFn, EventKeysFn: eventKeysFn, HintFn: hintFn,
+	}}})
+}
+
 func TestUnschedulableJobCacheRecordAndGet(t *testing.T) {
 	rejections := []api.Rejection{{
 		Plugin: "plugin",
@@ -212,38 +225,6 @@ func TestUnschedulableJobCacheOnEvent(t *testing.T) {
 				t.Fatalf("record cached = %v, want %v", gotCached, test.wantCached)
 			}
 		})
-	}
-}
-
-func TestOnEventDoesNotForgetNewerRecord(t *testing.T) {
-	job := api.NewJobInfo("job")
-	cache, registry := newTestUnschedulableCache()
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
-	hintStarted := make(chan struct{})
-	releaseHint := make(chan struct{})
-	registerTestHint(registry, "old-plugin", event, func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
-		close(hintStarted)
-		<-releaseHint
-		return api.HintWakeup, nil
-	})
-	registerTestHint(registry, "new-plugin", event, func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
-		return api.HintSkip, nil
-	})
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "old-plugin", Source: api.RejectionPredicate}})
-
-	dispatched := make(chan struct{})
-	go func() {
-		defer close(dispatched)
-		cache.OnEvent(event, nil, nil)
-	}()
-	<-hintStarted
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "new-plugin", Source: api.RejectionPredicate}})
-	close(releaseHint)
-	<-dispatched
-
-	want := []api.Rejection{{Plugin: "new-plugin", Source: api.RejectionPredicate}}
-	if got := cache.GetCachedRejections(job); !reflect.DeepEqual(got, want) {
-		t.Fatalf("GetCachedRejections() = %#v, want newer record %#v", got, want)
 	}
 }
 

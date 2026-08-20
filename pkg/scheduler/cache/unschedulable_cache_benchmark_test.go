@@ -18,6 +18,7 @@ package cache
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	fwk "k8s.io/kube-scheduler/framework"
@@ -25,78 +26,92 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 )
 
-// BenchmarkUnschedulableJobCacheHintSkipDispatch measures the sustained-event
-// fanout path: every cached Job subscribes to the event, and every hint decides
-// that the event is irrelevant. This deliberately uses a synthetic hint instead
-// of resource-fit: real Pods always request one v1.ResourcePods slot, so a Pod
-// deletion cannot model a resource-fit event that releases no requested resource.
-func BenchmarkUnschedulableJobCacheHintSkipDispatch(b *testing.B) {
-	for _, jobs := range []int{100, 500, 1000, 5000} {
-		b.Run(fmt.Sprintf("jobs=%d", jobs), func(b *testing.B) {
-			benchmarkHintSkipDispatch(b, jobs)
-		})
+// churnJobCount is the sustained-fanout population size: 5,000 cached Jobs
+// spread evenly over churnBuckets, matching the secondary-index design's
+// sustained Pod-churn scenario.
+const (
+	churnJobCount = 5000
+	churnBuckets  = 100
+)
+
+// BenchmarkUnschedulableJobCachePodChurn measures sustained Pod/Delete
+// dispatch against 5,000 cached Jobs whose keys are spread deterministically
+// across 100 buckets. indexed=false forces every record through the coarse
+// fallback bucket (no JobKeysFn/EventKeysFn, the exact registration shape a
+// kube-scheduler adapter subscription uses); indexed=true registers a
+// key-aware subscription so OnEvent narrows candidates to the buckets the
+// event actually names. Selectivity is the percentage of the 100 buckets
+// (and therefore of the 5,000 Jobs) the incoming event's EventKeysFn names.
+// After timing, the test asserts the callback ran exactly b.N times the
+// candidate count that selectivity/indexing implies; a wrong candidate
+// selection fails the benchmark instead of only skewing ns/op.
+func BenchmarkUnschedulableJobCachePodChurn(b *testing.B) {
+	for _, indexed := range []bool{false, true} {
+		for _, selectivity := range []int{1, 10, 100} {
+			name := fmt.Sprintf("indexed=%t/selectivity=%d%%", indexed, selectivity)
+			b.Run(name, func(b *testing.B) {
+				benchmarkPodChurn(b, churnJobCount, selectivity, indexed)
+			})
+		}
 	}
 }
 
-func BenchmarkUnschedulableJobCacheRecord(b *testing.B) {
-	for _, tasks := range []int{1, 4, 16, 64} {
-		b.Run(fmt.Sprintf("tasks=%d", tasks), func(b *testing.B) {
-			benchmarkRecordUnschedulable(b, tasks)
-		})
+func benchmarkPodChurn(b *testing.B, jobCount, selectivityPercent int, indexed bool) {
+	if jobCount%churnBuckets != 0 {
+		b.Fatalf("jobCount %d must divide evenly by churnBuckets %d", jobCount, churnBuckets)
 	}
-}
+	matchedBuckets := churnBuckets * selectivityPercent / 100
+	if matchedBuckets < 1 {
+		matchedBuckets = 1
+	}
+	if matchedBuckets > churnBuckets {
+		matchedBuckets = churnBuckets
+	}
+	perBucket := jobCount / churnBuckets
 
-func benchmarkRecordUnschedulable(b *testing.B, taskCount int) {
-	const plugin = "benchmark-record"
+	const plugin = "benchmark-churn"
 	registry := NewHintRegistry()
 	cache := NewUnschedulableJobCache(registry, DefaultMaxSkipDuration)
 	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
-	registerTestHint(registry, plugin, event, nil)
 
-	job := api.NewJobInfo("benchmark/job")
-	job.Name = "job"
-	job.Namespace = "benchmark"
-	taskIDs := make([]api.TaskID, 0, taskCount)
-	for i := 0; i < taskCount; i++ {
-		taskID := api.TaskID(fmt.Sprintf("task-%d", i))
-		taskIDs = append(taskIDs, taskID)
-		request := &api.Resource{MilliCPU: 1000, Memory: 1024}
-		job.AddTaskInfo(&api.TaskInfo{
-			UID:        taskID,
-			Job:        job.UID,
-			Name:       string(taskID),
-			Namespace:  job.Namespace,
-			Resreq:     request.Clone(),
-			InitResreq: request.Clone(),
-			NumaInfo:   &api.TopologyInfo{},
-			TransactionContext: api.TransactionContext{
-				Status: api.Pending,
-			},
-		})
+	bucketKey := func(bucket int) api.HintKey {
+		return api.HintKey(fmt.Sprintf("churn-bucket-%d", bucket))
 	}
-	rejections := []api.Rejection{{Plugin: plugin, Source: api.RejectionPredicate, Tasks: taskIDs}}
+	bucketOf := make(map[api.JobID]int, jobCount)
 
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		cache.RecordUnschedulable(job, rejections)
-	}
-}
-
-func benchmarkHintSkipDispatch(b *testing.B, jobCount int) {
-	const plugin = "benchmark-skip"
-	registry := NewHintRegistry()
-	cache := NewUnschedulableJobCache(registry, DefaultMaxSkipDuration)
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
-	registerTestHint(registry, plugin, event, func(job *api.JobInfo, rejection api.Rejection, _, _ any) (api.HintResult, error) {
-		// Touch the task data used by real hints so the benchmark includes the
-		// record-snapshot lookup rather than measuring an empty callback alone.
-		_ = job.Tasks[rejection.Tasks[0]].InitResreq.MilliCPU
+	var callCount int64
+	// hintFn reads the rejected task's own request data, as a real HintFn may do
+	// when deciding whether an event intersects the Job's rejected demand,
+	// instead of measuring an empty callback as a proxy for the real cost.
+	hintFn := func(job *api.JobInfo, rejection api.Rejection, _, _ any) (api.HintResult, error) {
+		atomic.AddInt64(&callCount, 1)
+		for _, taskID := range rejection.Tasks {
+			if task := job.Tasks[taskID]; task != nil && task.InitResreq != nil {
+				_ = task.InitResreq.MilliCPU
+			}
+		}
 		return api.HintSkip, nil
-	})
+	}
+
+	if indexed {
+		jobKeysFn := func(job *api.JobInfo, _ api.Rejection) ([]api.HintKey, error) {
+			return []api.HintKey{bucketKey(bucketOf[job.UID])}, nil
+		}
+		eventKeysFn := func(_, _ any) ([]api.HintKey, error) {
+			keys := make([]api.HintKey, matchedBuckets)
+			for i := 0; i < matchedBuckets; i++ {
+				keys[i] = bucketKey(i)
+			}
+			return keys, nil
+		}
+		registerTestIndexedHint(registry, plugin, event, jobKeysFn, eventKeysFn, hintFn)
+	} else {
+		registerTestHint(registry, plugin, event, hintFn)
+	}
 
 	for i := 0; i < jobCount; i++ {
 		jobID := api.JobID(fmt.Sprintf("job-%d", i))
+		bucketOf[jobID] = i % churnBuckets
 		taskID := api.TaskID(fmt.Sprintf("task-%d", i))
 		request := &api.Resource{MilliCPU: 1000}
 		task := &api.TaskInfo{
@@ -121,9 +136,102 @@ func benchmarkHintSkipDispatch(b *testing.B, jobCount int) {
 		}})
 	}
 
+	expectedCandidates := jobCount
+	if indexed {
+		expectedCandidates = matchedBuckets * perBucket
+	}
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cache.OnEvent(event, nil, nil)
+		cache.OnEvent(event, nil, "event")
+	}
+	b.StopTimer()
+
+	if got, want := atomic.LoadInt64(&callCount), int64(b.N)*int64(expectedCandidates); got != want {
+		b.Fatalf("indexed=%t selectivity=%d%%: hint calls = %d, want %d (b.N=%d, candidates=%d)",
+			indexed, selectivityPercent, got, want, b.N, expectedCandidates)
+	}
+}
+
+// BenchmarkUnschedulableJobCacheRecord measures RecordUnschedulable's cost of
+// building (and, on repeated calls for the same Job, replacing) the bounded
+// key index at representative key counts, including the 256-key limit and
+// the 257-key case that must fall back to coarse dispatch.
+func BenchmarkUnschedulableJobCacheRecord(b *testing.B) {
+	for _, keyCount := range []int{1, 16, 64, 256, 257} {
+		b.Run(fmt.Sprintf("keys=%d", keyCount), func(b *testing.B) {
+			benchmarkRecordUnschedulable(b, keyCount)
+		})
+	}
+}
+
+func benchmarkRecordUnschedulable(b *testing.B, keyCount int) {
+	const plugin = "benchmark-record"
+	registry := NewHintRegistry()
+	cache := NewUnschedulableJobCache(registry, DefaultMaxSkipDuration)
+	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+
+	keys := make([]api.HintKey, keyCount)
+	for i := range keys {
+		keys[i] = api.HintKey(fmt.Sprintf("record-key-%d", i))
+	}
+	jobKeysFn := func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
+		return append([]api.HintKey(nil), keys...), nil
+	}
+	// eventKeysFn always names a key disjoint from every jobKeysFn key above,
+	// so the assertion below can distinguish indexed dispatch (never wakes on
+	// this event) from fallback dispatch (always wakes, regardless of key)
+	// without reaching into cache-internal fields.
+	eventKeysFn := func(_, _ any) ([]api.HintKey, error) {
+		return []api.HintKey{"record-key-disjoint"}, nil
+	}
+	var hintCalls int
+	hintFn := func(job *api.JobInfo, rejection api.Rejection, _, _ any) (api.HintResult, error) {
+		hintCalls++
+		for _, taskID := range rejection.Tasks {
+			if task := job.Tasks[taskID]; task != nil && task.InitResreq != nil {
+				_ = task.InitResreq.MilliCPU
+			}
+		}
+		return api.HintSkip, nil
+	}
+	registerTestIndexedHint(registry, plugin, event, jobKeysFn, eventKeysFn, hintFn)
+
+	// One stable Job snapshot is recorded (and, from the second iteration on,
+	// replaced) repeatedly so the benchmark measures both fresh-record and
+	// replace-record cost at this key count.
+	taskID := api.TaskID("task-0")
+	request := &api.Resource{MilliCPU: 1000, Memory: 1024}
+	task := &api.TaskInfo{
+		UID:        taskID,
+		Job:        "benchmark/job",
+		Name:       string(taskID),
+		Namespace:  "benchmark",
+		Resreq:     request.Clone(),
+		InitResreq: request.Clone(),
+		NumaInfo:   &api.TopologyInfo{},
+		TransactionContext: api.TransactionContext{
+			Status: api.Pending,
+		},
+	}
+	job := api.NewJobInfo("benchmark/job", task)
+	job.Name = "job"
+	job.Namespace = "benchmark"
+	rejections := []api.Rejection{{Plugin: plugin, Source: api.RejectionPredicate, Tasks: []api.TaskID{taskID}}}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cache.RecordUnschedulable(job, rejections)
+	}
+	b.StopTimer()
+
+	hintCalls = 0
+	cache.OnEvent(event, nil, "event")
+	wantFallback := keyCount > api.MaxHintKeysPerSubscription
+	gotFallback := hintCalls == 1
+	if gotFallback != wantFallback {
+		b.Fatalf("keys=%d: fallback = %v (hint calls %d), want fallback %v", keyCount, gotFallback, hintCalls, wantFallback)
 	}
 }
