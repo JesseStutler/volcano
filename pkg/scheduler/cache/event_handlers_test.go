@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
+	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/utils/cpuset"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
@@ -361,6 +362,192 @@ func TestSchedulerCache_UpdatePodGroupV1beta1(t *testing.T) {
 			t.Errorf("Expected pg to be: %v but got :%v in case %d", test.Expected, pg, i)
 		}
 	}
+}
+
+func TestUpdatePodGroupUnschedulableCache(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*schedulingv1.PodGroup)
+		wantCached bool
+	}{
+		{
+			name: "status-only update preserves cached rejection",
+			mutate: func(pg *schedulingv1.PodGroup) {
+				pg.Status.Phase = schedulingv1.PodGroupInqueue
+			},
+			wantCached: true,
+		},
+		{
+			name: "scheduler annotation update preserves cached rejection",
+			mutate: func(pg *schedulingv1.PodGroup) {
+				pg.Annotations[api.JobAllocatedHyperNode] = "hypernode-1"
+			},
+			wantCached: true,
+		},
+		{
+			name: "spec update invalidates cached rejection",
+			mutate: func(pg *schedulingv1.PodGroup) {
+				pg.Spec.MinMember = 2
+			},
+		},
+		{
+			name: "scheduling annotation update invalidates cached rejection",
+			mutate: func(pg *schedulingv1.PodGroup) {
+				pg.Annotations["volcano.sh/task-topology-affinity"] = "rack-a"
+			},
+		},
+		{
+			name: "scheduling label update invalidates cached rejection",
+			mutate: func(pg *schedulingv1.PodGroup) {
+				pg.Labels[schedulingv1.PodPreemptable] = "true"
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			const (
+				namespace = "test"
+				name      = "job"
+				plugin    = "plugin"
+			)
+			jobID := api.JobID(namespace + "/" + name)
+			job := api.NewJobInfo(jobID)
+			jobs := map[api.JobID]*api.JobInfo{jobID: job}
+			unschedulableCache, registry := newTestUnschedulableCache()
+			registerTestHint(registry, plugin, api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
+			rejections := []api.Rejection{{Plugin: plugin, Source: api.RejectionPredicate}}
+			unschedulableCache.RecordUnschedulable(job, rejections)
+
+			cache := &SchedulerCache{
+				Jobs:               jobs,
+				unschedulableCache: unschedulableCache,
+			}
+			oldPodGroup := &schedulingv1.PodGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            name,
+					Namespace:       namespace,
+					ResourceVersion: "1",
+					Annotations:     map[string]string{},
+					Labels:          map[string]string{},
+				},
+				Spec: schedulingv1.PodGroupSpec{MinMember: 1},
+			}
+			newPodGroup := oldPodGroup.DeepCopy()
+			newPodGroup.ResourceVersion = "2"
+			test.mutate(newPodGroup)
+
+			cache.UpdatePodGroupV1beta1(oldPodGroup, newPodGroup)
+
+			gotCached := len(unschedulableCache.GetCachedRejections(job)) > 0
+			if gotCached != test.wantCached {
+				t.Fatalf("cached rejection exists = %v, want %v", gotCached, test.wantCached)
+			}
+		})
+	}
+}
+
+func TestPodSchedulingInputChangeInvalidatesUnschedulableCache(t *testing.T) {
+	const (
+		namespace = "test"
+		groupName = "job"
+		plugin    = "plugin"
+	)
+	jobID := api.JobID(namespace + "/" + groupName)
+
+	newPod := func(name string) *v1.Pod {
+		pod := buildPod(namespace, name, "", v1.PodPending, api.BuildResourceList("1", "1Gi"), nil, nil)
+		pod.Annotations = map[string]string{schedulingv1.KubeGroupNameAnnotationKey: groupName}
+		return pod
+	}
+	newCache := func(t *testing.T, pods ...*v1.Pod) (*SchedulerCache, *UnschedulableJobCache) {
+		t.Helper()
+		unschedulableCache, registry := newTestUnschedulableCache()
+		registerTestHint(registry, plugin, api.ClusterEvent{Resource: fwk.Node, ActionType: fwk.Add}, nil)
+		schedulerCache := &SchedulerCache{
+			Jobs:               make(map[api.JobID]*api.JobInfo),
+			Nodes:              make(map[string]*api.NodeInfo),
+			unschedulableCache: unschedulableCache,
+		}
+		for _, pod := range pods {
+			schedulerCache.AddPod(pod)
+		}
+		job := schedulerCache.Jobs[jobID]
+		if job == nil {
+			t.Fatalf("job %s was not created", jobID)
+		}
+		// AddPod invalidates the Job. Begin a scheduler session after those
+		// initial mutations so RecordUnschedulable models CloseSession.
+		unschedulableCache.BeginSession()
+		unschedulableCache.RecordUnschedulable(job.Clone(), []api.Rejection{{
+			Plugin: plugin,
+			Source: api.RejectionPredicate,
+		}})
+		return schedulerCache, unschedulableCache
+	}
+	isCached := func(cache *SchedulerCache, unschedulableCache *UnschedulableJobCache) bool {
+		return len(unschedulableCache.GetCachedRejections(cache.Jobs[jobID])) > 0
+	}
+
+	t.Run("pod add", func(t *testing.T) {
+		cache, unschedulableCache := newCache(t, newPod("old"))
+
+		cache.AddPod(newPod("new"))
+
+		if isCached(cache, unschedulableCache) {
+			t.Fatal("cached rejection survived adding a task to the same job")
+		}
+	})
+
+	t.Run("pod delete", func(t *testing.T) {
+		deleted := newPod("deleted")
+		cache, unschedulableCache := newCache(t, deleted, newPod("kept"))
+
+		cache.DeletePod(deleted)
+
+		if isCached(cache, unschedulableCache) {
+			t.Fatal("cached rejection survived deleting a task from the same job")
+		}
+	})
+
+	t.Run("scheduling property update", func(t *testing.T) {
+		oldPod := newPod("pod")
+		cache, unschedulableCache := newCache(t, oldPod, newPod("kept"))
+		updatedPod := oldPod.DeepCopy()
+		updatedPod.Labels = map[string]string{"placement": "new"}
+
+		cache.UpdatePod(oldPod, updatedPod)
+
+		if isCached(cache, unschedulableCache) {
+			t.Fatal("cached rejection survived a scheduling-property update to the same job")
+		}
+	})
+
+	t.Run("terminal transition", func(t *testing.T) {
+		oldPod := newPod("pod")
+		cache, unschedulableCache := newCache(t, oldPod, newPod("kept"))
+		terminalPod := oldPod.DeepCopy()
+		terminalPod.Status.Phase = v1.PodSucceeded
+
+		cache.UpdatePod(oldPod, terminalPod)
+
+		if isCached(cache, unschedulableCache) {
+			t.Fatal("cached rejection survived a task becoming terminal")
+		}
+	})
+
+	t.Run("status-only update", func(t *testing.T) {
+		oldPod := newPod("pod")
+		cache, unschedulableCache := newCache(t, oldPod, newPod("kept"))
+		updatedPod := oldPod.DeepCopy()
+		updatedPod.Status.PodIP = "10.0.0.1"
+
+		cache.UpdatePod(oldPod, updatedPod)
+
+		if !isCached(cache, unschedulableCache) {
+			t.Fatal("status-only update invalidated cached rejection")
+		}
+	})
 }
 
 func TestSchedulerCache_DeletePodGroupV1beta1(t *testing.T) {
