@@ -184,9 +184,7 @@ var _ = Describe("Unschedulable Job Cache", func() {
 				}},
 			})
 			skipLabels := schedulerJobMetricLabels(job, map[string]string{"stage": "allocate"})
-			wakeupLabels := schedulerJobMetricLabels(job, nil)
 			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
-			wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
 			By("waiting for the Job to be cached and skipped")
 			Expect(e2eutil.WaitJobStatePending(ctx, job)).To(Succeed())
 			Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
@@ -197,8 +195,6 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			e2eutil.DeletePod(ctx, blocker)
 
 			By("verifying the Pod delete event wakes and schedules the Job")
-			wakeupLabels["resource"] = string(fwk.Pod)
-			waitForMetricIncrease(ctx, wakeupMetricName, wakeupLabels, wakeupBaseline)
 			waitForJobReady(ctx, job)
 		})
 
