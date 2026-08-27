@@ -126,6 +126,11 @@ no per-Pod queue buckets. Instead, a single `UnschedulableJobCache` lives beside
 scheduling loop, and is updated from three sources: the session itself, informer
 handlers, and a background watchdog.
 
+The Alpha implementation names this component `unschedulable.JobCache`. The
+Scheduler owns it, while SchedulerCache forwards informer events to it. Hint
+contracts and the private registry live in `pkg/scheduler/unschedulable`, and
+cluster events reuse kube-scheduler's `fwk.ClusterEvent` type.
+
 ![UnschedulableJobCache architecture](images/unschedulable-job-cache.svg)
 
 The scheduler session drives most of the interaction. `OpenSession` derives
@@ -564,9 +569,9 @@ through the normal filter path every session, which matches today's behavior.
 
 ### 3. UnschedulableJobCache
 
-`UnschedulableJobCache` lives on `SchedulerCache`. It records unschedulable Jobs by
-`JobID`, together with the rejection list collected at `CloseSession` and the hint
-functions copied from `HintRegistry`.
+The Alpha `unschedulable.JobCache` is owned by the Scheduler. It records
+unschedulable Jobs by `JobID`, together with the rejection list collected at
+`CloseSession` and the hint functions copied from its private registry.
 
 The normal retry lifecycle is:
 
@@ -834,6 +839,9 @@ whose `RetryAfter` has passed. Keeping expiry off the scheduling path means
 normal wake-up path, and the timestamp is a safety net for missed hints or
 informer edge cases.
 
+Per-Job skip, wake-up, and watchdog metrics are disabled by default and can be
+enabled with `--unschedulable-job-cache-debug-metrics=true`.
+
 #### Per-session overhead
 
 For a Job with no cached record, `GetCachedRejections` is a single map
@@ -876,8 +884,9 @@ events through `OnEvent`.
 `ev.ActionType` matches each `pluginActionKey.actionType`. It also checks
 `wildcardJobIndexes`. This can select multiple plugin/action indexes for one
 incoming event. Node and Pod updates use kube-scheduler's classified actions. A
-Pod transitioning to a terminal phase is treated as `Pod/Delete` because it
-releases its node resources.
+Pod that becomes assigned is delivered as `Pod/Add`, matching kube-scheduler's
+assigned-Pod semantics. A Pod transitioning to a terminal phase is treated as
+`Pod/Delete` because it releases its node resources.
 
 #### Handler registration
 
@@ -1169,8 +1178,8 @@ Jobs. Everything else follows as its rejection path is wired up.
 | `InterPodAffinity`, `PodTopologySpread` | PodTopology | adapter | `Pod/Add`, `Pod/Delete`, `Node/UpdateNodeLabel` |
 | `NodeVolumeLimits`, `VolumeZone`, `VolumeBinding` | Storage | adapter | PVC/PV/StorageClass/CSINode events |
 | `DynamicResources` | Device | adapter | ResourceClaim/DeviceClass/Node allocatable events |
-| `predicates-resource-fit` | Resource | native (synthetic, indexed) | §2 synthetic name for `allocate`'s inline node-fit check; indexed by rejected task, node, and insufficient resource dimension |
-| `capacity`, `proportion` | Queue | native | Queue, PodGroup completion/deletion, Pod deletion |
+| `predicates-resource-fit` | Resource | native (synthetic, indexed) | §2 synthetic name for `allocate`'s inline node-fit check; indexed by rejected task, node, and insufficient resource dimension; Node growth includes legacy oversubscription annotations |
+| `capacity`, `proportion` | Queue | native | Queue, PodGroup completion/deletion, Pod deletion; Capacity coverage is limited to non-hierarchical mode |
 
 P0 describes HintProvider coverage, not secondary-index coverage. Resource Fit
 is the only provider-specific secondary index in the Alpha implementation. The
@@ -1198,6 +1207,16 @@ after measuring their event rates and the number of Jobs evaluated per event.
 `extender`, and any other plugin that does not implement `HintProvider`, keep
 today's behavior: Jobs they reject are not cached and go through the normal
 filter path every session.
+
+Hierarchical `capacity` follows the same rule in the Alpha implementation. A
+release from a sibling Queue can change the resources available through a shared
+ancestor, but the rejection does not yet identify the exact Queue whose quota
+failed and Pod events do not carry the releasing Queue's ancestor path. Capacity
+therefore registers no hints when hierarchy is enabled, and Jobs it rejects are
+evaluated normally each session. Non-hierarchical Capacity remains covered. A
+guarantee reduction or deletion in any Queue wakes non-hierarchical Capacity
+rejections because `totalGuarantee` contributes to every Queue's effective
+capacity.
 
 ## Risks and Mitigations
 
@@ -1260,6 +1279,8 @@ RSS. The workloads and results are described in Performance Validation below.
 |---|---|---|
 | Resource shortage recovers | A multi-replica gang Job cannot reach `minAvailable`; deleting a resource-consuming Pod on any candidate node frees enough capacity. | The Job stays cached before the deletion, wakes on the matching `Pod/Delete`, and reaches `minAvailable`. |
 | New capacity appears | A Job is blocked by node resources or labels; add a suitable Node or update the relevant Node property. | The matching hint wakes the Job and normal scheduling places it on the newly suitable Node. |
+| Affinity anchor is bound | A Job requires Pod affinity with an existing but initially unassigned Pod. | Binding the anchor is delivered as assigned `Pod/Add`; the affinity hint wakes the Job and it schedules with the anchor. |
+| Queue reservation decreases | A non-hierarchical Capacity Job is blocked because another Queue's guarantee consumes the unreserved cluster capacity. | Reducing the other Queue's guarantee wakes the Job and Capacity admits it with the new `totalGuarantee`. |
 | Schedulable Jobs continue to make progress | Keep high-priority, multi-replica unschedulable Jobs pending while continuously submitting lower-priority Jobs that fit. | Cached Jobs do not repeatedly consume the allocation loop, and newly submitted schedulable Jobs continue to bind. |
 | Workload changes while cached | Add, update, or delete a Pod belonging to a cached Job, or update/delete its PodGroup. | The stale record is removed and the next session evaluates the current workload state. |
 | Preemption remains available | A cached high-priority Job can become schedulable by preempting lower-priority tasks. | Preemption still selects victims; a pipelined task removes the cached record and allocation continues normally. |

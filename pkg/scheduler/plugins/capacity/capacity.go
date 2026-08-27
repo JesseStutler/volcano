@@ -442,10 +442,6 @@ func (cp *capacityPlugin) Name() string {
 func (cp *capacityPlugin) OnSessionOpen(ssn *framework.Session) {
 	cp.parseArguments()
 
-	// Register this plugin as a HintProvider so quota-rejected Jobs are woken by
-	// queue/podgroup/pod events.
-	ssn.AddHintProvider(cp.Name(), &hintprovider.CapacityHintProvider{})
-
 	// Prepare scheduling data for this session.
 	cp.totalResource.Add(ssn.TotalResource)
 
@@ -457,6 +453,9 @@ func (cp *capacityPlugin) OnSessionOpen(ssn *framework.Session) {
 	}
 
 	hierarchyEnabled := ssn.HierarchyEnabled(cp.Name())
+	// Hierarchical capacity rejections are evaluated every session until hints
+	// can identify the Queue whose quota rejected the Job and related siblings.
+	ssn.AddHintProvider(cp.Name(), hintprovider.NewCapacityHintProvider(hierarchyEnabled))
 	readyToSchedule := true
 	if hierarchyEnabled {
 		readyToSchedule = cp.buildHierarchicalQueueAttrs(ssn)

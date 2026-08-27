@@ -33,7 +33,7 @@ import (
 	batchv1alpha1 "volcano.sh/apis/pkg/apis/batch/v1alpha1"
 	schedulingv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 
-	"volcano.sh/volcano/pkg/scheduler/api"
+	"volcano.sh/volcano/pkg/scheduler/unschedulable"
 	e2eutil "volcano.sh/volcano/test/e2e/util"
 )
 
@@ -73,6 +73,77 @@ var _ = Describe("Unschedulable Job Cache", func() {
 			It("wakes a rejected task when a quota-consuming Pod is deleted", func() {
 				runTaskPodReleaseWakeupCase("capacity", "capacity-pod-hint-queue", "capacity-pod-wakeup")
 			})
+
+			It("wakes a Job when another Queue lowers its guarantee", func() {
+				runQueueGuaranteeDecreaseWakeupCase()
+			})
+		})
+	})
+
+	Describe("Predicate hints", func() {
+		It("wakes a PodAffinity-blocked Job when its anchor Pod is bound", func() {
+			ctx := e2eutil.InitTestContext(e2eutil.Options{
+				NodesNumLimit: 1,
+				NodesResourceLimit: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse("100m"),
+					v1.ResourceMemory: resource.MustParse("128Mi"),
+				},
+			})
+			defer e2eutil.CleanupTestContext(ctx)
+
+			targetNode, slots := e2eutil.ComputeNode(ctx, smallRequest())
+			Expect(targetNode).NotTo(BeEmpty())
+			Expect(slots).To(BeNumerically(">=", 2))
+			anchorLabels := map[string]string{"app": "affinity-anchor"}
+			anchor := e2eutil.CreatePod(ctx, e2eutil.PodSpec{
+				Name:          "affinity-anchor",
+				Req:           smallRequest(),
+				Labels:        anchorLabels,
+				SchedulerName: "unschedulable-cache-e2e-no-scheduler",
+				RestartPolicy: v1.RestartPolicyNever,
+			})
+
+			job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
+				Name:      "pod-binding-wakeup",
+				Namespace: ctx.Namespace,
+				Min:       1,
+				Tasks: []e2eutil.TaskSpec{{
+					Name: "worker",
+					Img:  e2eutil.DefaultBusyBoxImage,
+					Rep:  1,
+					Min:  1,
+					Req:  smallRequest(),
+					Affinity: &v1.Affinity{PodAffinity: &v1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{{
+							LabelSelector: &metav1.LabelSelector{MatchLabels: anchorLabels},
+							TopologyKey:   v1.LabelHostname,
+						}},
+					}},
+					Command: "sleep 300",
+				}},
+			})
+			skipLabels := schedulerJobMetricLabels(job, map[string]string{"stage": "allocate"})
+			wakeupLabels := schedulerJobMetricLabels(job, map[string]string{
+				"resource": string(fwk.Pod),
+				"action":   "Add",
+			})
+			skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
+			wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
+
+			By("waiting for PodAffinity to reject and cache the Job")
+			Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
+			waitForMetricIncrease(ctx, skipMetricName, skipLabels, skipBaseline)
+			expectJobUnbound(ctx, job)
+
+			By("binding the existing anchor Pod to a worker Node")
+			Expect(ctx.Kubeclient.CoreV1().Pods(ctx.Namespace).Bind(context.TODO(), &v1.Binding{
+				ObjectMeta: metav1.ObjectMeta{Name: anchor.Name},
+				Target:     v1.ObjectReference{Kind: "Node", Name: targetNode},
+			}, metav1.CreateOptions{})).To(Succeed())
+
+			By("verifying the assigned Pod Add wakes and schedules the Job")
+			waitForMetricIncrease(ctx, wakeupMetricName, wakeupLabels, wakeupBaseline)
+			waitForJobReady(ctx, job)
 		})
 	})
 
@@ -469,7 +540,7 @@ func runQueueCapabilityWakeupCase(pluginName, queueName, jobName string) {
 		}},
 	})
 	skipLabels := schedulerJobMetricLabels(job, map[string]string{"stage": "enqueue"})
-	wakeupLabels := schedulerJobMetricLabels(job, map[string]string{"resource": string(api.QueueEvent)})
+	wakeupLabels := schedulerJobMetricLabels(job, map[string]string{"resource": string(unschedulable.QueueEvent)})
 	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
 	wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
 
@@ -533,7 +604,7 @@ func runTaskQuotaWakeupCase(pluginName, queueName, jobName string) {
 	updateQueueCPUCapability(ctx, queueName, "500m")
 
 	skipLabels := schedulerJobMetricLabels(job, map[string]string{"stage": "allocate"})
-	wakeupLabels := schedulerJobMetricLabels(job, map[string]string{"resource": string(api.QueueEvent)})
+	wakeupLabels := schedulerJobMetricLabels(job, map[string]string{"resource": string(unschedulable.QueueEvent)})
 	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
 	wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
 
@@ -645,6 +716,62 @@ func runTaskPodReleaseWakeupCase(pluginName, queueName, jobName string) {
 	waitForJobReady(ctx, job)
 }
 
+func runQueueGuaranteeDecreaseWakeupCase() {
+	configureScheduler("capacity", "")
+
+	ctx := e2eutil.InitTestContext(e2eutil.Options{
+		NodesNumLimit: 1,
+		NodesResourceLimit: v1.ResourceList{
+			v1.ResourceCPU:    resource.MustParse("1"),
+			v1.ResourceMemory: resource.MustParse("256Mi"),
+		},
+	})
+	defer e2eutil.CleanupTestContext(ctx)
+
+	const (
+		jobQueue      = "capacity-guarantee-job-queue"
+		reservedQueue = "capacity-guarantee-reserved-queue"
+	)
+	e2eutil.CreateQueueWithQueueSpec(ctx, &e2eutil.QueueSpec{Name: jobQueue, Weight: 1})
+	e2eutil.CreateQueueWithQueueSpec(ctx, &e2eutil.QueueSpec{
+		Name:              reservedQueue,
+		Weight:            1,
+		GuaranteeResource: v1.ResourceList{v1.ResourceCPU: resource.MustParse("1000000")},
+	})
+	ctx.Queues = append(ctx.Queues, jobQueue, reservedQueue)
+
+	job := e2eutil.CreateJob(ctx, &e2eutil.JobSpec{
+		Name:      "capacity-guarantee-wakeup",
+		Namespace: ctx.Namespace,
+		Queue:     jobQueue,
+		Min:       1,
+		Tasks: []e2eutil.TaskSpec{{
+			Name:    "worker",
+			Img:     e2eutil.DefaultBusyBoxImage,
+			Rep:     1,
+			Min:     1,
+			Req:     smallRequest(),
+			Command: "sleep 300",
+		}},
+	})
+	skipLabels := schedulerJobMetricLabels(job, map[string]string{"stage": "enqueue"})
+	wakeupLabels := schedulerJobMetricLabels(job, map[string]string{"resource": string(unschedulable.QueueEvent)})
+	skipBaseline := schedulerMetricValue(ctx, skipMetricName, skipLabels)
+	wakeupBaseline := schedulerMetricValue(ctx, wakeupMetricName, wakeupLabels)
+
+	By("waiting for another Queue's guarantee to exhaust the Job Queue's effective capacity")
+	Expect(e2eutil.WaitJobStatePending(ctx, job)).To(Succeed())
+	Expect(e2eutil.WaitJobUnschedulable(ctx, job)).To(Succeed())
+	waitForMetricIncrease(ctx, skipMetricName, skipLabels, skipBaseline)
+
+	By("lowering the other Queue's guarantee")
+	updateQueueCPUGuarantee(ctx, reservedQueue, "0")
+
+	By("verifying the global guarantee change wakes and schedules the Job")
+	waitForMetricIncrease(ctx, wakeupMetricName, wakeupLabels, wakeupBaseline)
+	waitForJobReady(ctx, job)
+}
+
 func updateQueueCPUCapability(ctx *e2eutil.TestContext, queueName, cpu string) {
 	Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		queue, err := ctx.Vcclient.SchedulingV1beta1().Queues().Get(context.TODO(), queueName, metav1.GetOptions{})
@@ -652,6 +779,20 @@ func updateQueueCPUCapability(ctx *e2eutil.TestContext, queueName, cpu string) {
 			return err
 		}
 		queue.Spec.Capability[v1.ResourceCPU] = resource.MustParse(cpu)
+		_, err = ctx.Vcclient.SchedulingV1beta1().Queues().Update(context.TODO(), queue, metav1.UpdateOptions{})
+		return err
+	})).To(Succeed())
+}
+
+func updateQueueCPUGuarantee(ctx *e2eutil.TestContext, queueName, cpu string) {
+	Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		queue, err := ctx.Vcclient.SchedulingV1beta1().Queues().Get(context.TODO(), queueName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		quantity := resource.MustParse(cpu)
+		queue.Spec.Guarantee.Resource = v1.ResourceList{v1.ResourceCPU: quantity}
+		queue.Spec.Deserved = v1.ResourceList{v1.ResourceCPU: quantity}
 		_, err = ctx.Vcclient.SchedulingV1beta1().Queues().Update(context.TODO(), queue, metav1.UpdateOptions{})
 		return err
 	})).To(Succeed())
@@ -683,7 +824,7 @@ func configureScheduler(pluginName, actions string) {
 						continue
 					}
 					quotaPluginFound = true
-					if plugin.Name != pluginName {
+					if plugin.Name != pluginName || plugin.EnabledHierarchy != nil && *plugin.EnabledHierarchy {
 						*plugin = e2eutil.PluginOption{Name: pluginName}
 						changed = true
 					}
