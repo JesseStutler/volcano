@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cache
+package unschedulable
 
 import (
 	"errors"
@@ -32,7 +32,7 @@ import (
 // plugin/action index registered for event.Resource, so tests can prove that
 // Replace, Forget, and watchdog expiry remove the stale HintKey index entry
 // instead of only dropping the primary record.
-func assertByHintKeyMembership(t *testing.T, cache *UnschedulableJobCache, event api.ClusterEvent, key api.HintKey, jobID api.JobID, want bool) {
+func assertByHintKeyMembership(t *testing.T, cache *JobCache, event fwk.ClusterEvent, key HintKey, jobID api.JobID, want bool) {
 	t.Helper()
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
@@ -47,54 +47,54 @@ func assertByHintKeyMembership(t *testing.T, cache *UnschedulableJobCache, event
 	}
 }
 
-// TestUnschedulableJobCacheByHintKeyIndexRemoval proves that the HintKey
+// TestJobCacheByHintKeyIndexRemoval proves that the HintKey
 // secondary index is kept consistent with the primary record on replacement,
 // explicit Forget, and watchdog expiry: the stale key entry is removed so it
 // can no longer dispatch, and (for replacement) the new key entry is present
 // and does dispatch.
-func TestUnschedulableJobCacheByHintKeyIndexRemoval(t *testing.T) {
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+func TestJobCacheByHintKeyIndexRemoval(t *testing.T) {
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
 	// echoJobKeys/echoEventKey let each test control exactly which HintKey a
 	// record or event carries while sharing one plugin/action index.
-	echoJobKeys := func(_ *api.JobInfo, rejection api.Rejection) ([]api.HintKey, error) {
+	echoJobKeys := func(_ *api.JobInfo, rejection Rejection) ([]HintKey, error) {
 		return rejection.HintKeys, nil
 	}
-	echoEventKey := func(_ any, newObj any) ([]api.HintKey, error) {
-		return []api.HintKey{api.HintKey(newObj.(string))}, nil
+	echoEventKey := func(_ any, newObj any) ([]HintKey, error) {
+		return []HintKey{HintKey(newObj.(string))}, nil
 	}
 
 	// keepAlive is recorded under its own stable key in the same plugin/action
 	// index as the Job under test, so the index's allJobIDs set never empties.
 	// Without this, deleting and recreating a single-Job index would mask a
 	// hypothetical bug in the per-hintKey/per-job removal these tests target.
-	newKeepAlive := func(cache *UnschedulableJobCache) {
+	newKeepAlive := func(cache *JobCache) {
 		keepAlive := api.NewJobInfo("keep-alive")
-		cache.RecordUnschedulable(keepAlive, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate, HintKeys: []api.HintKey{"keep-alive-key"}}})
+		cache.Record(keepAlive, []Rejection{{Plugin: "plugin", Source: RejectionPredicate, HintKeys: []HintKey{"keep-alive-key"}}})
 	}
 
 	t.Run("replacement removes the stale key and the new key dispatches", func(t *testing.T) {
 		job := api.NewJobInfo("job")
 		cache, registry := newTestUnschedulableCache()
 		registerTestIndexedHint(registry, "plugin", event, echoJobKeys, echoEventKey,
-			func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
-				return api.HintWakeup, nil
+			func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
+				return HintWakeup, nil
 			})
 		newKeepAlive(cache)
 
-		cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate, HintKeys: []api.HintKey{"old-key"}}})
+		cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate, HintKeys: []HintKey{"old-key"}}})
 		assertByHintKeyMembership(t, cache, event, "old-key", job.UID, true)
 
-		cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate, HintKeys: []api.HintKey{"new-key"}}})
+		cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate, HintKeys: []HintKey{"new-key"}}})
 		assertByHintKeyMembership(t, cache, event, "old-key", job.UID, false)
 		assertByHintKeyMembership(t, cache, event, "new-key", job.UID, true)
 
 		cache.OnEvent(event, nil, "old-key")
-		if got := len(cache.GetCachedRejections(job)); got == 0 {
+		if got := len(cache.CachedRejections(job)); got == 0 {
 			t.Fatalf("stale key dispatched and forgot the record; record cached = %d, want > 0", got)
 		}
 
 		cache.OnEvent(event, nil, "new-key")
-		if got := len(cache.GetCachedRejections(job)); got != 0 {
+		if got := len(cache.CachedRejections(job)); got != 0 {
 			t.Fatalf("replacement key must dispatch and wake the record; record cached = %d, want 0", got)
 		}
 	})
@@ -103,21 +103,21 @@ func TestUnschedulableJobCacheByHintKeyIndexRemoval(t *testing.T) {
 		job := api.NewJobInfo("job")
 		cache, registry := newTestUnschedulableCache()
 		registerTestIndexedHint(registry, "plugin", event, echoJobKeys, echoEventKey,
-			func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
-				return api.HintWakeup, nil
+			func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
+				return HintWakeup, nil
 			})
 		newKeepAlive(cache)
 
-		cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate, HintKeys: []api.HintKey{"key"}}})
+		cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate, HintKeys: []HintKey{"key"}}})
 		assertByHintKeyMembership(t, cache, event, "key", job.UID, true)
 
-		cache.ForgetUnschedulable(job.UID)
+		cache.Forget(job.UID)
 		assertByHintKeyMembership(t, cache, event, "key", job.UID, false)
 
 		// The stale key must not dispatch: the only Job left under it is
 		// keep-alive, unaffected by job's removal.
 		cache.OnEvent(event, nil, "key")
-		if got := len(cache.GetCachedRejections(job)); got != 0 {
+		if got := len(cache.CachedRejections(job)); got != 0 {
 			t.Fatalf("forgotten job's record reappeared; record cached = %d, want 0", got)
 		}
 	})
@@ -126,12 +126,12 @@ func TestUnschedulableJobCacheByHintKeyIndexRemoval(t *testing.T) {
 		job := api.NewJobInfo("job")
 		cache, registry := newTestUnschedulableCache()
 		registerTestIndexedHint(registry, "plugin", event, echoJobKeys, echoEventKey,
-			func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
-				return api.HintWakeup, nil
+			func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
+				return HintWakeup, nil
 			})
 		newKeepAlive(cache)
 
-		cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate, HintKeys: []api.HintKey{"key"}}})
+		cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate, HintKeys: []HintKey{"key"}}})
 		assertByHintKeyMembership(t, cache, event, "key", job.UID, true)
 
 		cache.mu.Lock()
@@ -142,29 +142,29 @@ func TestUnschedulableJobCacheByHintKeyIndexRemoval(t *testing.T) {
 		assertByHintKeyMembership(t, cache, event, "key", job.UID, false)
 
 		cache.OnEvent(event, nil, "key")
-		if got := len(cache.GetCachedRejections(job)); got != 0 {
+		if got := len(cache.CachedRejections(job)); got != 0 {
 			t.Fatalf("watchdog-expired job's record reappeared; record cached = %d, want 0", got)
 		}
 	})
 }
 
-func TestUnschedulableJobCacheSecondaryIndex(t *testing.T) {
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
-	overLimitEventKeys := make([]api.HintKey, api.MaxHintKeysPerPluginEvent+1)
+func TestJobCacheSecondaryIndex(t *testing.T) {
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+	overLimitEventKeys := make([]HintKey, MaxHintKeysPerPluginEvent+1)
 	for i := range overLimitEventKeys {
-		overLimitEventKeys[i] = api.HintKey(fmt.Sprintf("event-key-%d", i))
+		overLimitEventKeys[i] = HintKey(fmt.Sprintf("event-key-%d", i))
 	}
 	tests := []struct {
 		name                string
-		eventKeys           []api.HintKey
+		eventKeys           []HintKey
 		eventErr            error
 		jobBWithoutHintKeys bool
 		wantCallsA          int
 		wantCallsB          int
 	}{
-		{name: "matching indexed key dispatches only indexed match", eventKeys: []api.HintKey{"key-a"}, wantCallsA: 1},
-		{name: "non-matching indexed key skips indexed jobs", eventKeys: []api.HintKey{"key-miss"}},
-		{name: "job without HintKeys is dispatched beside indexed match", eventKeys: []api.HintKey{"key-a"}, jobBWithoutHintKeys: true, wantCallsA: 1, wantCallsB: 1},
+		{name: "matching indexed key dispatches only indexed match", eventKeys: []HintKey{"key-a"}, wantCallsA: 1},
+		{name: "non-matching indexed key skips indexed jobs", eventKeys: []HintKey{"key-miss"}},
+		{name: "job without HintKeys is dispatched beside indexed match", eventKeys: []HintKey{"key-a"}, jobBWithoutHintKeys: true, wantCallsA: 1, wantCallsB: 1},
 		{name: "event extraction error dispatches every job in the plugin action index", eventErr: errors.New("bad event"), wantCallsA: 1, wantCallsB: 1},
 		{name: "too many event keys dispatch every job in the plugin action index", eventKeys: overLimitEventKeys, wantCallsA: 1, wantCallsB: 1},
 	}
@@ -180,34 +180,34 @@ func TestUnschedulableJobCacheSecondaryIndex(t *testing.T) {
 				registry,
 				"plugin",
 				event,
-				func(job *api.JobInfo, _ api.Rejection) ([]api.HintKey, error) {
+				func(job *api.JobInfo, _ Rejection) ([]HintKey, error) {
 					switch job.UID {
 					case jobA.UID:
-						return []api.HintKey{"key-a"}, nil
+						return []HintKey{"key-a"}, nil
 					case jobB.UID:
 						if test.jobBWithoutHintKeys {
 							return nil, nil
 						}
-						return []api.HintKey{"key-b"}, nil
+						return []HintKey{"key-b"}, nil
 					default:
 						return nil, fmt.Errorf("unexpected job %s", job.UID)
 					}
 				},
-				func(any, any) ([]api.HintKey, error) {
+				func(any, any) ([]HintKey, error) {
 					if test.eventErr != nil {
 						return nil, test.eventErr
 					}
-					return append([]api.HintKey(nil), test.eventKeys...), nil
+					return append([]HintKey(nil), test.eventKeys...), nil
 				},
-				func(job *api.JobInfo, _ api.Rejection, _, _ any) (api.HintResult, error) {
+				func(job *api.JobInfo, _ Rejection, _, _ any) (HintResult, error) {
 					calls[job.UID]++
-					return api.HintSkip, nil
+					return HintSkip, nil
 				},
 			)
 
-			rejection := []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}}
-			cache.RecordUnschedulable(jobA, rejection)
-			cache.RecordUnschedulable(jobB, rejection)
+			rejection := []Rejection{{Plugin: "plugin", Source: RejectionPredicate}}
+			cache.Record(jobA, rejection)
+			cache.Record(jobB, rejection)
 
 			cache.OnEvent(event, nil, "event")
 
@@ -221,39 +221,39 @@ func TestUnschedulableJobCacheSecondaryIndex(t *testing.T) {
 	}
 }
 
-func TestUnschedulableJobCacheDoesNotCacheDuplicatePluginEvent(t *testing.T) {
+func TestJobCacheDoesNotCacheDuplicatePluginEvent(t *testing.T) {
 	cache, registry := newTestUnschedulableCache()
 	job := api.NewJobInfo("job")
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
 	indexedCalls := 0
 	noHintKeysCalls := 0
 
-	registry.Register("plugin", &fakeHintProvider{events: []api.ClusterEventWithHint{
+	registry.register("plugin", &fakeHintProvider{events: []EventWithHint{
 		{
 			Event: event,
-			JobKeysFn: func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-				return []api.HintKey{"match"}, nil
+			JobKeysFn: func(*api.JobInfo, Rejection) ([]HintKey, error) {
+				return []HintKey{"match"}, nil
 			},
-			EventKeysFn: func(any, any) ([]api.HintKey, error) {
-				return []api.HintKey{"match"}, nil
+			EventKeysFn: func(any, any) ([]HintKey, error) {
+				return []HintKey{"match"}, nil
 			},
-			HintFn: func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+			HintFn: func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 				indexedCalls++
-				return api.HintSkip, nil
+				return HintSkip, nil
 			},
 		},
 		{
 			Event: event,
-			HintFn: func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+			HintFn: func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 				noHintKeysCalls++
-				return api.HintSkip, nil
+				return HintSkip, nil
 			},
 		},
 	}})
 
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
-	if got := cache.GetCachedRejections(job); got != nil {
-		t.Fatalf("GetCachedRejections() = %#v, want nil for a duplicate plugin event", got)
+	cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate}})
+	if got := cache.CachedRejections(job); got != nil {
+		t.Fatalf("CachedRejections() = %#v, want nil for a duplicate plugin event", got)
 	}
 	cache.OnEvent(event, nil, "event")
 
@@ -265,12 +265,12 @@ func TestUnschedulableJobCacheDoesNotCacheDuplicatePluginEvent(t *testing.T) {
 	}
 }
 
-func TestUnschedulableJobCacheJobsWithoutHintKeys(t *testing.T) {
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+func TestJobCacheJobsWithoutHintKeys(t *testing.T) {
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
 	tests := []struct {
 		name        string
-		jobKeysFn   api.JobKeysFn
-		eventKeysFn api.EventKeysFn
+		jobKeysFn   JobKeysFn
+		eventKeysFn EventKeysFn
 		wantCalls   int
 	}{
 		{
@@ -279,45 +279,45 @@ func TestUnschedulableJobCacheJobsWithoutHintKeys(t *testing.T) {
 		},
 		{
 			name: "job extraction error dispatches the job without HintKeys",
-			jobKeysFn: func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
+			jobKeysFn: func(*api.JobInfo, Rejection) ([]HintKey, error) {
 				return nil, errors.New("bad job")
 			},
-			eventKeysFn: func(any, any) ([]api.HintKey, error) {
-				return []api.HintKey{"key"}, nil
+			eventKeysFn: func(any, any) ([]HintKey, error) {
+				return []HintKey{"key"}, nil
 			},
 			wantCalls: 1,
 		},
 		{
 			name: "zero job keys dispatches the job without HintKeys",
-			jobKeysFn: func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-				return []api.HintKey{}, nil
+			jobKeysFn: func(*api.JobInfo, Rejection) ([]HintKey, error) {
+				return []HintKey{}, nil
 			},
-			eventKeysFn: func(any, any) ([]api.HintKey, error) {
-				return []api.HintKey{"key"}, nil
+			eventKeysFn: func(any, any) ([]HintKey, error) {
+				return []HintKey{"key"}, nil
 			},
 			wantCalls: 1,
 		},
 		{
 			name: "too many job keys dispatches the job without HintKeys",
-			jobKeysFn: func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-				keys := make([]api.HintKey, api.MaxHintKeysPerPluginEvent+1)
+			jobKeysFn: func(*api.JobInfo, Rejection) ([]HintKey, error) {
+				keys := make([]HintKey, MaxHintKeysPerPluginEvent+1)
 				for i := range keys {
-					keys[i] = api.HintKey(fmt.Sprintf("key-%d", i))
+					keys[i] = HintKey(fmt.Sprintf("key-%d", i))
 				}
 				return keys, nil
 			},
-			eventKeysFn: func(any, any) ([]api.HintKey, error) {
-				return []api.HintKey{"key"}, nil
+			eventKeysFn: func(any, any) ([]HintKey, error) {
+				return []HintKey{"key"}, nil
 			},
 			wantCalls: 1,
 		},
 		{
 			name: "duplicate keys dispatch once",
-			jobKeysFn: func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-				return []api.HintKey{"dup", "dup"}, nil
+			jobKeysFn: func(*api.JobInfo, Rejection) ([]HintKey, error) {
+				return []HintKey{"dup", "dup"}, nil
 			},
-			eventKeysFn: func(any, any) ([]api.HintKey, error) {
-				return []api.HintKey{"dup", "dup"}, nil
+			eventKeysFn: func(any, any) ([]HintKey, error) {
+				return []HintKey{"dup", "dup"}, nil
 			},
 			wantCalls: 1,
 		},
@@ -334,13 +334,13 @@ func TestUnschedulableJobCacheJobsWithoutHintKeys(t *testing.T) {
 				event,
 				test.jobKeysFn,
 				test.eventKeysFn,
-				func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+				func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 					hintCalls++
-					return api.HintSkip, nil
+					return HintSkip, nil
 				},
 			)
 
-			cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+			cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate}})
 			cache.OnEvent(event, nil, "event")
 
 			if hintCalls != test.wantCalls {
@@ -350,32 +350,32 @@ func TestUnschedulableJobCacheJobsWithoutHintKeys(t *testing.T) {
 	}
 }
 
-func TestUnschedulableJobCacheNilHintDispatchesWithoutHintKeys(t *testing.T) {
+func TestJobCacheNilHintDispatchesWithoutHintKeys(t *testing.T) {
 	cache, registry := newTestUnschedulableCache()
 	job := api.NewJobInfo("job")
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
 	registerTestIndexedHint(
 		registry,
 		"plugin",
 		event,
-		func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-			return []api.HintKey{"job-key"}, nil
+		func(*api.JobInfo, Rejection) ([]HintKey, error) {
+			return []HintKey{"job-key"}, nil
 		},
-		func(any, any) ([]api.HintKey, error) {
-			return []api.HintKey{"different-event-key"}, nil
+		func(any, any) ([]HintKey, error) {
+			return []HintKey{"different-event-key"}, nil
 		},
 		nil,
 	)
 
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+	cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate}})
 	cache.OnEvent(event, nil, "event")
 
-	if got := cache.GetCachedRejections(job); got != nil {
-		t.Fatalf("GetCachedRejections() = %#v, want nil after matching event with nil HintFn", got)
+	if got := cache.CachedRejections(job); got != nil {
+		t.Fatalf("CachedRejections() = %#v, want nil after matching event with nil HintFn", got)
 	}
 }
 
-func TestUnschedulableJobCacheClassifiedUpdate(t *testing.T) {
+func TestJobCacheClassifiedUpdate(t *testing.T) {
 	cache, registry := newTestUnschedulableCache()
 	job := api.NewJobInfo("job")
 	calls := 0
@@ -383,49 +383,84 @@ func TestUnschedulableJobCacheClassifiedUpdate(t *testing.T) {
 	registerTestIndexedHint(
 		registry,
 		"plugin",
-		api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Update},
-		func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-			return []api.HintKey{"scale-down"}, nil
+		fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Update},
+		func(*api.JobInfo, Rejection) ([]HintKey, error) {
+			return []HintKey{"scale-down"}, nil
 		},
-		func(any, any) ([]api.HintKey, error) {
-			return []api.HintKey{"scale-down"}, nil
+		func(any, any) ([]HintKey, error) {
+			return []HintKey{"scale-down"}, nil
 		},
-		func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+		func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 			calls++
-			return api.HintSkip, nil
+			return HintSkip, nil
 		},
 	)
 
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
-	cache.OnEvent(api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.UpdatePodScaleDown}, nil, "event")
+	cache.Record(job, []Rejection{{Plugin: "plugin", Source: RejectionPredicate}})
+	cache.OnEvent(fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.UpdatePodScaleDown}, nil, "event")
 
 	if calls != 1 {
 		t.Fatalf("hint calls = %d, want 1", calls)
 	}
 }
 
+func TestEventMatchesUsesKubeSchedulerSemantics(t *testing.T) {
+	tests := []struct {
+		name       string
+		registered fwk.ClusterEvent
+		incoming   fwk.ClusterEvent
+		want       bool
+	}{
+		{
+			name:       "general update matches classified update",
+			registered: fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Update},
+			incoming:   fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.UpdatePodScaleDown},
+			want:       true,
+		},
+		{
+			name:       "classified update does not match unclassified update",
+			registered: fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.UpdatePodScaleDown},
+			incoming:   fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Update},
+		},
+		{
+			name:       "custom label does not affect matching",
+			registered: fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete, CustomLabel: "registered"},
+			incoming:   fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete, CustomLabel: "incoming"},
+			want:       true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := eventMatches(test.registered, test.incoming); got != test.want {
+				t.Fatalf("eventMatches() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestOnEventDoesNotForgetNewerRecord(t *testing.T) {
 	job := api.NewJobInfo("job")
 	cache, registry := newTestUnschedulableCache()
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
 	hintStarted := make(chan struct{})
 	releaseHint := make(chan struct{})
-	eventKeysFn := func(_ any, newObj any) ([]api.HintKey, error) {
-		return []api.HintKey{api.HintKey(newObj.(string))}, nil
+	eventKeysFn := func(_ any, newObj any) ([]HintKey, error) {
+		return []HintKey{HintKey(newObj.(string))}, nil
 	}
-	registerTestIndexedHint(registry, "old-plugin", event, func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-		return []api.HintKey{"old-key"}, nil
-	}, eventKeysFn, func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+	registerTestIndexedHint(registry, "old-plugin", event, func(*api.JobInfo, Rejection) ([]HintKey, error) {
+		return []HintKey{"old-key"}, nil
+	}, eventKeysFn, func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 		close(hintStarted)
 		<-releaseHint
-		return api.HintWakeup, nil
+		return HintWakeup, nil
 	})
-	registerTestIndexedHint(registry, "new-plugin", event, func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-		return []api.HintKey{"new-key"}, nil
-	}, eventKeysFn, func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
-		return api.HintSkip, nil
+	registerTestIndexedHint(registry, "new-plugin", event, func(*api.JobInfo, Rejection) ([]HintKey, error) {
+		return []HintKey{"new-key"}, nil
+	}, eventKeysFn, func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
+		return HintSkip, nil
 	})
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "old-plugin", Source: api.RejectionPredicate}})
+	cache.Record(job, []Rejection{{Plugin: "old-plugin", Source: RejectionPredicate}})
 
 	dispatched := make(chan struct{})
 	go func() {
@@ -433,30 +468,30 @@ func TestOnEventDoesNotForgetNewerRecord(t *testing.T) {
 		cache.OnEvent(event, nil, "old-key")
 	}()
 	<-hintStarted
-	cache.RecordUnschedulable(job, []api.Rejection{{Plugin: "new-plugin", Source: api.RejectionPredicate}})
+	cache.Record(job, []Rejection{{Plugin: "new-plugin", Source: RejectionPredicate}})
 	close(releaseHint)
 	<-dispatched
 
-	want := []api.Rejection{{Plugin: "new-plugin", Source: api.RejectionPredicate}}
-	if got := cache.GetCachedRejections(job); !reflect.DeepEqual(got, want) {
-		t.Fatalf("GetCachedRejections() = %#v, want newer record %#v", got, want)
+	want := []Rejection{{Plugin: "new-plugin", Source: RejectionPredicate}}
+	if got := cache.CachedRejections(job); !reflect.DeepEqual(got, want) {
+		t.Fatalf("CachedRejections() = %#v, want newer record %#v", got, want)
 	}
 }
 
-func TestUnschedulableJobCacheReusesPluginActionIndexAcrossRegistrations(t *testing.T) {
+func TestJobCacheReusesPluginActionIndexAcrossRegistrations(t *testing.T) {
 	cache, registry := newTestUnschedulableCache()
-	event := api.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
+	event := fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}
 	jobOld := api.NewJobInfo("job-old")
 	jobNew := api.NewJobInfo("job-new")
 	oldCalls := 0
 	newCalls := 0
 	eventKeyCalls := 0
-	jobKeysFn := func(*api.JobInfo, api.Rejection) ([]api.HintKey, error) {
-		return []api.HintKey{"shared-key"}, nil
+	jobKeysFn := func(*api.JobInfo, Rejection) ([]HintKey, error) {
+		return []HintKey{"shared-key"}, nil
 	}
-	eventKeysFn := func(any, any) ([]api.HintKey, error) {
+	eventKeysFn := func(any, any) ([]HintKey, error) {
 		eventKeyCalls++
-		return []api.HintKey{"shared-key"}, nil
+		return []HintKey{"shared-key"}, nil
 	}
 
 	registerTestIndexedHint(
@@ -465,12 +500,12 @@ func TestUnschedulableJobCacheReusesPluginActionIndexAcrossRegistrations(t *test
 		event,
 		jobKeysFn,
 		eventKeysFn,
-		func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+		func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 			oldCalls++
-			return api.HintSkip, nil
+			return HintSkip, nil
 		},
 	)
-	cache.RecordUnschedulable(jobOld, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+	cache.Record(jobOld, []Rejection{{Plugin: "plugin", Source: RejectionPredicate}})
 
 	registerTestIndexedHint(
 		registry,
@@ -478,12 +513,12 @@ func TestUnschedulableJobCacheReusesPluginActionIndexAcrossRegistrations(t *test
 		event,
 		jobKeysFn,
 		eventKeysFn,
-		func(*api.JobInfo, api.Rejection, any, any) (api.HintResult, error) {
+		func(*api.JobInfo, Rejection, any, any) (HintResult, error) {
 			newCalls++
-			return api.HintSkip, nil
+			return HintSkip, nil
 		},
 	)
-	cache.RecordUnschedulable(jobNew, []api.Rejection{{Plugin: "plugin", Source: api.RejectionPredicate}})
+	cache.Record(jobNew, []Rejection{{Plugin: "plugin", Source: RejectionPredicate}})
 
 	cache.OnEvent(event, nil, "event")
 

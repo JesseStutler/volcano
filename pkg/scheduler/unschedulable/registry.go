@@ -14,36 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cache
+package unschedulable
 
 import (
 	"context"
 	"sync"
 
 	"k8s.io/klog/v2"
-
-	"volcano.sh/volcano/pkg/scheduler/api"
 )
 
-// HintRegistry stores the HintProviders declared by plugins, keyed by plugin
-// name, so the UnschedulableJobCache can look up a plugin's events at Record
+// hintRegistry stores the HintProviders declared by plugins, keyed by plugin
+// name, so JobCache can look up a plugin's events at Record
 // time.
-type HintRegistry struct {
+type hintRegistry struct {
 	mu             sync.RWMutex
-	eventsByPlugin map[string][]api.ClusterEventWithHint
+	eventsByPlugin map[string][]EventWithHint
 }
 
-// NewHintRegistry creates an empty HintRegistry.
-func NewHintRegistry() *HintRegistry {
-	return &HintRegistry{
-		eventsByPlugin: make(map[string][]api.ClusterEventWithHint),
+func newHintRegistry() *hintRegistry {
+	return &hintRegistry{
+		eventsByPlugin: make(map[string][]EventWithHint),
 	}
 }
 
 // Register calls p.EventsToRegister once, then stores the returned slice under
 // name, overwriting any previous entry for the same plugin. name must match
 // Rejection.Plugin.
-func (r *HintRegistry) Register(name string, p api.HintProvider) {
+func (r *hintRegistry) register(name string, p HintProvider) {
 	if r == nil || p == nil {
 		return
 	}
@@ -58,26 +55,27 @@ func (r *HintRegistry) Register(name string, p api.HintProvider) {
 		delete(r.eventsByPlugin, name)
 		return
 	}
-	seen := make(map[api.ClusterEvent]struct{}, len(events))
+	seen := make(map[eventKey]struct{}, len(events))
 	for _, event := range events {
 		if (event.JobKeysFn == nil) != (event.EventKeysFn == nil) {
 			klog.Errorf("Failed to register hints for plugin %s: event %v must provide JobKeysFn and EventKeysFn together", name, event.Event)
 			delete(r.eventsByPlugin, name)
 			return
 		}
-		if _, exists := seen[event.Event]; exists {
+		key := newEventKey(event.Event)
+		if _, exists := seen[key]; exists {
 			klog.Errorf("Failed to register hints for plugin %s: duplicate event %v", name, event.Event)
 			delete(r.eventsByPlugin, name)
 			return
 		}
-		seen[event.Event] = struct{}{}
+		seen[key] = struct{}{}
 	}
-	previousByEvent := make(map[api.ClusterEvent]api.ClusterEventWithHint, len(r.eventsByPlugin[name]))
+	previousByEvent := make(map[eventKey]EventWithHint, len(r.eventsByPlugin[name]))
 	for _, event := range r.eventsByPlugin[name] {
-		previousByEvent[event.Event] = event
+		previousByEvent[newEventKey(event.Event)] = event
 	}
 	for _, event := range events {
-		previous, exists := previousByEvent[event.Event]
+		previous, exists := previousByEvent[newEventKey(event.Event)]
 		if !exists {
 			continue
 		}
@@ -89,20 +87,20 @@ func (r *HintRegistry) Register(name string, p api.HintProvider) {
 			return
 		}
 	}
-	r.eventsByPlugin[name] = append([]api.ClusterEventWithHint(nil), events...)
+	r.eventsByPlugin[name] = append([]EventWithHint(nil), events...)
 	klog.V(5).Infof("Registered %d hint event(s) for plugin %s", len(events), name)
 }
 
 // eventsForPlugin returns a snapshot of the events registered for the given
 // plugin, or nil when the plugin has no HintProvider.
-func (r *HintRegistry) eventsForPlugin(name string) []api.ClusterEventWithHint {
+func (r *hintRegistry) eventsForPlugin(name string) []EventWithHint {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	events, ok := r.eventsByPlugin[name]
 	if !ok {
 		return nil
 	}
-	out := make([]api.ClusterEventWithHint, len(events))
+	out := make([]EventWithHint, len(events))
 	copy(out, events)
 	return out
 }
