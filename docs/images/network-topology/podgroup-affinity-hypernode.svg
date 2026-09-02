@@ -1,194 +1,125 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#07111f"/>
-      <stop offset=".55" stop-color="#0a1830"/>
-      <stop offset="1" stop-color="#0d1b25"/>
-    </linearGradient>
-    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#76f5c4"/>
-      <stop offset="1" stop-color="#34bf8d"/>
-    </linearGradient>
-    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#c49cff"/>
-      <stop offset="1" stop-color="#7f6cff"/>
-    </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
-      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity=".28"/>
-    </filter>
-    <filter id="glowGreen" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="7" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glowViolet" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="7" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M0 0L10 5L0 10z" fill="#64e8b5"/>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#4d4d4d"/>
     </marker>
     <style>
-      .sans { font-family: Inter, "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif; }
-      .mono { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace; }
-      .tier2 { fill: #10243a; stroke: #3e6e75; stroke-width: 2; }
-      .tier1 { fill: #102a34; stroke: #3d746d; stroke-width: 2; }
-      .tier1dim { fill: #12233a; stroke: #3f5877; stroke-width: 2; }
-      .node { fill: #16313a; stroke: #39746a; stroke-width: 1.5; }
-      .nodeDim { fill: #172a44; stroke: #385574; stroke-width: 1.5; }
-      .tree { fill: none; stroke: #4f747f; stroke-width: 3; }
-      .podText { fill: #06151b; font-weight: 850; font-size: 20px; text-anchor: middle; dominant-baseline: middle; }
+      text { font-family: Arial, "Noto Sans SC", sans-serif; fill: #262626; }
+      .title { font-size: 38px; font-weight: 700; }
+      .subtitle { font-size: 20px; fill: #595959; }
+      .section { font-size: 18px; font-weight: 700; }
+      .label { font-size: 17px; font-weight: 700; }
+      .small { font-size: 15px; fill: #595959; }
+      .tiny { font-size: 13px; fill: #666; }
+      .box { fill: #fff; stroke: #666; stroke-width: 2; }
+      .blue { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .gray { fill: #f5f5f5; stroke: #666; stroke-width: 2; }
+      .node { fill: #fff; stroke: #8c8c8c; stroke-width: 1.5; }
+      .edge { fill: none; stroke: #4d4d4d; stroke-width: 2; marker-end: url(#arrow); }
+      .aff { fill: none; stroke: #3b7d5c; stroke-width: 3; }
+      .dp { fill: none; stroke: #7f8c8d; stroke-width: 2; stroke-dasharray: 8 6; }
     </style>
   </defs>
 
-  <rect width="1920" height="1080" fill="url(#bg)"/>
-  <circle cx="1690" cy="80" r="300" fill="#5de7b1" opacity=".055"/>
-  <circle cx="120" cy="1030" r="340" fill="#826cff" opacity=".045"/>
+  <rect width="1920" height="1080" fill="#fff"/>
+  <text x="70" y="65" class="title">PodGroup Group Affinity on Hierarchical HyperNodes</text>
+  <text x="70" y="98" class="subtitle">Use case: distributed training — co-locate high-traffic communication groups</text>
+  <line x1="70" y1="124" x2="1850" y2="124" stroke="#bfbfbf" stroke-width="2"/>
 
-  <g class="sans">
-    <text x="92" y="100" fill="#69e6b5" font-size="26" font-weight="750" letter-spacing="4">PODGROUP × HYPERNODE</text>
-    <text x="92" y="166" fill="#f5f8ff" font-size="58" font-weight="820">Group Affinity</text>
-    <text x="92" y="212" fill="#a8b7ce" font-size="25">Distributed training · keep high-traffic communication groups close</text>
+  <!-- Control flow -->
+  <rect x="100" y="160" width="380" height="118" rx="4" class="box"/>
+  <text x="290" y="193" class="section" text-anchor="middle">Distributed Training Job</text>
+  <rect x="145" y="216" width="120" height="38" rx="3" class="blue"/>
+  <text x="205" y="241" class="label" text-anchor="middle">TP Group 0</text>
+  <rect x="315" y="216" width="120" height="38" rx="3" class="blue"/>
+  <text x="375" y="241" class="label" text-anchor="middle">TP Group 1</text>
 
-    <g transform="translate(1395 72)" filter="url(#shadow)">
-      <rect width="432" height="146" rx="22" fill="#102337" stroke="#35615f" stroke-width="2"/>
-      <rect x="20" y="20" width="112" height="30" rx="15" fill="#58deb0" opacity=".16"/>
-      <text x="76" y="41" fill="#69e6b5" font-size="15" font-weight="800" text-anchor="middle" letter-spacing="1.4">PODGROUP</text>
-      <text x="24" y="83" fill="#eafbf6" font-size="20" font-weight="700">AFFINITY @ Tier-1</text>
-      <text x="24" y="116" fill="#91b8ae" font-size="17">same TP group → same leaf HyperNode</text>
-    </g>
+  <rect x="680" y="160" width="440" height="118" rx="4" class="blue"/>
+  <text x="900" y="196" class="section" text-anchor="middle">PodGroup placement policy</text>
+  <text x="900" y="229" class="label" text-anchor="middle">Group Affinity @ Tier-1</text>
+  <text x="900" y="256" class="small" text-anchor="middle">Pods in the same TP group share one leaf HyperNode</text>
 
-    <!-- Training topology legend -->
-    <g transform="translate(92 262)" filter="url(#shadow)">
-      <rect width="1736" height="126" rx="24" fill="#0e2130" stroke="#31555d" stroke-width="2"/>
-      <text x="38" y="40" fill="#718e9c" font-size="16" font-weight="750" letter-spacing="2">DISTRIBUTED TRAINING</text>
-      <rect x="40" y="58" width="424" height="48" rx="24" fill="#142d35"/>
-      <circle cx="72" cy="82" r="17" fill="url(#green)"/><text x="72" y="83" class="podText" font-size="13">0</text>
-      <circle cx="103" cy="82" r="17" fill="url(#green)"/><text x="103" y="83" class="podText" font-size="13">1</text>
-      <circle cx="134" cy="82" r="17" fill="url(#green)"/><text x="134" y="83" class="podText" font-size="13">2</text>
-      <circle cx="165" cy="82" r="17" fill="url(#green)"/><text x="165" y="83" class="podText" font-size="13">3</text>
-      <text x="196" y="88" fill="#e6fff6" font-size="20" font-weight="720">TP Group 0 · dense all-reduce</text>
+  <rect x="1320" y="160" width="400" height="118" rx="4" class="box"/>
+  <text x="1520" y="206" class="section" text-anchor="middle">Volcano Scheduler</text>
+  <text x="1520" y="240" class="small" text-anchor="middle">HyperNode-aware placement</text>
 
-      <line x1="508" y1="82" x2="650" y2="82" stroke="#7b73df" stroke-width="3" stroke-dasharray="10 8"/>
-      <text x="579" y="64" fill="#a69cff" font-size="14" text-anchor="middle">DP sync</text>
+  <path d="M480 219H680" class="edge"/>
+  <path d="M1120 219H1320" class="edge"/>
+  <path d="M1520 278V324" class="edge"/>
 
-      <rect x="694" y="58" width="424" height="48" rx="24" fill="#211e3a"/>
-      <circle cx="726" cy="82" r="17" fill="url(#violet)"/><text x="726" y="83" class="podText" font-size="13">0</text>
-      <circle cx="757" cy="82" r="17" fill="url(#violet)"/><text x="757" y="83" class="podText" font-size="13">1</text>
-      <circle cx="788" cy="82" r="17" fill="url(#violet)"/><text x="788" y="83" class="podText" font-size="13">2</text>
-      <circle cx="819" cy="82" r="17" fill="url(#violet)"/><text x="819" y="83" class="podText" font-size="13">3</text>
-      <text x="850" y="88" fill="#f5f0ff" font-size="20" font-weight="720">TP Group 1 · dense all-reduce</text>
+  <!-- Cluster -->
+  <rect x="70" y="330" width="1780" height="670" rx="4" class="gray"/>
+  <text x="95" y="365" class="section">Cluster topology</text>
+  <text x="1825" y="365" class="small" text-anchor="end">Two-tier HyperNode tree</text>
 
-      <g transform="translate(1220 27)">
-        <path d="M0 36h90" stroke="#64e8b5" stroke-width="4" marker-end="url(#arrowGreen)"/>
-        <text x="110" y="42" fill="#d9faef" font-size="19" font-weight="700">fast path: same leaf switch</text>
-        <text x="110" y="68" fill="#7fa99e" font-size="15">NVLink / RDMA traffic localized</text>
-      </g>
-    </g>
+  <rect x="110" y="395" width="810" height="540" rx="4" fill="#fff" stroke="#7f8c8d" stroke-width="2"/>
+  <rect x="1000" y="395" width="810" height="540" rx="4" fill="#fafafa" stroke="#b3b3b3" stroke-width="2"/>
+  <rect x="110" y="395" width="810" height="52" fill="#e1e1e1" stroke="#7f8c8d" stroke-width="2"/>
+  <rect x="1000" y="395" width="810" height="52" fill="#eee" stroke="#b3b3b3" stroke-width="2"/>
+  <text x="515" y="428" class="section" text-anchor="middle">Tier-2 HyperNode A (selected domain)</text>
+  <text x="1405" y="428" class="section" text-anchor="middle" fill="#737373">Tier-2 HyperNode B (available capacity)</text>
 
-    <!-- Scheduler -->
-    <g transform="translate(760 416)">
-      <rect width="400" height="72" rx="36" fill="#142b3c" stroke="#4c817e" stroke-width="2"/>
-      <circle cx="41" cy="36" r="18" fill="#65e9b6" opacity=".18"/>
-      <path d="M32 36h18M41 27v18" stroke="#65e9b6" stroke-width="3" stroke-linecap="round"/>
-      <text x="72" y="31" fill="#f2fff9" font-size="19" font-weight="750">Volcano Scheduler</text>
-      <text x="72" y="52" fill="#8fb8ad" font-size="14">HyperNode-aware placement</text>
-    </g>
-    <path d="M960 489v43M960 532H472v45M960 532h488v45" class="tree"/>
-
-    <!-- Tier-2 domains -->
-    <g filter="url(#shadow)">
-      <rect x="92" y="576" width="824" height="372" rx="28" class="tier2"/>
-      <rect x="1004" y="576" width="824" height="372" rx="28" class="tier2" opacity=".72"/>
-    </g>
-    <g>
-      <rect x="120" y="598" width="218" height="38" rx="19" fill="#5ee4b3" opacity=".13"/>
-      <text x="139" y="623" fill="#bdebdc" font-size="17" font-weight="750">TIER-2 · ZONE A</text>
-      <rect x="1032" y="598" width="218" height="38" rx="19" fill="#6887ab" opacity=".13"/>
-      <text x="1051" y="623" fill="#aabdd5" font-size="17" font-weight="750">TIER-2 · ZONE B</text>
-      <text x="872" y="623" fill="#72968e" font-size="14" text-anchor="end">selected performance domain</text>
-      <text x="1784" y="623" fill="#627895" font-size="14" text-anchor="end">capacity reserved</text>
-    </g>
-
-    <!-- Tier-1 leaf hypernodes -->
-    <g filter="url(#shadow)">
-      <rect x="124" y="660" width="354" height="244" rx="22" class="tier1"/>
-      <rect x="530" y="660" width="354" height="244" rx="22" class="tier1"/>
-      <rect x="1036" y="660" width="354" height="244" rx="22" class="tier1dim" opacity=".58"/>
-      <rect x="1442" y="660" width="354" height="244" rx="22" class="tier1dim" opacity=".58"/>
-    </g>
-    <rect x="134" y="670" width="334" height="224" rx="17" fill="none" stroke="#66e9b8" stroke-width="4" filter="url(#glowGreen)"/>
-    <rect x="540" y="670" width="334" height="224" rx="17" fill="none" stroke="#9685ff" stroke-width="4" filter="url(#glowViolet)"/>
-    <g fill="#abc9c2" font-size="17" font-weight="700">
-      <text x="150" y="693">TIER-1 · HN-A1</text>
-      <text x="556" y="693">TIER-1 · HN-A2</text>
-    </g>
-    <g fill="#8194ad" font-size="17" font-weight="700" opacity=".7">
-      <text x="1062" y="693">TIER-1 · HN-B1</text>
-      <text x="1468" y="693">TIER-1 · HN-B2</text>
-    </g>
-    <g font-size="13">
-      <text x="150" y="716" fill="#6fa498">TP Group 0 affinity boundary</text>
-      <text x="556" y="716" fill="#9486c8">TP Group 1 affinity boundary</text>
-      <text x="1062" y="716" fill="#617998">leaf switch / rack</text>
-      <text x="1468" y="716" fill="#617998">leaf switch / rack</text>
-    </g>
-
-    <!-- Nodes -->
-    <g>
-      <rect x="150" y="752" width="138" height="122" rx="15" class="node"/>
-      <rect x="314" y="752" width="138" height="122" rx="15" class="node"/>
-      <rect x="556" y="752" width="138" height="122" rx="15" class="node"/>
-      <rect x="720" y="752" width="138" height="122" rx="15" class="node"/>
-      <rect x="1062" y="752" width="138" height="122" rx="15" class="nodeDim" opacity=".6"/>
-      <rect x="1226" y="752" width="138" height="122" rx="15" class="nodeDim" opacity=".6"/>
-      <rect x="1468" y="752" width="138" height="122" rx="15" class="nodeDim" opacity=".6"/>
-      <rect x="1632" y="752" width="138" height="122" rx="15" class="nodeDim" opacity=".6"/>
-    </g>
-    <g class="mono" font-size="13">
-      <text x="166" y="778" fill="#78a99e">gpu-node-01</text><text x="330" y="778" fill="#78a99e">gpu-node-02</text>
-      <text x="572" y="778" fill="#968bc4">gpu-node-03</text><text x="736" y="778" fill="#968bc4">gpu-node-04</text>
-      <text x="1078" y="778" fill="#617998">gpu-node-05</text><text x="1242" y="778" fill="#617998">gpu-node-06</text>
-      <text x="1484" y="778" fill="#617998">gpu-node-07</text><text x="1648" y="778" fill="#617998">gpu-node-08</text>
-    </g>
-
-    <!-- TP group 0 pods and links -->
-    <g stroke="#69e8b7" stroke-width="3" opacity=".75">
-      <path d="M201 817L236 844M236 817L201 844M201 817H365M236 844H400"/>
-    </g>
-    <g filter="url(#glowGreen)">
-      <circle cx="201" cy="817" r="25" fill="url(#green)"/><text x="201" y="818" class="podText" font-size="14">0</text>
-      <circle cx="236" cy="844" r="25" fill="url(#green)"/><text x="236" y="845" class="podText" font-size="14">1</text>
-      <circle cx="365" cy="817" r="25" fill="url(#green)"/><text x="365" y="818" class="podText" font-size="14">2</text>
-      <circle cx="400" cy="844" r="25" fill="url(#green)"/><text x="400" y="845" class="podText" font-size="14">3</text>
-    </g>
-
-    <!-- TP group 1 pods and links -->
-    <g stroke="#9d8cff" stroke-width="3" opacity=".75">
-      <path d="M607 817L642 844M642 817L607 844M607 817H771M642 844H806"/>
-    </g>
-    <g filter="url(#glowViolet)">
-      <circle cx="607" cy="817" r="25" fill="url(#violet)"/><text x="607" y="818" class="podText" font-size="14">0</text>
-      <circle cx="642" cy="844" r="25" fill="url(#violet)"/><text x="642" y="845" class="podText" font-size="14">1</text>
-      <circle cx="771" cy="817" r="25" fill="url(#violet)"/><text x="771" y="818" class="podText" font-size="14">2</text>
-      <circle cx="806" cy="844" r="25" fill="url(#violet)"/><text x="806" y="845" class="podText" font-size="14">3</text>
-    </g>
-
-    <!-- DP relationship between groups -->
-    <path d="M442 736C485 710 525 710 568 736" fill="none" stroke="#8d80ec" stroke-width="3" stroke-dasharray="8 8"/>
-    <text x="505" y="701" fill="#aa9eff" font-size="14" font-weight="700" text-anchor="middle">lower-frequency DP sync</text>
-
-    <!-- Footer benefits -->
-    <g transform="translate(92 982)">
-      <rect width="1736" height="66" rx="20" fill="#102331" stroke="#294d52"/>
-      <circle cx="42" cy="33" r="8" fill="#62e6b4"/>
-      <text x="64" y="40" fill="#edfdf7" font-size="20" font-weight="700">通信本地化</text>
-      <line x1="264" y1="18" x2="264" y2="48" stroke="#33565c"/>
-      <circle cx="310" cy="33" r="8" fill="#62e6b4"/>
-      <text x="332" y="40" fill="#edfdf7" font-size="20" font-weight="700">更低延迟</text>
-      <line x1="514" y1="18" x2="514" y2="48" stroke="#33565c"/>
-      <circle cx="560" cy="33" r="8" fill="#62e6b4"/>
-      <text x="582" y="40" fill="#edfdf7" font-size="20" font-weight="700">更高训练吞吐</text>
-      <text x="1694" y="40" fill="#799e94" font-size="16" text-anchor="end">CO-LOCATE FOR PERFORMANCE →</text>
-    </g>
+  <!-- Tier-1 HyperNodes -->
+  <g>
+    <rect x="145" y="490" width="340" height="390" rx="4" fill="#eef6ee" stroke="#3b7d5c" stroke-width="3"/>
+    <rect x="545" y="490" width="340" height="390" rx="4" fill="#eef6ee" stroke="#3b7d5c" stroke-width="3"/>
+    <rect x="1035" y="490" width="340" height="390" rx="4" fill="#f5f5f5" stroke="#b3b3b3" stroke-width="2"/>
+    <rect x="1435" y="490" width="340" height="390" rx="4" fill="#f5f5f5" stroke="#b3b3b3" stroke-width="2"/>
+    <text x="315" y="525" class="section" text-anchor="middle">Tier-1 HN-A1</text>
+    <text x="715" y="525" class="section" text-anchor="middle">Tier-1 HN-A2</text>
+    <text x="1205" y="525" class="section" text-anchor="middle" fill="#737373">Tier-1 HN-B1</text>
+    <text x="1605" y="525" class="section" text-anchor="middle" fill="#737373">Tier-1 HN-B2</text>
+    <text x="315" y="551" class="small" text-anchor="middle">TP Group 0 affinity boundary</text>
+    <text x="715" y="551" class="small" text-anchor="middle">TP Group 1 affinity boundary</text>
+    <text x="1205" y="551" class="small" text-anchor="middle">leaf switch / rack</text>
+    <text x="1605" y="551" class="small" text-anchor="middle">leaf switch / rack</text>
   </g>
+
+  <!-- Nodes -->
+  <g>
+    <rect x="175" y="600" width="130" height="205" rx="3" class="node"/>
+    <rect x="325" y="600" width="130" height="205" rx="3" class="node"/>
+    <rect x="575" y="600" width="130" height="205" rx="3" class="node"/>
+    <rect x="725" y="600" width="130" height="205" rx="3" class="node"/>
+    <rect x="1065" y="600" width="130" height="205" rx="3" fill="#fafafa" stroke="#b3b3b3"/>
+    <rect x="1215" y="600" width="130" height="205" rx="3" fill="#fafafa" stroke="#b3b3b3"/>
+    <rect x="1465" y="600" width="130" height="205" rx="3" fill="#fafafa" stroke="#b3b3b3"/>
+    <rect x="1615" y="600" width="130" height="205" rx="3" fill="#fafafa" stroke="#b3b3b3"/>
+  </g>
+  <g class="tiny" text-anchor="middle">
+    <text x="240" y="630">gpu-node-01</text><text x="390" y="630">gpu-node-02</text>
+    <text x="640" y="630">gpu-node-03</text><text x="790" y="630">gpu-node-04</text>
+    <text x="1130" y="630">gpu-node-05</text><text x="1280" y="630">gpu-node-06</text>
+    <text x="1530" y="630">gpu-node-07</text><text x="1680" y="630">gpu-node-08</text>
+  </g>
+
+  <!-- TP pods -->
+  <g>
+    <rect x="190" y="675" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <rect x="340" y="675" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <rect x="190" y="745" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <rect x="340" y="745" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <text x="230" y="708" class="label" text-anchor="middle">TP0-0</text>
+    <text x="380" y="708" class="label" text-anchor="middle">TP0-1</text>
+    <text x="230" y="778" class="label" text-anchor="middle">TP0-2</text>
+    <text x="380" y="778" class="label" text-anchor="middle">TP0-3</text>
+
+    <rect x="590" y="675" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <rect x="740" y="675" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <rect x="590" y="745" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <rect x="740" y="745" width="80" height="54" rx="3" fill="#d5e8d4" stroke="#3b7d5c" stroke-width="2"/>
+    <text x="630" y="708" class="label" text-anchor="middle">TP1-0</text>
+    <text x="780" y="708" class="label" text-anchor="middle">TP1-1</text>
+    <text x="630" y="778" class="label" text-anchor="middle">TP1-2</text>
+    <text x="780" y="778" class="label" text-anchor="middle">TP1-3</text>
+  </g>
+
+  <path d="M270 702H340M270 772H340M230 729V745M380 729V745" class="aff"/>
+  <path d="M670 702H740M670 772H740M630 729V745M780 729V745" class="aff"/>
+  <path d="M485 570H545" class="dp"/>
+  <text x="515" y="562" class="tiny" text-anchor="middle">DP synchronization</text>
+
+  <rect x="145" y="902" width="1630" height="68" rx="3" fill="#fff" stroke="#bfbfbf" stroke-width="1.5"/>
+  <text x="960" y="932" class="label" text-anchor="middle">Result: localize all-reduce traffic · lower latency · higher training throughput</text>
+  <text x="960" y="956" class="small" text-anchor="middle">高频通信组聚合在同一叶子 HyperNode，减少跨交换机通信</text>
 </svg>
