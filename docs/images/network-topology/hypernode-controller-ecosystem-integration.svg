@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="650" viewBox="0 0 1920 650">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#4d4d4d"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #262626; }
+      .section { font-size: 20px; font-weight: 700; }
+      .label { font-size: 18px; font-weight: 700; }
+      .small { font-size: 15px; fill: #595959; }
+      .tiny { font-size: 13px; fill: #666; }
+      .box { fill: #fff; stroke: #666; stroke-width: 2; }
+      .blue { fill: #d6e4f0; stroke: #4e79a7; stroke-width: 3; }
+      .green { fill: #e7f1e7; stroke: #5b8a72; stroke-width: 2; }
+      .edge { fill: none; stroke: #4d4d4d; stroke-width: 2; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1920" height="650" fill="#fff"/>
+
+  <text x="235" y="42" class="section" text-anchor="middle">Topology sources</text>
+  <rect x="90" y="75" width="290" height="72" rx="3" class="box"/>
+  <text x="235" y="106" class="label" text-anchor="middle">Node labels</text>
+  <text x="235" y="130" class="tiny" text-anchor="middle">Kubernetes-native discovery</text>
+  <rect x="90" y="180" width="290" height="72" rx="3" class="box"/>
+  <text x="235" y="211" class="label" text-anchor="middle">UFM / Fabric Manager</text>
+  <text x="235" y="235" class="tiny" text-anchor="middle">Network management system</text>
+  <rect x="90" y="285" width="290" height="72" rx="3" class="box"/>
+  <text x="235" y="316" class="label" text-anchor="middle">Custom Discoverer</text>
+  <text x="235" y="340" class="tiny" text-anchor="middle">Vendor or environment specific</text>
+
+  <rect x="490" y="50" width="420" height="360" rx="4" class="blue"/>
+  <text x="700" y="91" class="section" text-anchor="middle">Standalone HyperNode Controller</text>
+  <text x="700" y="118" class="small" text-anchor="middle">vc-hypernode-controller-manager</text>
+  <rect x="540" y="155" width="320" height="54" rx="3" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="700" y="188" class="label" text-anchor="middle">Discoverer Registry</text>
+  <rect x="540" y="230" width="320" height="54" rx="3" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="700" y="263" class="label" text-anchor="middle">Shared Informers</text>
+  <rect x="540" y="305" width="320" height="54" rx="3" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="700" y="338" class="label" text-anchor="middle">Reconciliation &amp; Status</text>
+  <text x="700" y="388" class="tiny" text-anchor="middle">Leader election · health · metrics · least-privilege RBAC</text>
+
+  <path d="M380 111H490" class="edge"/>
+  <path d="M380 216H490" class="edge"/>
+  <path d="M380 321H490" class="edge"/>
+
+  <rect x="1020" y="105" width="330" height="250" rx="4" class="green"/>
+  <text x="1185" y="148" class="section" text-anchor="middle">Kubernetes API</text>
+  <rect x="1060" y="180" width="250" height="94" rx="3" fill="#fff" stroke="#5b8a72" stroke-width="2"/>
+  <text x="1185" y="217" class="label" text-anchor="middle">HyperNode CRs</text>
+  <text x="1185" y="246" class="small" text-anchor="middle">Hierarchical network topology</text>
+  <text x="1185" y="322" class="small" text-anchor="middle">Stable ecosystem integration boundary</text>
+
+  <path d="M910 230H1020" class="edge"/>
+  <rect x="930" y="184" width="70" height="30" rx="3" fill="#fff"/>
+  <text x="965" y="204" class="tiny" text-anchor="middle">Reconcile</text>
+
+  <text x="1625" y="42" class="section" text-anchor="middle">Topology consumers</text>
+  <rect x="1480" y="75" width="290" height="72" rx="3" class="box"/>
+  <text x="1625" y="106" class="label" text-anchor="middle">Volcano Scheduler</text>
+  <text x="1625" y="130" class="tiny" text-anchor="middle">Native topology-aware scheduling</text>
+  <rect x="1480" y="180" width="290" height="72" rx="3" class="box"/>
+  <text x="1625" y="211" class="label" text-anchor="middle">Custom Scheduler</text>
+  <text x="1625" y="235" class="tiny" text-anchor="middle">Scheduler framework integration</text>
+  <rect x="1480" y="285" width="290" height="72" rx="3" class="box"/>
+  <text x="1625" y="316" class="label" text-anchor="middle">AI Platform / Operator</text>
+  <text x="1625" y="340" class="tiny" text-anchor="middle">Topology-aware orchestration</text>
+
+  <path d="M1350 230H1415V111H1480" class="edge"/>
+  <path d="M1350 230H1480" class="edge"/>
+  <path d="M1350 230H1415V321H1480" class="edge"/>
+  <rect x="1368" y="184" width="84" height="30" rx="3" fill="#fff"/>
+  <text x="1410" y="204" class="tiny" text-anchor="middle">List / Watch</text>
+
+  <rect x="170" y="480" width="1580" height="105" rx="3" fill="#fff" stroke="#bfbfbf" stroke-width="1.5"/>
+  <text x="960" y="521" class="section" text-anchor="middle">One API boundary, multiple scheduling ecosystems</text>
+  <text x="960" y="555" class="small" text-anchor="middle">Integrate through HyperNode CRs — no dependency on controller internals or the Volcano scheduler</text>
+</svg>

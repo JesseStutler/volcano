@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 135 1920 880">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0L10 5L0 10z" fill="#4d4d4d"/>
@@ -22,10 +22,6 @@
   </defs>
 
   <rect width="1920" height="1080" fill="#fff"/>
-  <text x="70" y="65" class="title">PodGroup Affinity Within HyperNodes</text>
-  <text x="70" y="98" class="subtitle">Co-locate high-traffic communication groups for distributed training</text>
-  <line x1="70" y1="124" x2="1850" y2="124" stroke="#bfbfbf" stroke-width="2"/>
-
   <!-- Control flow -->
   <rect x="100" y="160" width="380" height="118" rx="4" class="box"/>
   <text x="290" y="193" class="section" text-anchor="middle">Distributed Training Job</text>
