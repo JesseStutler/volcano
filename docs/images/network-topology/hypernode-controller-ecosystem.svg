@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#4d4d4d"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #262626; }
+      .title { font-size: 38px; font-weight: 700; }
+      .subtitle { font-size: 20px; fill: #595959; }
+      .section { font-size: 18px; font-weight: 700; }
+      .label { font-size: 17px; font-weight: 700; }
+      .small { font-size: 15px; fill: #595959; }
+      .tiny { font-size: 13px; fill: #666; }
+      .box { fill: #fff; stroke: #666; stroke-width: 2; }
+      .blue { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .blueStrong { fill: #d6e4f0; stroke: #4e79a7; stroke-width: 3; }
+      .green { fill: #e7f1e7; stroke: #5b8a72; stroke-width: 2; }
+      .gray { fill: #f5f5f5; stroke: #8c8c8c; stroke-width: 2; }
+      .edge { fill: none; stroke: #4d4d4d; stroke-width: 2; marker-end: url(#arrow); }
+      .dashed { fill: none; stroke: #737373; stroke-width: 2; stroke-dasharray: 8 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#fff"/>
+  <text x="70" y="65" class="title">HyperNode Controller: From Volcano Component to Ecosystem Building Block</text>
+  <text x="70" y="98" class="subtitle">Standalone topology discovery and management for any scheduler framework</text>
+  <line x1="70" y1="124" x2="1850" y2="124" stroke="#bfbfbf" stroke-width="2"/>
+
+  <!-- Evolution: before -->
+  <text x="95" y="166" class="section">BEFORE</text>
+  <rect x="90" y="182" width="640" height="210" rx="4" class="gray"/>
+  <text x="410" y="216" class="label" text-anchor="middle">Volcano control plane</text>
+  <rect x="135" y="240" width="550" height="112" rx="3" class="box"/>
+  <text x="410" y="269" class="label" text-anchor="middle">vc-controller-manager</text>
+  <rect x="165" y="292" width="220" height="40" rx="3" class="blue"/>
+  <text x="275" y="318" class="small" text-anchor="middle">HyperNode Controller</text>
+  <rect x="435" y="292" width="220" height="40" rx="3" fill="#eee" stroke="#999" stroke-width="1.5"/>
+  <text x="545" y="318" class="small" text-anchor="middle">Other controllers</text>
+
+  <!-- Decoupling -->
+  <path d="M730 286H880" class="edge"/>
+  <text x="805" y="269" class="small" text-anchor="middle">Deployment</text>
+  <text x="805" y="289" class="small" text-anchor="middle">decoupling</text>
+
+  <!-- Evolution: now -->
+  <text x="925" y="166" class="section">NOW</text>
+  <rect x="920" y="182" width="910" height="210" rx="4" class="gray"/>
+  <rect x="965" y="226" width="330" height="88" rx="3" class="box"/>
+  <text x="1130" y="258" class="label" text-anchor="middle">Embedded mode</text>
+  <text x="1130" y="287" class="small" text-anchor="middle">Runs in vc-controller-manager</text>
+  <rect x="1455" y="226" width="330" height="88" rx="3" class="blueStrong"/>
+  <text x="1620" y="258" class="label" text-anchor="middle">Standalone mode</text>
+  <text x="1620" y="287" class="small" text-anchor="middle">Dedicated binary, image and RBAC</text>
+  <rect x="1210" y="334" width="330" height="38" rx="3" fill="#fff" stroke="#8c8c8c" stroke-width="1.5"/>
+  <text x="1375" y="359" class="small" text-anchor="middle">Same pkg/controllers/hypernode implementation</text>
+  <path d="M1130 314V334H1300" fill="none" stroke="#737373" stroke-width="1.8"/>
+  <path d="M1620 314V334H1450" fill="none" stroke="#737373" stroke-width="1.8"/>
+
+  <!-- Ecosystem boundary -->
+  <rect x="70" y="430" width="1780" height="550" rx="4" fill="#fafafa" stroke="#666" stroke-width="2"/>
+  <text x="95" y="466" class="section">HYPERNODE ECOSYSTEM</text>
+  <text x="1825" y="466" class="small" text-anchor="end">Topology management is independent from scheduling policy</text>
+
+  <!-- Sources -->
+  <text x="250" y="516" class="section" text-anchor="middle">Topology sources</text>
+  <rect x="110" y="545" width="280" height="68" rx="3" class="box"/>
+  <text x="250" y="574" class="label" text-anchor="middle">Node labels</text>
+  <text x="250" y="596" class="tiny" text-anchor="middle">Kubernetes-native discovery</text>
+  <rect x="110" y="640" width="280" height="68" rx="3" class="box"/>
+  <text x="250" y="669" class="label" text-anchor="middle">UFM / Fabric Manager</text>
+  <text x="250" y="691" class="tiny" text-anchor="middle">Network management system</text>
+  <rect x="110" y="735" width="280" height="68" rx="3" class="box"/>
+  <text x="250" y="764" class="label" text-anchor="middle">Custom Discoverer</text>
+  <text x="250" y="786" class="tiny" text-anchor="middle">Vendor or environment specific</text>
+
+  <!-- Standalone controller -->
+  <rect x="500" y="520" width="410" height="330" rx="4" class="blueStrong"/>
+  <text x="705" y="559" class="section" text-anchor="middle">Standalone HyperNode Controller</text>
+  <text x="705" y="584" class="small" text-anchor="middle">vc-hypernode-controller-manager</text>
+  <rect x="545" y="620" width="320" height="52" rx="3" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="705" y="652" class="label" text-anchor="middle">Discoverer Registry</text>
+  <rect x="545" y="690" width="320" height="52" rx="3" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="705" y="722" class="label" text-anchor="middle">Shared Informers</text>
+  <rect x="545" y="760" width="320" height="52" rx="3" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="705" y="792" class="label" text-anchor="middle">Reconciliation &amp; Status</text>
+  <text x="705" y="832" class="tiny" text-anchor="middle">Leader election · health · metrics · least-privilege RBAC</text>
+
+  <path d="M390 579H500" class="edge"/>
+  <path d="M390 674H500" class="edge"/>
+  <path d="M390 769H500" class="edge"/>
+
+  <!-- API boundary -->
+  <rect x="1010" y="570" width="330" height="230" rx="4" class="green"/>
+  <text x="1175" y="610" class="section" text-anchor="middle">Kubernetes API</text>
+  <rect x="1055" y="640" width="240" height="92" rx="3" fill="#fff" stroke="#5b8a72" stroke-width="2"/>
+  <text x="1175" y="676" class="label" text-anchor="middle">HyperNode CRs</text>
+  <text x="1175" y="704" class="small" text-anchor="middle">Hierarchical network topology</text>
+  <text x="1175" y="768" class="small" text-anchor="middle">Stable ecosystem integration boundary</text>
+  <path d="M910 685H1010" class="edge"/>
+  <text x="960" y="671" class="tiny" text-anchor="middle">Reconcile</text>
+
+  <!-- Consumers -->
+  <text x="1600" y="516" class="section" text-anchor="middle">Topology consumers</text>
+  <rect x="1460" y="545" width="280" height="68" rx="3" class="box"/>
+  <text x="1600" y="574" class="label" text-anchor="middle">Volcano Scheduler</text>
+  <text x="1600" y="596" class="tiny" text-anchor="middle">Native topology-aware scheduling</text>
+  <rect x="1460" y="640" width="280" height="68" rx="3" class="box"/>
+  <text x="1600" y="669" class="label" text-anchor="middle">Custom Scheduler</text>
+  <text x="1600" y="691" class="tiny" text-anchor="middle">Scheduler framework integration</text>
+  <rect x="1460" y="735" width="280" height="68" rx="3" class="box"/>
+  <text x="1600" y="764" class="label" text-anchor="middle">AI Platform / Operator</text>
+  <text x="1600" y="786" class="tiny" text-anchor="middle">Topology-aware workload orchestration</text>
+
+  <path d="M1340 685H1405V579H1460" class="edge"/>
+  <path d="M1340 685H1460" class="edge"/>
+  <path d="M1340 685H1405V769H1460" class="edge"/>
+  <text x="1390" y="669" class="tiny" text-anchor="middle">List / Watch</text>
+
+  <!-- Message -->
+  <rect x="170" y="888" width="1580" height="62" rx="3" fill="#fff" stroke="#bfbfbf" stroke-width="1.5"/>
+  <text x="960" y="915" class="label" text-anchor="middle">One API boundary, multiple scheduling ecosystems</text>
+  <text x="960" y="938" class="small" text-anchor="middle">Integrate through HyperNode CRs — no dependency on controller internals or the Volcano scheduler</text>
+</svg>
