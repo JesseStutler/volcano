@@ -22,8 +22,8 @@
   </defs>
 
   <rect width="1920" height="1080" fill="#fff"/>
-  <text x="70" y="65" class="title">PodGroup Group Affinity on Hierarchical HyperNodes</text>
-  <text x="70" y="98" class="subtitle">Use case: distributed training — co-locate high-traffic communication groups</text>
+  <text x="70" y="65" class="title">PodGroup Affinity Within HyperNodes</text>
+  <text x="70" y="98" class="subtitle">Co-locate high-traffic communication groups for distributed training</text>
   <line x1="70" y1="124" x2="1850" y2="124" stroke="#bfbfbf" stroke-width="2"/>
 
   <!-- Control flow -->
@@ -35,9 +35,9 @@
   <text x="375" y="241" class="label" text-anchor="middle">TP Group 1</text>
 
   <rect x="680" y="160" width="440" height="118" rx="4" class="blue"/>
-  <text x="900" y="196" class="section" text-anchor="middle">PodGroup placement policy</text>
-  <text x="900" y="229" class="label" text-anchor="middle">Group Affinity @ Tier-1</text>
-  <text x="900" y="256" class="small" text-anchor="middle">Pods in the same TP group share one leaf HyperNode</text>
+  <text x="900" y="196" class="section" text-anchor="middle">Scheduling constraint</text>
+  <text x="900" y="229" class="label" text-anchor="middle">One TP Group = One Tier-1 HyperNode</text>
+  <text x="900" y="256" class="small" text-anchor="middle">Co-locate all pods in each Tensor Parallel group</text>
 
   <rect x="1320" y="160" width="400" height="118" rx="4" class="box"/>
   <text x="1520" y="206" class="section" text-anchor="middle">Volcano Scheduler</text>
@@ -120,6 +120,5 @@
   <text x="515" y="562" class="tiny" text-anchor="middle">DP synchronization</text>
 
   <rect x="145" y="902" width="1630" height="68" rx="3" fill="#fff" stroke="#bfbfbf" stroke-width="1.5"/>
-  <text x="960" y="932" class="label" text-anchor="middle">Result: localize all-reduce traffic · lower latency · higher training throughput</text>
-  <text x="960" y="956" class="small" text-anchor="middle">高频通信组聚合在同一叶子 HyperNode，减少跨交换机通信</text>
+  <text x="960" y="941" class="label" text-anchor="middle">Result: localized all-reduce traffic · lower latency · higher training throughput</text>
 </svg>

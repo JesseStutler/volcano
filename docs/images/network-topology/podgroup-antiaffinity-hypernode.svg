@@ -22,13 +22,13 @@
   </defs>
 
   <rect width="1920" height="1080" fill="#fff"/>
-  <text x="70" y="65" class="title">PodGroup Group Anti-affinity on Hierarchical HyperNodes</text>
-  <text x="70" y="98" class="subtitle">Use case: P/D disaggregated inference — spread same-role replicas across topology domains</text>
+  <text x="70" y="65" class="title">PodGroup Anti-affinity Across HyperNodes</text>
+  <text x="70" y="98" class="subtitle">Separate Prefill and Decode groups across network topology domains</text>
   <line x1="70" y1="124" x2="1850" y2="124" stroke="#bfbfbf" stroke-width="2"/>
 
   <!-- Control flow -->
   <rect x="100" y="160" width="380" height="118" rx="4" class="box"/>
-  <text x="290" y="193" class="section" text-anchor="middle">P/D Disaggregated Inference</text>
+  <text x="290" y="193" class="section" text-anchor="middle">LLM Serving Pipeline</text>
   <rect x="145" y="216" width="120" height="38" rx="3" class="blue"/>
   <text x="205" y="241" class="label" text-anchor="middle">Prefill pool</text>
   <rect x="315" y="216" width="120" height="38" rx="3" class="gray"/>
@@ -37,9 +37,9 @@
   <text x="290" y="211" class="tiny" text-anchor="middle">KV cache</text>
 
   <rect x="680" y="160" width="440" height="118" rx="4" class="blue"/>
-  <text x="900" y="196" class="section" text-anchor="middle">PodGroup placement policy</text>
-  <text x="900" y="229" class="label" text-anchor="middle">Group Anti-affinity @ Tier-1</text>
-  <text x="900" y="256" class="small" text-anchor="middle">Same-role replicas must use different leaf HyperNodes</text>
+  <text x="900" y="196" class="section" text-anchor="middle">Scheduling constraint</text>
+  <text x="900" y="229" class="label" text-anchor="middle">Prefill Group ≠ Decode Group</text>
+  <text x="900" y="256" class="small" text-anchor="middle">Use different Tier-1 HyperNodes</text>
 
   <rect x="1320" y="160" width="400" height="118" rx="4" class="box"/>
   <text x="1520" y="206" class="section" text-anchor="middle">Volcano Scheduler</text>
@@ -101,25 +101,26 @@
     <text x="240" y="704" class="label" text-anchor="middle">P-0</text>
     <text x="240" y="727" class="tiny" text-anchor="middle">Prefill</text>
 
-    <rect x="593" y="680" width="94" height="62" rx="3" fill="#eee" stroke="#666" stroke-width="2"/>
-    <text x="640" y="704" class="label" text-anchor="middle">D-0</text>
-    <text x="640" y="727" class="tiny" text-anchor="middle">Decode</text>
+    <rect x="343" y="680" width="94" height="62" rx="3" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
+    <text x="390" y="704" class="label" text-anchor="middle">P-1</text>
+    <text x="390" y="727" class="tiny" text-anchor="middle">Prefill</text>
 
-    <rect x="1083" y="680" width="94" height="62" rx="3" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
-    <text x="1130" y="704" class="label" text-anchor="middle">P-1</text>
-    <text x="1130" y="727" class="tiny" text-anchor="middle">Prefill</text>
+    <rect x="1083" y="680" width="94" height="62" rx="3" fill="#eee" stroke="#666" stroke-width="2"/>
+    <text x="1130" y="704" class="label" text-anchor="middle">D-0</text>
+    <text x="1130" y="727" class="tiny" text-anchor="middle">Decode</text>
 
-    <rect x="1483" y="680" width="94" height="62" rx="3" fill="#eee" stroke="#666" stroke-width="2"/>
-    <text x="1530" y="704" class="label" text-anchor="middle">D-1</text>
-    <text x="1530" y="727" class="tiny" text-anchor="middle">Decode</text>
+    <rect x="1233" y="680" width="94" height="62" rx="3" fill="#eee" stroke="#666" stroke-width="2"/>
+    <text x="1280" y="704" class="label" text-anchor="middle">D-1</text>
+    <text x="1280" y="727" class="tiny" text-anchor="middle">Decode</text>
   </g>
 
-  <path d="M240 680V655H1130V680" class="anti"/>
-  <path d="M640 742V825H1530V742" class="anti"/>
-  <text x="685" y="646" class="small" fill="#b85450" text-anchor="middle">P replicas: different Tier-1 HyperNodes</text>
-  <text x="1085" y="851" class="small" fill="#b85450" text-anchor="middle">D replicas: different Tier-1 HyperNodes</text>
+  <text x="315" y="775" class="label" text-anchor="middle">Prefill Group</text>
+  <text x="1205" y="775" class="label" text-anchor="middle">Decode Group</text>
+  <path d="M485 830H1035" class="anti"/>
+  <rect x="722" y="807" width="76" height="46" rx="3" fill="#fff" stroke="#b85450" stroke-width="2"/>
+  <text x="760" y="839" font-size="28" font-weight="700" fill="#b85450" text-anchor="middle">≠</text>
+  <text x="760" y="880" class="small" fill="#b85450" text-anchor="middle">Group anti-affinity: different Tier-1 HyperNodes</text>
 
   <rect x="145" y="902" width="1630" height="68" rx="3" fill="#fff" stroke="#bfbfbf" stroke-width="1.5"/>
-  <text x="960" y="932" class="label" text-anchor="middle">Result: independent scaling · hotspot isolation · failure-domain resilience</text>
-  <text x="960" y="956" class="small" text-anchor="middle">同角色副本跨 HyperNode 分散，避免单一网络域成为容量或故障瓶颈</text>
+  <text x="960" y="941" class="label" text-anchor="middle">Result: separate resource pools · independent scaling · topology isolation</text>
 </svg>
