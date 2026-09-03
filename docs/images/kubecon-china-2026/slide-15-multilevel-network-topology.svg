@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#595959"/></marker>
+<style>text{font-family:Arial,Helvetica,sans-serif;}</style>
+</defs>
+<rect x="0" y="0" width="1920" height="880" fill="#ffffff"/>
+<rect x="60" y="155" width="1210" height="680" rx="10" fill="#eef4fc" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="6,4"/>
+<text x="76" y="181" font-size="15" font-weight="700" fill="#31567d">PodGroup — highestTierAllowed: 3 (Tier 3) · minMember: 8</text>
+<rect x="100" y="325" width="500" height="510" rx="10" fill="#f0f0f0" stroke="#8c8c8c" stroke-width="2" stroke-dasharray="6,4"/>
+<text x="116" y="351" font-size="15" font-weight="700" fill="#595959">SubGroup: decode — highestTierAllowed: 2 · subGroupSize: 4</text>
+<rect x="720" y="495" width="220" height="340" rx="10" fill="#dce9fb" stroke="#4e79a7" stroke-width="2" stroke-dasharray="6,4"/>
+<text x="736" y="521" font-size="15" font-weight="700" fill="#28527d">SubGroup: prefill — highestTierAllowed: 1 · subGroupSize: 4</text>
+<rect x="425" y="195" width="150" height="60" rx="3" fill="#eaf1fb" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="500.0" y="229.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Core</text>
+<rect x="725" y="195" width="150" height="60" rx="3" fill="#eaf1fb" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="800.0" y="229.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Core</text>
+<rect x="265.0" y="365" width="150" height="60" rx="3" fill="#eaf1fb" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="340.0" y="399.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Spine</text>
+<rect x="885.0" y="365" width="150" height="60" rx="3" fill="#eaf1fb" stroke="#6c8ebf" stroke-width="1.5"/>
+<text x="960.0" y="399.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Spine</text>
+<rect x="140" y="535" width="140" height="60" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="210.0" y="569.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Leaf</text>
+<rect x="400" y="535" width="140" height="60" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="470.0" y="569.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Leaf</text>
+<rect x="760" y="535" width="140" height="60" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="830.0" y="569.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Leaf</text>
+<rect x="1020" y="535" width="140" height="60" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="1090.0" y="569.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Leaf</text>
+<rect x="140" y="685" width="140" height="140" rx="3" fill="#ffffff" stroke="#8c8c8c" stroke-width="1.5"/>
+<text x="210.0" y="748.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">GPU Rack</text>
+<text x="210.0" y="770.84" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">Decode</text>
+<rect x="400" y="685" width="140" height="140" rx="3" fill="#ffffff" stroke="#8c8c8c" stroke-width="1.5"/>
+<text x="470.0" y="748.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">GPU Rack</text>
+<text x="470.0" y="770.84" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">Decode</text>
+<rect x="760" y="685" width="140" height="140" rx="3" fill="#ffffff" stroke="#4e79a7" stroke-width="1.5"/>
+<text x="830.0" y="748.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">GPU Rack</text>
+<text x="830.0" y="770.84" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">Prefill</text>
+<rect x="1020" y="685" width="140" height="140" rx="3" fill="#f5f5f5" stroke="#999999" stroke-width="1.5"/>
+<text x="1090.0" y="748.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">GPU Rack</text>
+<text x="1090.0" y="770.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">Available capacity</text>
+<rect x="1430" y="525" width="450" height="70" rx="3" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1655.0" y="553.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">PodGroup</text>
+<text x="1655.0" y="575.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">highestTierAllowed: 3 · minMember: 8</text>
+<rect x="1430" y="625" width="210" height="80" rx="3" fill="#eaf1fb" stroke="#4e79a7" stroke-width="2"/>
+<text x="1535.0" y="650.18" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">SubGroup: prefill</text>
+<text x="1535.0" y="669.18" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">highestTierAllowed: 1</text>
+<text x="1535.0" y="688.18" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">subGroupSize: 4</text>
+<rect x="1670" y="625" width="210" height="80" rx="3" fill="#f0f0f0" stroke="#8c8c8c" stroke-width="2"/>
+<text x="1775.0" y="650.18" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">SubGroup: decode</text>
+<text x="1775.0" y="669.18" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">highestTierAllowed: 2</text>
+<text x="1775.0" y="688.18" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">subGroupSize: 4</text>
+<path d="M500.0 255L500.0 290L340.0 290L340.0 365" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M500.0 255L500.0 290L960.0 290L960.0 365" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M800.0 255L800.0 290L340.0 290L340.0 365" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M800.0 255L800.0 290L960.0 290L960.0 365" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M340.0 425L340.0 460L210.0 460L210.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M340.0 425L340.0 460L470.0 460L470.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M960.0 425L960.0 460L830.0 460L830.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M960.0 425L960.0 460L1090.0 460L1090.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M210.0 595L210.0 685" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M470.0 595L470.0 685" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M830.0 595L830.0 685" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1090.0 595L1090.0 685" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1655 595L1655 610L1535 610L1535 625" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M1655 595L1655 610L1775 610L1775 625" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="1310" y="230" font-size="16" font-weight="700" fill="#595959" text-anchor="start">Tier 3</text>
+<text x="1310" y="400" font-size="16" font-weight="700" fill="#595959" text-anchor="start">Tier 2</text>
+<text x="1310" y="570" font-size="16" font-weight="700" fill="#595959" text-anchor="start">Tier 1</text>
+<rect x="1430" y="115" width="450" height="380" rx="6" fill="#1e1e2e" stroke="#111119" stroke-width="1.5"/>
+<rect x="1430" y="115" width="450" height="28" rx="6" fill="#2a2a3d"/>
+<rect x="1430" y="129" width="450" height="14" fill="#2a2a3d"/>
+<circle cx="1448" cy="129" r="5" fill="#e0605a"/>
+<circle cx="1466" cy="129" r="5" fill="#e0b95a"/>
+<circle cx="1484" cy="129" r="5" fill="#5ab96b"/>
+<text x="1655.0" y="134" font-size="12" fill="#b8b8c8" text-anchor="middle">PodGroup manifest (excerpt)</text>
+<text x="1446" y="163" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">apiVersion: scheduling.volcano.sh/v1beta1</text>
+<text x="1446" y="180" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">kind: PodGroup</text>
+<text x="1446" y="197" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">metadata:</text>
+<text x="1446" y="214" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">  name: llm-inference-pg</text>
+<text x="1446" y="231" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">spec:</text>
+<text x="1446" y="248" font-size="13" fill="#9cdcfe" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">  minMember: 8</text>
+<text x="1446" y="265" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">  networkTopology:</text>
+<text x="1446" y="282" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">    mode: hard</text>
+<text x="1446" y="299" font-size="13" fill="#9cdcfe" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">    highestTierAllowed: 3   # Tier 3</text>
+<text x="1446" y="316" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">  subGroupPolicy:</text>
+<text x="1446" y="333" font-size="13" fill="#ce9178" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">  - name: prefill</text>
+<text x="1446" y="350" font-size="13" fill="#9cdcfe" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">    subGroupSize: 4</text>
+<text x="1446" y="367" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">    networkTopology:</text>
+<text x="1446" y="384" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">      mode: hard</text>
+<text x="1446" y="401" font-size="13" fill="#9cdcfe" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">      highestTierAllowed: 1  # Tier 1</text>
+<text x="1446" y="418" font-size="13" fill="#ce9178" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">  - name: decode</text>
+<text x="1446" y="435" font-size="13" fill="#9cdcfe" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">    subGroupSize: 4</text>
+<text x="1446" y="452" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">    networkTopology:</text>
+<text x="1446" y="469" font-size="13" fill="#d4d4e0" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">      mode: soft</text>
+<text x="1446" y="486" font-size="13" fill="#9cdcfe" font-family="Consolas, 'Courier New', monospace" xml:space="preserve">      highestTierAllowed: 2  # Tier 2</text>
+</svg>

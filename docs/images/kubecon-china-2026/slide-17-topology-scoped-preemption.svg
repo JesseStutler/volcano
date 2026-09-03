@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#595959"/></marker>
+<style>text{font-family:Arial,Helvetica,sans-serif;}</style>
+</defs>
+<rect x="0" y="0" width="1920" height="880" fill="#ffffff"/>
+<rect x="40" y="235" width="520" height="46" rx="22" fill="#f2f2f2" stroke="#999999" stroke-width="1.5"/>
+<text x="300.0" y="262.84" font-size="18" font-weight="700" fill="#1a1a1a" text-anchor="middle">Before</text>
+<rect x="690" y="235" width="520" height="46" rx="22" fill="#f2f2f2" stroke="#999999" stroke-width="1.5"/>
+<text x="950.0" y="262.84" font-size="18" font-weight="700" fill="#1a1a1a" text-anchor="middle">Scheduling decision</text>
+<rect x="1340" y="235" width="520" height="46" rx="22" fill="#f2f2f2" stroke="#999999" stroke-width="1.5"/>
+<text x="1600.0" y="262.84" font-size="18" font-weight="700" fill="#1a1a1a" text-anchor="middle">After</text>
+<polygon points="580.0,415.0 634.0,415.0 670.0,480.0 634.0,545.0 580.0,545.0 611.5,480.0" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+<polygon points="1230.0,415.0 1284.0,415.0 1320.0,480.0 1284.0,545.0 1230.0,545.0 1261.5,480.0" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+<rect x="60" y="355" width="220" height="190" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="170.0" y="385" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">Leaf A</text>
+<rect x="119.0" y="410" width="46" height="46" rx="2" fill="#e6e6e6" stroke="#999999" stroke-width="1.5"/>
+<text x="142.0" y="437.84" font-size="12" font-weight="700" fill="#595959" text-anchor="middle">Busy</text>
+<rect x="175.0" y="410" width="46" height="46" rx="2" fill="#e6e6e6" stroke="#999999" stroke-width="1.5"/>
+<text x="198.0" y="437.84" font-size="12" font-weight="700" fill="#595959" text-anchor="middle">Busy</text>
+<rect x="119.0" y="466" width="46" height="46" rx="2" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="142.0" y="493.84" font-size="12" font-weight="700" fill="#3f6b3f" text-anchor="middle">Free</text>
+<rect x="175.0" y="466" width="46" height="46" rx="2" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="198.0" y="493.84" font-size="12" font-weight="700" fill="#3f6b3f" text-anchor="middle">Free</text>
+<rect x="320" y="355" width="220" height="190" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="430.0" y="385" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">Leaf B</text>
+<rect x="379.0" y="410" width="46" height="46" rx="2" fill="#e6e6e6" stroke="#999999" stroke-width="1.5"/>
+<text x="402.0" y="437.84" font-size="12" font-weight="700" fill="#595959" text-anchor="middle">Busy</text>
+<rect x="435.0" y="410" width="46" height="46" rx="2" fill="#e6e6e6" stroke="#999999" stroke-width="1.5"/>
+<text x="458.0" y="437.84" font-size="12" font-weight="700" fill="#595959" text-anchor="middle">Busy</text>
+<rect x="379.0" y="466" width="46" height="46" rx="2" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="402.0" y="493.84" font-size="12" font-weight="700" fill="#3f6b3f" text-anchor="middle">Free</text>
+<rect x="435.0" y="466" width="46" height="46" rx="2" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="458.0" y="493.84" font-size="12" font-weight="700" fill="#3f6b3f" text-anchor="middle">Free</text>
+<rect x="60" y="575" width="480" height="100" rx="3" fill="#fbeeee" stroke="#b85450" stroke-width="1.5"/>
+<text x="300.0" y="609.4" font-size="16" font-weight="700" fill="#1a1a1a" text-anchor="middle">Result</text>
+<text x="300.0" y="629.4" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">4 GPUs are free in total, but no single Leaf can host</text>
+<text x="300.0" y="649.4" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">the complete SubGroup.</text>
+<rect x="710" y="325" width="480" height="110" rx="3" fill="#eaf1fb" stroke="#4e79a7" stroke-width="2"/>
+<text x="950.0" y="367" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">01   Choose target Leaf</text>
+<text x="950.0" y="389" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">Leaf B selected — best fit for 4 contiguous GPUs</text>
+<rect x="710" y="460" width="480" height="110" rx="3" fill="#eaf1fb" stroke="#4e79a7" stroke-width="2"/>
+<text x="950.0" y="502" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">02   Expand victims by whole job</text>
+<text x="950.0" y="524" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">Reclaim the whole low-priority job in Leaf B, not partial pods</text>
+<rect x="710" y="595" width="480" height="110" rx="3" fill="#eaf1fb" stroke="#4e79a7" stroke-width="2"/>
+<text x="950.0" y="637" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">03   Validate Gang + SubGroup + topology</text>
+<text x="950.0" y="659" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">Re-check gang readiness, role minimums, networkTopology</text>
+<rect x="1360" y="355" width="220" height="190" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+<text x="1470.0" y="385" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">Leaf A</text>
+<rect x="1419.0" y="410" width="46" height="46" rx="2" fill="#e6e6e6" stroke="#999999" stroke-width="1.5"/>
+<text x="1442.0" y="437.84" font-size="12" font-weight="700" fill="#595959" text-anchor="middle">Busy</text>
+<rect x="1475.0" y="410" width="46" height="46" rx="2" fill="#e6e6e6" stroke="#999999" stroke-width="1.5"/>
+<text x="1498.0" y="437.84" font-size="12" font-weight="700" fill="#595959" text-anchor="middle">Busy</text>
+<rect x="1419.0" y="466" width="46" height="46" rx="2" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="1442.0" y="493.84" font-size="12" font-weight="700" fill="#3f6b3f" text-anchor="middle">Free</text>
+<rect x="1475.0" y="466" width="46" height="46" rx="2" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="1498.0" y="493.84" font-size="12" font-weight="700" fill="#3f6b3f" text-anchor="middle">Free</text>
+<rect x="1620" y="355" width="220" height="190" rx="3" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+<text x="1730.0" y="385" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">Leaf B</text>
+<rect x="1679.0" y="410" width="46" height="46" rx="2" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="1702.0" y="437.84" font-size="12" font-weight="700" fill="#274d24" text-anchor="middle">Decode</text>
+<rect x="1735.0" y="410" width="46" height="46" rx="2" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="1758.0" y="437.84" font-size="12" font-weight="700" fill="#274d24" text-anchor="middle">Decode</text>
+<rect x="1679.0" y="466" width="46" height="46" rx="2" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="1702.0" y="493.84" font-size="12" font-weight="700" fill="#274d24" text-anchor="middle">Decode</text>
+<rect x="1735.0" y="466" width="46" height="46" rx="2" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5"/>
+<text x="1758.0" y="493.84" font-size="12" font-weight="700" fill="#274d24" text-anchor="middle">Decode</text>
+<rect x="1360" y="575" width="480" height="100" rx="3" fill="#eef6ea" stroke="#82b366" stroke-width="1.5"/>
+<text x="1600.0" y="609.4" font-size="16" font-weight="700" fill="#1a1a1a" text-anchor="middle">Commit condition</text>
+<text x="1600.0" y="629.4" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">Target PodGroup / SubGroup is fully schedulable</text>
+<text x="1600.0" y="649.4" font-size="14" font-weight="400" fill="#404040" text-anchor="middle">together (Gang) before commit.</text>
+<path d="M950 435L950 460" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<path d="M950 570L950 595" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="960" y="185" font-size="18" font-weight="700" fill="#262626" text-anchor="middle">The target SubGroup needs 4 GPUs in one Leaf; capacity fragmented across Leafs still cannot start it.</text>
+<text x="60" y="320" font-size="17" font-weight="700" fill="#262626" text-anchor="start">Target: Decode SubGroup × 4</text>
+<text x="1360" y="320" font-size="17" font-weight="700" fill="#262626" text-anchor="start">Place all four in Leaf B</text>
+</svg>

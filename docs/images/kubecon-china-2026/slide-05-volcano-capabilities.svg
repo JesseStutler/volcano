@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+<rect x="0" y="0" width="1920" height="880" fill="#ffffff"/>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666666"/></marker>
+</defs>
+<style>text{font-family:Arial, Helvetica, sans-serif;}</style>
+<line x1="340.0" y1="220" x2="340.0" y2="376" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="950.0" y1="220" x2="950.0" y2="376" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1560.0" y1="220" x2="1560.0" y2="376" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="340.0" y1="504" x2="340.0" y2="656" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="950.0" y1="504" x2="950.0" y2="656" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1560.0" y1="504" x2="1560.0" y2="656" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="640.0" y="380" width="640" height="120" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="960.0" y="446.0" font-size="20" font-weight="bold" fill="#333333" text-anchor="middle">Volcano: One Unified Scheduling Platform</text>
+<rect x="60" y="70" width="560" height="150" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="340.0" y="127.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Unified Scheduling</text>
+<text x="340.0" y="165.0" font-size="16" fill="#333333" text-anchor="middle">Native K8s + mainstream frameworks (TensorFlow, Spark, PyTorch, Ray)</text>
+<rect x="670" y="70" width="560" height="150" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="950.0" y="127.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Queue Management</text>
+<text x="950.0" y="165.0" font-size="16" fill="#333333" text-anchor="middle">Multi-level queues, quota control, task priority</text>
+<rect x="1280" y="70" width="560" height="150" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="1560.0" y="127.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Workloads Colocation</text>
+<text x="1560.0" y="165.0" font-size="16" fill="#333333" text-anchor="middle">Online/offline colocation for higher utilization</text>
+<rect x="60" y="660" width="560" height="150" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="340.0" y="717.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Multi-cluster Scheduling</text>
+<text x="340.0" y="755.0" font-size="16" fill="#333333" text-anchor="middle">Cross-cluster jobs, large-scale load balancing</text>
+<rect x="670" y="660" width="560" height="150" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="950.0" y="717.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Heterogeneous Devices</text>
+<text x="950.0" y="755.0" font-size="16" fill="#333333" text-anchor="middle">GPU / NPU aware scheduling</text>
+<rect x="1280" y="660" width="560" height="150" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="1560.0" y="717.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Multiple Scheduling Policies</text>
+<text x="1560.0" y="755.0" font-size="16" fill="#333333" text-anchor="middle">Gang, Binpack, DeviceShare, NUMA, Task-topology</text>
+</svg>

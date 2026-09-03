@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+  <defs>
+    <marker id="s19arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#4472c4"/>
+    </marker>
+    <marker id="s19arrowGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#666666"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #262626; }
+      .phaseHead { font-size: 18px; font-weight: 700; fill: #ffffff; }
+      .label { font-size: 17px; font-weight: 700; }
+      .sub { font-size: 14px; fill: #595959; }
+      .stateTitle { font-size: 18px; font-weight: 700; }
+      .barLabel { font-size: 15px; font-weight: 700; }
+      .tiny { font-size: 13px; fill: #666666; }
+      .phaseHeadBox { fill: #4472c4; }
+      .phaseBox { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .stateBox { fill: #f5f5f5; stroke: #666666; stroke-width: 2; }
+      .noteBox { fill: #fbe5d6; stroke: #d79b00; stroke-width: 2; }
+      .servingBar { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .trainingBar { fill: #fde9d9; stroke: #d79b00; stroke-width: 2; }
+      .phaseEdge { fill: none; stroke: #4472c4; stroke-width: 3; marker-end: url(#s19arrow); }
+      .flowEdge { fill: none; stroke: #666666; stroke-width: 2; marker-end: url(#s19arrowGray); }
+      .loopEdge { fill: none; stroke: #999999; stroke-width: 2; stroke-dasharray: 6 4; marker-end: url(#s19arrowGray); }
+    </style>
+  </defs>
+  <rect width="1920" height="880" fill="#ffffff"/>
+
+  <!-- Phase 1 -->
+  <rect x="60" y="70" width="540" height="46" class="phaseHeadBox"/>
+  <text x="330" y="100" class="phaseHead" text-anchor="middle">01 &#183; Demand created</text>
+  <rect x="60" y="116" width="540" height="180" rx="3" class="phaseBox"/>
+  <text x="90" y="158" class="label">AutoscalingPolicy scales roles</text>
+  <text x="90" y="186" class="sub">Traffic / latency signals increase</text>
+  <text x="90" y="208" class="sub">Prefill &#183; Decode replica count</text>
+  <text x="90" y="240" class="sub">Update propagates to ModelServing</text>
+  <text x="90" y="262" class="sub">and the ServingGroup PodGroup spec</text>
+
+  <!-- Phase 2 -->
+  <rect x="690" y="70" width="540" height="46" class="phaseHeadBox"/>
+  <text x="960" y="100" class="phaseHead" text-anchor="middle">02 &#183; Queue signals capacity</text>
+  <rect x="690" y="116" width="540" height="180" rx="3" class="phaseBox"/>
+  <text x="720" y="158" class="label">Serving queue below Deserved</text>
+  <text x="720" y="186" class="sub">+4 pending GPUs enter scheduling</text>
+  <text x="720" y="216" class="sub">Serving 2 &lt; Deserved 6</text>
+  <text x="720" y="238" class="sub">Training 10 &gt; Deserved 6</text>
+  <text x="720" y="262" class="sub">&#8594; Training must return 4 GPUs</text>
+
+  <!-- Phase 3 -->
+  <rect x="1320" y="70" width="540" height="46" class="phaseHeadBox"/>
+  <text x="1590" y="100" class="phaseHead" text-anchor="middle">03 &#183; Volcano reclaims &amp; places</text>
+  <rect x="1320" y="116" width="540" height="180" rx="3" class="phaseBox"/>
+  <text x="1350" y="158" class="label">Gang-aware reclaim</text>
+  <text x="1350" y="186" class="sub">Selects one complete Training victim</text>
+  <text x="1350" y="208" class="sub">job to release 4 GPUs (not partial pods)</text>
+  <text x="1350" y="240" class="sub">SubGroupPolicy + HyperNode place new</text>
+  <text x="1350" y="262" class="sub">replicas by role group and topology</text>
+
+  <path d="M600 206H690" class="phaseEdge"/>
+  <path d="M1230 206H1320" class="phaseEdge"/>
+
+  <!-- GPU pool visualization -->
+  <text x="960" y="360" class="stateTitle" text-anchor="middle">Shared GPU pool &#183; 12 GPUs total, 6 deserved per queue</text>
+
+  <!-- T0 state -->
+  <rect x="220" y="400" width="560" height="270" rx="3" class="stateBox"/>
+  <text x="500" y="436" class="stateTitle" text-anchor="middle">T0 &#183; Before scale-out</text>
+  <text x="260" y="466" class="barLabel">Serving: 2 GPUs</text>
+  <rect x="260" y="474" width="480" height="32" fill="#f0f0f0" stroke="#cccccc" stroke-width="1"/>
+  <rect x="260" y="474" width="80" height="32" class="servingBar"/>
+  <text x="260" y="545" class="barLabel">Training: 10 GPUs (borrowing 4)</text>
+  <rect x="260" y="553" width="480" height="32" fill="#f0f0f0" stroke="#cccccc" stroke-width="1"/>
+  <rect x="260" y="553" width="400" height="32" class="trainingBar"/>
+  <path d="M500 465V595" stroke="#999999" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="500" y="622" class="tiny" text-anchor="middle">Deserved share (6)</text>
+
+  <!-- T1 state -->
+  <rect x="1140" y="400" width="560" height="270" rx="3" class="stateBox"/>
+  <text x="1420" y="436" class="stateTitle" text-anchor="middle">T1 &#183; Scale-out complete</text>
+  <text x="1180" y="466" class="barLabel">Serving: 6 GPUs</text>
+  <rect x="1180" y="474" width="480" height="32" fill="#f0f0f0" stroke="#cccccc" stroke-width="1"/>
+  <rect x="1180" y="474" width="240" height="32" class="servingBar"/>
+  <text x="1180" y="545" class="barLabel">Training: 6 GPUs</text>
+  <rect x="1180" y="553" width="480" height="32" fill="#f0f0f0" stroke="#cccccc" stroke-width="1"/>
+  <rect x="1180" y="553" width="240" height="32" class="trainingBar"/>
+  <path d="M1420 465V595" stroke="#999999" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="1420" y="622" class="tiny" text-anchor="middle">Deserved share (6)</text>
+  <text x="1420" y="648" class="tiny" text-anchor="middle">Both queues now at their deserved share</text>
+
+  <path d="M780 500H1140" class="flowEdge"/>
+  <rect x="890" y="470" width="140" height="30" rx="3" fill="#ffffff"/>
+  <text x="960" y="491" class="label" text-anchor="middle" style="font-size:15px">Return 4 GPUs</text>
+
+  <!-- On scale-in note -->
+  <rect x="1470" y="720" width="360" height="110" rx="3" class="noteBox"/>
+  <text x="1650" y="750" class="label" text-anchor="middle" style="font-size:16px">On scale-in</text>
+  <text x="1650" y="775" class="sub" text-anchor="middle">Serving releases capacity;</text>
+  <text x="1650" y="796" class="sub" text-anchor="middle">Training / batch may borrow again</text>
+
+  <path d="M1420 670V710Q1420 720 1440 720H1470" class="loopEdge"/>
+  <path d="M1470 800H820Q800 800 800 780V670" class="loopEdge"/>
+  <rect x="900" y="795" width="180" height="26" rx="3" fill="#ffffff"/>
+  <text x="990" y="814" class="tiny" text-anchor="middle">Release; borrow again</text>
+</svg>

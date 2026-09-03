@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+<rect x="0" y="0" width="1920" height="880" fill="#ffffff"/>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666666"/></marker>
+</defs>
+<style>text{font-family:Arial, Helvetica, sans-serif;}</style>
+<line x1="270.0" y1="170" x2="270.0" y2="216" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="730.0" y1="170" x2="730.0" y2="216" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1190.0" y1="170" x2="1190.0" y2="216" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1650.0" y1="170" x2="1650.0" y2="216" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="420.0" y1="400" x2="800" y2="490.0" stroke="#666666" stroke-width="2" stroke-dasharray="8,6" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<line x1="1500.0" y1="400" x2="1120" y2="490.0" stroke="#666666" stroke-width="2" stroke-dasharray="8,6" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="904.5" y="426.0" width="111" height="24" fill="#ffffff" opacity="0.92"/>
+<text x="960" y="443" font-size="16" fill="#333333" text-anchor="middle">NodeShard CRD</text>
+<line x1="420" y1="540" x2="420" y2="586" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1500" y1="540" x2="1500" y2="586" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="60" y="50" width="420" height="120" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="270.0" y="92.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Workload Intent</text>
+<text x="270.0" y="130.0" font-size="16" fill="#333333" text-anchor="middle">Object type / scheduler name</text>
+<rect x="520" y="50" width="420" height="120" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="730.0" y="92.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">SLA and Priority</text>
+<text x="730.0" y="130.0" font-size="16" fill="#333333" text-anchor="middle">Latency / throughput / criticality</text>
+<rect x="980" y="50" width="420" height="120" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="1190.0" y="92.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Workload Structure and Topology</text>
+<text x="1190.0" y="130.0" font-size="16" fill="#333333" text-anchor="middle">Gang / role groups / network boundary</text>
+<rect x="1440" y="50" width="420" height="120" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="1650.0" y="92.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Node Runtime State</text>
+<text x="1650.0" y="130.0" font-size="16" fill="#333333" text-anchor="middle">Capacity / utilization / availability</text>
+<rect x="60" y="220" width="1800" height="330" rx="6" ry="6" fill="#ffffff" stroke="#666666" stroke-width="2"/>
+<text x="78" y="250.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="start">Unified Control Plane</text>
+<rect x="140" y="300" width="560" height="100" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="420.0" y="355.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Volcano Batch Scheduler</text>
+<rect x="1220" y="300" width="560" height="100" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1500.0" y="355.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Volcano Agent Scheduler</text>
+<rect x="760" y="460" width="400" height="80" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="960.0" y="482.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Sharding Controller</text>
+<text x="960.0" y="520.0" font-size="16" fill="#333333" text-anchor="middle">Dynamic NodeShard Boundaries</text>
+<rect x="140" y="590" width="560" height="110" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="420.0" y="627.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Batch Candidate Pool</text>
+<text x="420.0" y="665.0" font-size="16" fill="#333333" text-anchor="middle">(dynamic)</text>
+<rect x="760" y="590" width="400" height="110" rx="6" ry="6" fill="#ffffff" stroke="#666666" stroke-width="1" stroke-dasharray="8,6"/>
+<text x="960.0" y="626.0" font-size="16" font-weight="bold" fill="#333333" text-anchor="middle">Shared / Overlap</text>
+<text x="960.0" y="664.0" font-size="16" fill="#333333" text-anchor="middle">Zone (resizable)</text>
+<rect x="1220" y="590" width="560" height="110" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="1500.0" y="627.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Agent Candidate Pool</text>
+<text x="1500.0" y="665.0" font-size="16" fill="#333333" text-anchor="middle">(dynamic)</text>
+<rect x="60" y="800" width="560" height="60" rx="6" ry="6" fill="#ffffff" stroke="#6c8ebf" stroke-width="2"/>
+<text x="340.0" y="835.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">One Control Plane</text>
+<rect x="660" y="800" width="560" height="60" rx="6" ry="6" fill="#ffffff" stroke="#6c8ebf" stroke-width="2"/>
+<text x="940.0" y="835.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Specialized Scheduling Paths</text>
+<rect x="1260" y="800" width="560" height="60" rx="6" ry="6" fill="#ffffff" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1540.0" y="835.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Dynamic NodeShard Boundaries</text>
+</svg>

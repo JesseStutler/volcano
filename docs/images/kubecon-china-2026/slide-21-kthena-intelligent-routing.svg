@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+  <defs>
+    <marker id="s21arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#666666"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #262626; }
+      .label { font-size: 18px; font-weight: 700; }
+      .sub { font-size: 14px; fill: #595959; }
+      .tiny { font-size: 13px; fill: #666666; }
+      .frameLabel { font-size: 15px; font-weight: 700; fill: #666666; }
+      .reqBox { fill: #f5f5f5; stroke: #666666; stroke-width: 2; }
+      .gateBox { fill: #fde9d9; stroke: #d79b00; stroke-width: 2; }
+      .signalFrame { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .signalBox { fill: #ffffff; stroke: #6c8ebf; stroke-width: 1.5; }
+      .resultBox { fill: #d5e8d4; stroke: #82b366; stroke-width: 2; }
+      .edge { fill: none; stroke: #666666; stroke-width: 2; marker-end: url(#s21arrow); }
+    </style>
+  </defs>
+  <rect width="1920" height="880" fill="#ffffff"/>
+
+  <!-- Incoming request -->
+  <rect x="810" y="50" width="300" height="70" rx="3" class="reqBox"/>
+  <text x="960" y="82" class="label" text-anchor="middle">Incoming Request</text>
+  <text x="960" y="105" class="tiny" text-anchor="middle">Prompt + model / LoRA adapter</text>
+  <path d="M960 120V168" class="edge"/>
+
+  <!-- Admission gate -->
+  <rect x="710" y="170" width="500" height="90" rx="3" class="gateBox"/>
+  <text x="960" y="202" class="label" text-anchor="middle">Token-Level Rate Limiting &amp; Admission</text>
+  <text x="960" y="228" class="tiny" text-anchor="middle">Separate gate: accept, queue, or reject by token quota before routing</text>
+  <path d="M960 260V308" class="edge"/>
+
+  <!-- Routing filters/signals frame -->
+  <rect x="260" y="310" width="1400" height="330" rx="4" class="signalFrame"/>
+  <text x="960" y="345" class="label" text-anchor="middle">Routing Filters &amp; Signals</text>
+  <text x="960" y="369" class="tiny" text-anchor="middle">Selects the best available Prefill / Decode serving group for this request</text>
+
+  <rect x="300" y="400" width="240" height="100" rx="3" class="signalBox"/>
+  <text x="420" y="440" class="label" text-anchor="middle" style="font-size:16px">Prefix Cache</text>
+  <text x="420" y="465" class="tiny" text-anchor="middle">Reuse matching prompt prefix</text>
+
+  <rect x="570" y="400" width="240" height="100" rx="3" class="signalBox"/>
+  <text x="690" y="440" class="label" text-anchor="middle" style="font-size:16px">KV Cache Affinity</text>
+  <text x="690" y="465" class="tiny" text-anchor="middle">Reuse existing decode KV cache</text>
+
+  <rect x="840" y="400" width="240" height="100" rx="3" class="signalBox"/>
+  <text x="960" y="440" class="label" text-anchor="middle" style="font-size:16px">LoRA Affinity</text>
+  <text x="960" y="465" class="tiny" text-anchor="middle">Route to pods with adapter loaded</text>
+
+  <rect x="1110" y="400" width="240" height="100" rx="3" class="signalBox"/>
+  <text x="1230" y="440" class="label" text-anchor="middle" style="font-size:16px">Load / Latency</text>
+  <text x="1230" y="465" class="tiny" text-anchor="middle">Queue depth &#183; TTFT &#183; TPOT</text>
+
+  <rect x="1380" y="400" width="240" height="100" rx="3" class="signalBox"/>
+  <text x="1500" y="440" class="label" text-anchor="middle" style="font-size:16px">GPU Usage</text>
+  <text x="1500" y="465" class="tiny" text-anchor="middle">Compute / memory headroom</text>
+
+  <text x="960" y="600" class="tiny" text-anchor="middle" font-style="italic">Filter plugins narrow candidates; score plugins rank the remainder</text>
+
+  <path d="M960 640V688" class="edge"/>
+
+  <!-- Selected serving group -->
+  <rect x="560" y="690" width="800" height="130" rx="4" class="resultBox"/>
+  <text x="960" y="726" class="label" text-anchor="middle">Selected ServingGroup</text>
+  <rect x="600" y="748" width="340" height="52" rx="3" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+  <text x="770" y="780" class="label" text-anchor="middle" style="font-size:16px">Prefill Instance</text>
+  <rect x="980" y="748" width="340" height="52" rx="3" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+  <text x="1150" y="780" class="label" text-anchor="middle" style="font-size:16px">Decode Instance</text>
+</svg>

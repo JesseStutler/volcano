@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+<rect x="0" y="0" width="1920" height="880" fill="#ffffff"/>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666666"/></marker>
+</defs>
+<style>text{font-family:Arial, Helvetica, sans-serif;}</style>
+<line x1="520.0" y1="120" x2="520.0" y2="156" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1400.0" y1="120" x2="1400.0" y2="156" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="900" y1="205.0" x2="1020" y2="205.0" stroke="#666666" stroke-width="2" stroke-dasharray="8,6" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+<rect x="758.0" y="132.0" width="404" height="24" fill="#ffffff" opacity="0.92"/>
+<text x="960" y="149" font-size="16" fill="#333333" text-anchor="middle">Sharding Coordinator: coordinate, not duplicate</text>
+<line x1="520.0" y1="250" x2="520.0" y2="286" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="520.0" y1="380" x2="520.0" y2="416" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1400.0" y1="250" x2="1400.0" y2="286" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1400.0" y1="370" x2="1400.0" y2="396" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="1496.0" y="371.0" width="68" height="24" fill="#ffffff" opacity="0.92"/>
+<text x="1530.0" y="388.0" font-size="16" fill="#333333" text-anchor="middle">Parallel</text>
+<line x1="1135.0" y1="490" x2="1400.0" y2="536" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1400.0" y1="490" x2="1400.0" y2="536" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1665.0" y1="490" x2="1400.0" y2="536" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="520.0" y1="510" x2="520.0" y2="676" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1400.0" y1="630" x2="1400.0" y2="676" stroke="#666666" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="60" y="40" width="1800" height="80" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="960.0" y="85.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Shared Snapshot Cache — NodeInfo / ShardInfo / JobInfo / TaskInfo</text>
+<rect x="140" y="160" width="760" height="90" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="520.0" y="210.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Volcano Batch Scheduler</text>
+<rect x="1020" y="160" width="760" height="90" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1400.0" y="210.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Agent Fast-Path Scheduler</text>
+<rect x="140" y="290" width="760" height="90" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="520.0" y="317.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Schedule Session</text>
+<text x="520.0" y="355.0" font-size="16" fill="#333333" text-anchor="middle">Predicate / NodeOrder / Binpack plugins</text>
+<rect x="140" y="420" width="760" height="90" rx="6" ry="6" fill="#f5f5f5" stroke="#666666" stroke-width="2"/>
+<text x="520.0" y="470.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Binder</text>
+<rect x="1020" y="290" width="760" height="80" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1400.0" y="312.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Pod Queue</text>
+<text x="1400.0" y="350.0" font-size="16" fill="#333333" text-anchor="middle">Bursty, short-lived tasks</text>
+<rect x="1020" y="400" width="230" height="90" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1135.0" y="427.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Worker 1</text>
+<text x="1135.0" y="465.0" font-size="16" fill="#333333" text-anchor="middle">Shared snapshot</text>
+<rect x="1285" y="400" width="230" height="90" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1400.0" y="427.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Worker 2</text>
+<text x="1400.0" y="465.0" font-size="16" fill="#333333" text-anchor="middle">Shared snapshot</text>
+<rect x="1550" y="400" width="230" height="90" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1665.0" y="427.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Worker 3</text>
+<text x="1665.0" y="465.0" font-size="16" fill="#333333" text-anchor="middle">Shared snapshot</text>
+<rect x="1020" y="540" width="760" height="90" rx="6" ry="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+<text x="1400.0" y="567.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Conflict-aware Binder</text>
+<text x="1400.0" y="605.0" font-size="16" fill="#333333" text-anchor="middle">Optimistic scheduling</text>
+<rect x="60" y="680" width="1800" height="90" rx="6" ry="6" fill="#ffffff" stroke="#666666" stroke-width="2"/>
+<text x="960.0" y="730.0" font-size="18" font-weight="bold" fill="#333333" text-anchor="middle">Shared Cluster Nodes</text>
+</svg>

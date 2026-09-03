@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="volcano-kubecon-china-2026" version="24.0.0">
+  <diagram id="slide-05-volcano-capabilities" name="slide-05-volcano-capabilities">
+    <mxGraphModel dx="1200" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="880" math="0" shadow="0">
+      <root>
+<mxCell id="0"/>
+<mxCell id="1" parent="0"/>
+<mxCell id="box1" value="Volcano: One Unified Scheduling Platform" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=1;" vertex="1" parent="1"><mxGeometry x="640.0" y="380" width="640" height="120" as="geometry"/></mxCell>
+<mxCell id="box2" value="Unified Scheduling\nNative K8s + mainstream frameworks (TensorFlow, Spark, PyTorch, Ray)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=2;" vertex="1" parent="1"><mxGeometry x="60" y="70" width="560" height="150" as="geometry"/></mxCell>
+<mxCell id="box3" value="Queue Management\nMulti-level queues, quota control, task priority" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=2;" vertex="1" parent="1"><mxGeometry x="670" y="70" width="560" height="150" as="geometry"/></mxCell>
+<mxCell id="box4" value="Workloads Colocation\nOnline/offline colocation for higher utilization" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=2;" vertex="1" parent="1"><mxGeometry x="1280" y="70" width="560" height="150" as="geometry"/></mxCell>
+<mxCell id="box5" value="Multi-cluster Scheduling\nCross-cluster jobs, large-scale load balancing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=2;" vertex="1" parent="1"><mxGeometry x="60" y="660" width="560" height="150" as="geometry"/></mxCell>
+<mxCell id="box6" value="Heterogeneous Devices\nGPU / NPU aware scheduling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=2;" vertex="1" parent="1"><mxGeometry x="670" y="660" width="560" height="150" as="geometry"/></mxCell>
+<mxCell id="box7" value="Multiple Scheduling Policies\nGang, Binpack, DeviceShare, NUMA, Task-topology" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;fontFamily=Arial;fontSize=16;fontColor=#333333;verticalAlign=middle;align=center;arcSize=2;" vertex="1" parent="1"><mxGeometry x="1280" y="660" width="560" height="150" as="geometry"/></mxCell>
+<mxCell id="edge8" value="" style="endArrow=classic;html=1;strokeColor=#666666;strokeWidth=2;rounded=0;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="340.0" y="220" as="sourcePoint"/><mxPoint x="340.0" y="376" as="targetPoint"/></mxGeometry></mxCell>
+<mxCell id="edge9" value="" style="endArrow=classic;html=1;strokeColor=#666666;strokeWidth=2;rounded=0;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="950.0" y="220" as="sourcePoint"/><mxPoint x="950.0" y="376" as="targetPoint"/></mxGeometry></mxCell>
+<mxCell id="edge10" value="" style="endArrow=classic;html=1;strokeColor=#666666;strokeWidth=2;rounded=0;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1560.0" y="220" as="sourcePoint"/><mxPoint x="1560.0" y="376" as="targetPoint"/></mxGeometry></mxCell>
+<mxCell id="edge11" value="" style="endArrow=classic;html=1;strokeColor=#666666;strokeWidth=2;rounded=0;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="340.0" y="504" as="sourcePoint"/><mxPoint x="340.0" y="656" as="targetPoint"/></mxGeometry></mxCell>
+<mxCell id="edge12" value="" style="endArrow=classic;html=1;strokeColor=#666666;strokeWidth=2;rounded=0;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="950.0" y="504" as="sourcePoint"/><mxPoint x="950.0" y="656" as="targetPoint"/></mxGeometry></mxCell>
+<mxCell id="edge13" value="" style="endArrow=classic;html=1;strokeColor=#666666;strokeWidth=2;rounded=0;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1560.0" y="504" as="sourcePoint"/><mxPoint x="1560.0" y="656" as="targetPoint"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

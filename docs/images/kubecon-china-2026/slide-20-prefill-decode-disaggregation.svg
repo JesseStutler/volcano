@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+  <defs>
+    <marker id="s20arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#666666"/>
+    </marker>
+    <marker id="s20arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#d79b00"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #262626; }
+      .label { font-size: 18px; font-weight: 700; }
+      .sub { font-size: 14px; fill: #595959; }
+      .tiny { font-size: 13px; fill: #666666; }
+      .frameLabel { font-size: 15px; font-weight: 700; fill: #666666; }
+      .schedBox { fill: #f5f5f5; stroke: #666666; stroke-width: 2; }
+      .hyperFrame { fill: none; stroke: #999999; stroke-width: 2; stroke-dasharray: 8 5; }
+      .servingGroupBox { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .roleFrame { fill: none; stroke: #6c8ebf; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .podBox { fill: #f5f5f5; stroke: #666666; stroke-width: 2; }
+      .kvBox { fill: #fde9d9; stroke: #d79b00; stroke-width: 2; }
+      .edge { fill: none; stroke: #666666; stroke-width: 2; marker-end: url(#s20arrow); }
+      .kvEdge { fill: none; stroke: #d79b00; stroke-width: 2.5; marker-end: url(#s20arrowOrange); marker-start: url(#s20arrowOrange); }
+    </style>
+  </defs>
+  <rect width="1920" height="880" fill="#ffffff"/>
+
+  <!-- Volcano scheduler -->
+  <rect x="810" y="40" width="300" height="60" rx="3" class="schedBox"/>
+  <text x="960" y="76" class="label" text-anchor="middle">Volcano Scheduler</text>
+  <path d="M960 100V138" class="edge"/>
+  <rect x="820" y="105" width="280" height="26" rx="3" fill="#ffffff"/>
+  <text x="960" y="123" class="tiny" text-anchor="middle">Gang scheduling + topology-aware placement</text>
+
+  <!-- HyperNode L1 outer frame -->
+  <rect x="120" y="140" width="1680" height="680" rx="4" class="hyperFrame"/>
+  <text x="150" y="168" class="frameLabel">HyperNode &#183; Level 1 (spine): co-locate the entire ServingGroup</text>
+
+  <!-- ServingGroup box -->
+  <rect x="160" y="190" width="1600" height="590" rx="4" class="servingGroupBox"/>
+  <text x="960" y="222" class="label" text-anchor="middle">ServingGroup &#183; 1P2D &#183; atomic scheduling unit for xPyD</text>
+  <text x="960" y="246" class="tiny" text-anchor="middle">Gang scheduled: all pods in this ServingGroup run together, or none do</text>
+
+  <!-- Prefill role frame -->
+  <rect x="200" y="270" width="480" height="470" rx="3" class="roleFrame"/>
+  <text x="230" y="298" class="frameLabel">Prefill Role (1 replica) &#183; HyperNode L2 (rack)</text>
+
+  <rect x="240" y="320" width="400" height="90" rx="3" class="podBox"/>
+  <text x="440" y="352" class="label" text-anchor="middle" style="font-size:16px">Entry Pod</text>
+  <text x="440" y="378" class="tiny" text-anchor="middle">vLLM / SGLang router</text>
+
+  <rect x="240" y="430" width="400" height="90" rx="3" class="podBox"/>
+  <text x="440" y="462" class="label" text-anchor="middle" style="font-size:16px">Worker Pod</text>
+  <text x="440" y="488" class="tiny" text-anchor="middle">vLLM / SGLang engine + GPU KV cache</text>
+
+  <path d="M440 410V430" class="edge"/>
+
+  <rect x="240" y="670" width="400" height="42" rx="3" fill="#ffffff" stroke="#999999" stroke-width="1"/>
+  <text x="440" y="696" class="label" text-anchor="middle" style="font-size:16px">P</text>
+
+  <!-- Decode role frame -->
+  <rect x="720" y="270" width="1000" height="470" rx="3" class="roleFrame"/>
+  <text x="750" y="298" class="frameLabel">Decode Role (2 replicas) &#183; HyperNode L2 (rack)</text>
+
+  <!-- D0 -->
+  <rect x="760" y="320" width="440" height="90" rx="3" class="podBox"/>
+  <text x="980" y="352" class="label" text-anchor="middle" style="font-size:16px">Entry Pod</text>
+  <text x="980" y="378" class="tiny" text-anchor="middle">vLLM / SGLang router</text>
+  <rect x="760" y="430" width="440" height="90" rx="3" class="podBox"/>
+  <text x="980" y="462" class="label" text-anchor="middle" style="font-size:16px">Worker Pod</text>
+  <text x="980" y="488" class="tiny" text-anchor="middle">vLLM / SGLang engine + GPU KV cache</text>
+  <path d="M980 410V430" class="edge"/>
+  <rect x="760" y="670" width="440" height="42" rx="3" fill="#ffffff" stroke="#999999" stroke-width="1"/>
+  <text x="980" y="696" class="label" text-anchor="middle" style="font-size:16px">D0</text>
+
+  <!-- D1 -->
+  <rect x="1240" y="320" width="440" height="90" rx="3" class="podBox"/>
+  <text x="1460" y="352" class="label" text-anchor="middle" style="font-size:16px">Entry Pod</text>
+  <text x="1460" y="378" class="tiny" text-anchor="middle">vLLM / SGLang router</text>
+  <rect x="1240" y="430" width="440" height="90" rx="3" class="podBox"/>
+  <text x="1460" y="462" class="label" text-anchor="middle" style="font-size:16px">Worker Pod</text>
+  <text x="1460" y="488" class="tiny" text-anchor="middle">vLLM / SGLang engine + GPU KV cache</text>
+  <path d="M1460 410V430" class="edge"/>
+  <rect x="1240" y="670" width="440" height="42" rx="3" fill="#ffffff" stroke="#999999" stroke-width="1"/>
+  <text x="1460" y="696" class="label" text-anchor="middle" style="font-size:16px">D1</text>
+
+  <!-- KV cache transfer bus: Prefill Worker -> Decode Workers -->
+  <path d="M440 520V600H1460V520" style="fill:none;stroke:#d79b00;stroke-width:2.5;" marker-end="url(#s20arrowOrange)"/>
+  <path d="M980 600V520" style="fill:none;stroke:#d79b00;stroke-width:2.5;" marker-end="url(#s20arrowOrange)"/>
+  <text x="940" y="757" class="tiny" text-anchor="middle" fill="#d79b00">KV Cache Transfer (Prefill &#8594; Decode) via pluggable connectors: LMCache &#183; NIXL &#183; Mooncake</text>
+</svg>

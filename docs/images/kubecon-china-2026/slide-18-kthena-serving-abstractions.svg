@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+  <defs>
+    <marker id="s18arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#666666"/>
+    </marker>
+    <marker id="s18arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#6c8ebf"/>
+    </marker>
+    <style>
+      text { font-family: Arial, sans-serif; fill: #262626; }
+      .section { font-size: 22px; font-weight: 700; }
+      .label { font-size: 19px; font-weight: 700; }
+      .sub { font-size: 15px; fill: #595959; }
+      .tiny { font-size: 13px; fill: #666666; }
+      .apiBox { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
+      .k8sBox { fill: #f5f5f5; stroke: #666666; stroke-width: 2; }
+      .volBox { fill: #f5f5f5; stroke: #6c8ebf; stroke-width: 2; }
+      .chainEdge { fill: none; stroke: #6c8ebf; stroke-width: 3; marker-end: url(#s18arrowBlue); }
+      .projEdge { fill: none; stroke: #999999; stroke-width: 2; marker-end: url(#s18arrow); }
+      .nestEdge { fill: none; stroke: #999999; stroke-width: 1.5; stroke-dasharray: 5 4; marker-end: url(#s18arrow); }
+      .vol { fill: #4472c4; font-weight: 700; }
+    </style>
+  </defs>
+  <rect width="1920" height="880" fill="#ffffff"/>
+
+  <text x="465" y="55" class="section" text-anchor="middle">Kthena API Hierarchy</text>
+  <text x="1455" y="55" class="section" text-anchor="middle">Scheduling Projection</text>
+
+  <!-- Left column: API hierarchy -->
+  <rect x="140" y="140" width="650" height="150" rx="3" class="apiBox"/>
+  <text x="465" y="200" class="label" text-anchor="middle">ModelServing</text>
+  <text x="465" y="228" class="sub" text-anchor="middle">Model · version · replica policy</text>
+
+  <rect x="140" y="330" width="650" height="150" rx="3" class="apiBox"/>
+  <text x="465" y="390" class="label" text-anchor="middle">ServingGroup</text>
+  <text x="465" y="418" class="sub" text-anchor="middle">Complete serving instance / PD group</text>
+
+  <rect x="140" y="520" width="650" height="150" rx="3" class="apiBox"/>
+  <text x="465" y="580" class="label" text-anchor="middle">Role / Instance</text>
+  <text x="465" y="608" class="sub" text-anchor="middle">Prefill · Decode</text>
+
+  <rect x="140" y="710" width="650" height="150" rx="3" class="apiBox"/>
+  <text x="465" y="770" class="label" text-anchor="middle">Entry / Worker</text>
+  <text x="465" y="798" class="sub" text-anchor="middle">Concrete runtime replicas</text>
+
+  <path d="M465 290V330" class="chainEdge"/>
+  <path d="M465 480V520" class="chainEdge"/>
+  <path d="M465 670V710" class="chainEdge"/>
+
+  <!-- Right column: scheduling projection -->
+  <rect x="1130" y="140" width="650" height="150" rx="3" class="k8sBox"/>
+  <text x="1455" y="200" class="label" text-anchor="middle">Service</text>
+  <text x="1455" y="228" class="sub" text-anchor="middle">Kubernetes Service</text>
+
+  <rect x="1130" y="330" width="650" height="150" rx="3" class="volBox"/>
+  <text x="1455" y="390" class="label vol" text-anchor="middle">PodGroup</text>
+  <text x="1455" y="418" class="sub" text-anchor="middle">Volcano unit for the whole serving group</text>
+
+  <rect x="1130" y="520" width="650" height="150" rx="3" class="volBox"/>
+  <text x="1455" y="580" class="label vol" text-anchor="middle">SubGroup</text>
+  <text x="1455" y="608" class="sub" text-anchor="middle">Volcano unit per Role / Instance</text>
+
+  <rect x="1130" y="710" width="650" height="150" rx="3" class="k8sBox"/>
+  <text x="1455" y="770" class="label" text-anchor="middle">Pod</text>
+  <text x="1455" y="798" class="sub" text-anchor="middle">Kubernetes Pod</text>
+
+  <path d="M1455 480V520" class="nestEdge"/>
+  <path d="M1455 670V710" class="nestEdge"/>
+
+  <!-- Mapping arrows -->
+  <path d="M790 215H1130" class="projEdge"/>
+  <rect x="895" y="180" width="130" height="28" rx="3" fill="#ffffff"/>
+  <text x="960" y="199" class="tiny" text-anchor="middle">projects to</text>
+
+  <path d="M790 405H1130" class="projEdge"/>
+  <path d="M790 595H1130" class="projEdge"/>
+  <path d="M790 785H1130" class="projEdge"/>
+
+  <!-- Legend -->
+  <text x="1455" y="80" class="tiny" text-anchor="middle">Blue border / label = Volcano scheduling object</text>
+</svg>
