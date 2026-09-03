@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-09-03T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="checkpoint-aware-v2" name="Checkpoint-Aware Gang Reclaim">
+    <mxGraphModel dx="1400" dy="760" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Architecture boundaries -->
+        <mxCell id="control-plane" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FBFE;strokeColor=#91ABC1;strokeWidth=1.4;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="34" y="28" width="1332" height="214" as="geometry"/>
+        </mxCell>
+        <mxCell id="control-spine" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2563EB;strokeColor=#2563EB;arcSize=50;" vertex="1" parent="1">
+          <mxGeometry x="34" y="28" width="6" height="214" as="geometry"/>
+        </mxCell>
+        <mxCell id="control-label" value="VOLCANO CONTROL PLANE" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#46657F;" vertex="1" parent="1">
+          <mxGeometry x="58" y="39" width="260" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cluster" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#91ABC1;strokeWidth=1.4;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="34" y="270" width="1332" height="456" as="geometry"/>
+        </mxCell>
+        <mxCell id="cluster-spine" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8196AA;strokeColor=#8196AA;arcSize=50;" vertex="1" parent="1">
+          <mxGeometry x="34" y="270" width="6" height="456" as="geometry"/>
+        </mxCell>
+        <mxCell id="cluster-label" value="KUBERNETES CLUSTER" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#46657F;" vertex="1" parent="1">
+          <mxGeometry x="58" y="281" width="240" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- Queue -->
+        <mxCell id="queue" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7FA3C2;strokeWidth=1.5;arcSize=7;" vertex="1" parent="1">
+          <mxGeometry x="64" y="76" width="286" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="queue-title" value="Volcano Queue" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="84" y="84" width="210" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="serving-pending" value="&lt;b&gt;Serving PodGroup&lt;/b&gt;&lt;font color=&quot;#617589&quot; style=&quot;font-size:11px&quot;&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;PENDING&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=16;fillColor=#EEF5FF;strokeColor=#9ABBE0;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="84" y="120" width="246" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="training-requeue" value="Training PodGroup + checkpointRef" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=16;fillColor=#F6F8FA;strokeColor=#C2CCD5;dashed=1;dashPattern=5 4;fontFamily=Helvetica;fontSize=13;fontColor=#5B7085;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="84" y="162" width="246" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- Scheduler -->
+        <mxCell id="scheduler" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF5FF;strokeColor=#78A4D7;strokeWidth=1.5;arcSize=7;" vertex="1" parent="1">
+          <mxGeometry x="476" y="76" width="328" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="scheduler-title" value="Volcano Scheduler" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="500" y="84" width="250" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="scheduler-rule" value="" style="shape=line;strokeColor=#B7CBE0;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="118" width="280" height="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="scheduler-copy" value="&lt;b&gt;Select the victim PodGroup&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Commit after the checkpoint barrier&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="500" y="131" width="280" height="64" as="geometry"/>
+        </mxCell>
+
+        <!-- Checkpoint coordinator -->
+        <mxCell id="coordinator" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#78A4D7;strokeWidth=1.5;arcSize=7;" vertex="1" parent="1">
+          <mxGeometry x="930" y="76" width="320" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="coordinator-title" value="Checkpoint Coordinator" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="954" y="84" width="280" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="coordinator-rule" value="" style="shape=line;strokeColor=#C4D2DF;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="954" y="118" width="272" height="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="coordinator-copy" value="&lt;b&gt;Track every training container&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Close the PodGroup barrier&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;spacing=0;" vertex="1" parent="1">
+          <mxGeometry x="954" y="131" width="272" height="64" as="geometry"/>
+        </mxCell>
+
+        <!-- Before state -->
+        <mxCell id="before-label" value="BEFORE RECLAIM · TRAINING RUNNING" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#46657F;" vertex="1" parent="1">
+          <mxGeometry x="70" y="311" width="340" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="before-a" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#AAB8C5;strokeWidth=1.3;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="70" y="348" width="320" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="before-a-title" value="HyperNode A" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="90" y="356" width="150" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="training-t0" value="&lt;b&gt;Training T0&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#617589&quot; style=&quot;font-size:11px&quot;&gt;Kubelet API&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9EB0C0;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="392" width="132" height="54" as="geometry"/>
+        </mxCell>
+        <mxCell id="training-t1" value="&lt;b&gt;Training T1&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#617589&quot; style=&quot;font-size:11px&quot;&gt;Kubelet API&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9EB0C0;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="238" y="392" width="132" height="54" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="before-b" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#AAB8C5;strokeWidth=1.3;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="430" y="348" width="320" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="before-b-title" value="HyperNode B" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="450" y="356" width="150" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="training-t2" value="&lt;b&gt;Training T2&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#617589&quot; style=&quot;font-size:11px&quot;&gt;Kubelet API&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9EB0C0;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="450" y="392" width="132" height="54" as="geometry"/>
+        </mxCell>
+        <mxCell id="training-t3" value="&lt;b&gt;Training T3&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#617589&quot; style=&quot;font-size:11px&quot;&gt;Kubelet API&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9EB0C0;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="598" y="392" width="132" height="54" as="geometry"/>
+        </mxCell>
+
+        <!-- Checkpoint store -->
+        <mxCell id="checkpoint-store" value="&lt;b&gt;PodGroup Checkpoint&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B7085&quot; style=&quot;font-size:13px&quot;&gt;T0 · T1 · T2 · T3&lt;/font&gt;" style="shape=cylinder;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#EEF8F3;strokeColor=#64A987;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="360" width="240" height="108" as="geometry"/>
+        </mxCell>
+
+        <!-- Commit barrier -->
+        <mxCell id="barrier" value="&lt;b&gt;✓&amp;nbsp;&amp;nbsp;Checkpoint complete — commit gang reclaim and serving admission&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacingLeft=18;fillColor=#EDF7F2;strokeColor=#64A987;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;fontColor=#245C45;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="512" width="830" height="44" as="geometry"/>
+        </mxCell>
+
+        <!-- After state -->
+        <mxCell id="after-label" value="AFTER COMMIT · SERVING ADMITTED" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#46657F;" vertex="1" parent="1">
+          <mxGeometry x="70" y="566" width="320" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="after-a" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#AAB8C5;strokeWidth=1.3;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="70" y="602" width="320" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="after-a-title" value="HyperNode A" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="90" y="610" width="150" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="serving-s0" value="&lt;b&gt;Serving S0&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF5FF;strokeColor=#78A4D7;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="90" y="646" width="132" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="serving-s1" value="&lt;b&gt;Serving S1&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF5FF;strokeColor=#78A4D7;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="238" y="646" width="132" height="38" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="after-b" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#AAB8C5;strokeWidth=1.3;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="430" y="602" width="320" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="after-b-title" value="HyperNode B" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#102A43;" vertex="1" parent="1">
+          <mxGeometry x="450" y="610" width="150" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="serving-s2" value="&lt;b&gt;Serving S2&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF5FF;strokeColor=#78A4D7;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="450" y="646" width="132" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="serving-s3" value="&lt;b&gt;Serving S3&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF5FF;strokeColor=#78A4D7;fontFamily=Helvetica;fontSize=16;fontColor=#102A43;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="598" y="646" width="132" height="38" as="geometry"/>
+        </mxCell>
+
+        <!-- Control-plane arrows: independent horizontal lanes -->
+        <mxCell id="queue-to-scheduler" value="admission" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=2.2;endArrow=block;endFill=1;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#35506B;labelBackgroundColor=#F8FBFE;exitX=1;exitY=0.32;entryX=0;entryY=0.32;" edge="1" parent="1" source="queue" target="scheduler">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="scheduler-to-queue" value="checkpointRef" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748B;strokeWidth=1.8;dashed=1;dashPattern=7 5;endArrow=block;endFill=1;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#35506B;labelBackgroundColor=#F8FBFE;exitX=0;exitY=0.88;entryX=1;entryY=0.88;" edge="1" parent="1" source="scheduler" target="queue">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="scheduler-to-coordinator" value="checkpoint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=2.2;endArrow=block;endFill=1;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#35506B;labelBackgroundColor=#F8FBFE;exitX=1;exitY=0.32;entryX=0;entryY=0.32;" edge="1" parent="1" source="scheduler" target="coordinator">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="coordinator-to-scheduler" value="gang ready" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#17845B;strokeWidth=1.8;dashed=1;dashPattern=7 5;endArrow=block;endFill=1;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#287052;labelBackgroundColor=#F8FBFE;exitX=0;exitY=0.88;entryX=1;entryY=0.88;" edge="1" parent="1" source="coordinator" target="scheduler">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Checkpoint requests -->
+        <mxCell id="checkpoint-api-label" value="per-container Kubelet API" style="text;html=1;strokeColor=none;fillColor=#FFFFFF;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#35506B;" vertex="1" parent="1">
+          <mxGeometry x="650" y="302" width="224" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="coordinator-to-a" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="coordinator" target="before-a">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1090" y="316"/><mxPoint x="230" y="316"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="coordinator-to-b" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="coordinator" target="before-b">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1090" y="316"/><mxPoint x="590" y="316"/></Array></mxGeometry>
+        </mxCell>
+
+        <!-- Snapshot writes -->
+        <mxCell id="snapshot-label" value="container snapshots" style="text;html=1;strokeColor=none;fillColor=#FFFFFF;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#287052;" vertex="1" parent="1">
+          <mxGeometry x="705" y="474" width="148" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="a-to-store" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#17845B;strokeWidth=2;endArrow=none;exitX=0.5;exitY=1;entryX=0;entryY=0.5;" edge="1" parent="1" source="before-a" target="checkpoint-store">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="230" y="486"/><mxPoint x="916" y="486"/><mxPoint x="916" y="414"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="b-to-store" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#17845B;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0;entryY=0.5;" edge="1" parent="1" source="before-b" target="checkpoint-store">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="590" y="486"/><mxPoint x="916" y="486"/><mxPoint x="916" y="414"/></Array></mxGeometry>
+        </mxCell>
+
+        <!-- Completion status and scheduler commit -->
+        <mxCell id="all-ready-label" value="all ranks ready" style="text;html=1;strokeColor=none;fillColor=#FFFFFF;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=#287052;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="276" width="102" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="store-to-coordinator" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#17845B;strokeWidth=1.9;dashed=1;dashPattern=7 5;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=1;entryY=0.77;" edge="1" parent="1" source="checkpoint-store" target="coordinator">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1318" y="414"/><mxPoint x="1318" y="176"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="scheduler-to-barrier" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2563EB;strokeWidth=2.2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=1;entryY=0.5;" edge="1" parent="1" source="scheduler" target="barrier">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="640" y="254"/><mxPoint x="950" y="254"/><mxPoint x="950" y="534"/></Array></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
