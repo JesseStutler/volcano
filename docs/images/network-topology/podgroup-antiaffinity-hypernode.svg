@@ -1,122 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 135 1920 880">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0L10 5L0 10z" fill="#4d4d4d"/>
-    </marker>
     <style>
-      text { font-family: Arial, "Noto Sans SC", sans-serif; fill: #262626; }
-      .title { font-size: 38px; font-weight: 700; }
-      .subtitle { font-size: 20px; fill: #595959; }
-      .section { font-size: 18px; font-weight: 700; }
-      .label { font-size: 17px; font-weight: 700; }
-      .small { font-size: 15px; fill: #595959; }
-      .tiny { font-size: 13px; fill: #666; }
-      .box { fill: #fff; stroke: #666; stroke-width: 2; }
-      .blue { fill: #dae8fc; stroke: #6c8ebf; stroke-width: 2; }
-      .gray { fill: #f5f5f5; stroke: #666; stroke-width: 2; }
-      .node { fill: #fff; stroke: #8c8c8c; stroke-width: 1.5; }
-      .edge { fill: none; stroke: #4d4d4d; stroke-width: 2; marker-end: url(#arrow); }
-      .tree { fill: none; stroke: #737373; stroke-width: 2; }
-      .anti { fill: none; stroke: #b85450; stroke-width: 3; stroke-dasharray: 10 7; }
+      text{font-family:Arial,Helvetica,sans-serif}
+      .heading{font-size:21px;font-weight:700;fill:#7f2f2b}
+      .section{font-size:17px;font-weight:700;fill:#262626}
+      .label{font-size:15px;font-weight:700;fill:#404040}
+      .small{font-size:14px;fill:#595959}
+      .tiny{font-size:12px;fill:#666666}
     </style>
   </defs>
+  <rect width="900" height="620" fill="#ffffff"/>
+  <text x="40" y="42" class="heading">PODGROUP ANTI-AFFINITY</text>
+  <text x="40" y="72" class="small">Serving scenario: place independent replica PodGroups in different Tier-1 HyperNodes.</text>
 
-  <rect width="1920" height="1080" fill="#fff"/>
-  <!-- Control flow -->
-  <rect x="100" y="160" width="380" height="118" rx="4" class="box"/>
-  <text x="290" y="193" class="section" text-anchor="middle">LLM Serving Pipeline</text>
-  <rect x="145" y="216" width="120" height="38" rx="3" class="blue"/>
-  <text x="205" y="241" class="label" text-anchor="middle">Prefill pool</text>
-  <rect x="315" y="216" width="120" height="38" rx="3" class="gray"/>
-  <text x="375" y="241" class="label" text-anchor="middle">Decode pool</text>
-  <path d="M265 235H315" class="edge"/>
-  <text x="290" y="211" class="tiny" text-anchor="middle">KV cache</text>
+  <rect x="40" y="100" width="820" height="480" rx="7" fill="#f7f7f7" stroke="#8c8c8c" stroke-width="2"/>
+  <text x="65" y="132" class="section">HyperNode Cluster</text>
+  <text x="835" y="132" class="tiny" text-anchor="end">separate leaf / failure domains</text>
 
-  <rect x="680" y="160" width="440" height="118" rx="4" class="blue"/>
-  <text x="900" y="196" class="section" text-anchor="middle">Scheduling constraint</text>
-  <text x="900" y="229" class="label" text-anchor="middle">Prefill Group ≠ Decode Group</text>
-  <text x="900" y="256" class="small" text-anchor="middle">Use different Tier-1 HyperNodes</text>
+  <rect x="70" y="158" width="355" height="380" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
+  <rect x="70" y="158" width="355" height="56" rx="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <rect x="70" y="204" width="355" height="10" fill="#dae8fc"/>
+  <text x="247" y="192" class="section" text-anchor="middle">Tier-1 HyperNode A</text>
 
-  <rect x="1320" y="160" width="400" height="118" rx="4" class="box"/>
-  <text x="1520" y="206" class="section" text-anchor="middle">Volcano Scheduler</text>
-  <text x="1520" y="240" class="small" text-anchor="middle">HyperNode-aware placement</text>
+  <rect x="100" y="242" width="295" height="240" rx="6" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
+  <rect x="137" y="226" width="220" height="38" rx="19" fill="#4e79a7" stroke="#4e79a7"/>
+  <text x="247" y="251" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Serving PodGroup - Replica A</text>
+  <text x="247" y="292" class="tiny" text-anchor="middle">Prefill and Decode share one PodGroup</text>
+  <rect x="125" y="325" width="110" height="115" rx="5" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
+  <rect x="260" y="325" width="110" height="115" rx="5" fill="#eeeeee" stroke="#666666" stroke-width="2"/>
+  <text x="180" y="362" class="label" text-anchor="middle">Prefill</text>
+  <text x="180" y="390" class="tiny" text-anchor="middle">P-A</text>
+  <text x="315" y="362" class="label" text-anchor="middle">Decode</text>
+  <text x="315" y="390" class="tiny" text-anchor="middle">D-A</text>
+  <path d="M235 382H260" fill="none" stroke="#595959" stroke-width="2"/>
+  <text x="247" y="416" class="tiny" text-anchor="middle">KV transfer</text>
+  <text x="247" y="512" font-size="14" font-weight="700" fill="#28527d" text-anchor="middle">failure domain A</text>
 
-  <path d="M480 219H680" class="edge"/>
-  <path d="M1120 219H1320" class="edge"/>
-  <path d="M1520 278V324" class="edge"/>
+  <rect x="475" y="158" width="355" height="380" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
+  <rect x="475" y="158" width="355" height="56" rx="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <rect x="475" y="204" width="355" height="10" fill="#dae8fc"/>
+  <text x="652" y="192" class="section" text-anchor="middle">Tier-1 HyperNode B</text>
 
-  <!-- Cluster -->
-  <rect x="70" y="330" width="1780" height="670" rx="4" class="gray"/>
-  <text x="95" y="365" class="section">Cluster topology</text>
-  <text x="1825" y="365" class="small" text-anchor="end">Two-tier HyperNode tree</text>
+  <rect x="505" y="242" width="295" height="240" rx="6" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
+  <rect x="542" y="226" width="220" height="38" rx="19" fill="#4e79a7" stroke="#4e79a7"/>
+  <text x="652" y="251" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Serving PodGroup - Replica B</text>
+  <text x="652" y="292" class="tiny" text-anchor="middle">Prefill and Decode share one PodGroup</text>
+  <rect x="530" y="325" width="110" height="115" rx="5" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
+  <rect x="665" y="325" width="110" height="115" rx="5" fill="#eeeeee" stroke="#666666" stroke-width="2"/>
+  <text x="585" y="362" class="label" text-anchor="middle">Prefill</text>
+  <text x="585" y="390" class="tiny" text-anchor="middle">P-B</text>
+  <text x="720" y="362" class="label" text-anchor="middle">Decode</text>
+  <text x="720" y="390" class="tiny" text-anchor="middle">D-B</text>
+  <path d="M640 382H665" fill="none" stroke="#595959" stroke-width="2"/>
+  <text x="652" y="416" class="tiny" text-anchor="middle">KV transfer</text>
+  <text x="652" y="512" font-size="14" font-weight="700" fill="#28527d" text-anchor="middle">failure domain B</text>
 
-  <rect x="110" y="395" width="810" height="540" rx="4" fill="#fff" stroke="#7f8c8d" stroke-width="2"/>
-  <rect x="1000" y="395" width="810" height="540" rx="4" fill="#fff" stroke="#7f8c8d" stroke-width="2"/>
-  <rect x="110" y="395" width="810" height="52" fill="#e1e1e1" stroke="#7f8c8d" stroke-width="2"/>
-  <rect x="1000" y="395" width="810" height="52" fill="#e1e1e1" stroke="#7f8c8d" stroke-width="2"/>
-  <text x="515" y="428" class="section" text-anchor="middle">Tier-2 HyperNode A (failure domain)</text>
-  <text x="1405" y="428" class="section" text-anchor="middle">Tier-2 HyperNode B (failure domain)</text>
+  <path d="M450 185V500" fill="none" stroke="#b85450" stroke-width="3" stroke-dasharray="10 7"/>
+  <rect x="417" y="325" width="66" height="66" rx="33" fill="#ffffff" stroke="#b85450" stroke-width="2"/>
+  <text x="450" y="368" font-size="30" font-weight="700" fill="#b85450" text-anchor="middle">≠</text>
 
-  <!-- Tier-1 HyperNodes -->
-  <g>
-    <rect x="145" y="490" width="340" height="390" rx="4" class="blue"/>
-    <rect x="545" y="490" width="340" height="390" rx="4" class="blue"/>
-    <rect x="1035" y="490" width="340" height="390" rx="4" class="blue"/>
-    <rect x="1435" y="490" width="340" height="390" rx="4" class="blue"/>
-    <text x="315" y="525" class="section" text-anchor="middle">Tier-1 HN-A1</text>
-    <text x="715" y="525" class="section" text-anchor="middle">Tier-1 HN-A2</text>
-    <text x="1205" y="525" class="section" text-anchor="middle">Tier-1 HN-B1</text>
-    <text x="1605" y="525" class="section" text-anchor="middle">Tier-1 HN-B2</text>
-    <text x="315" y="551" class="small" text-anchor="middle">leaf switch / rack</text>
-    <text x="715" y="551" class="small" text-anchor="middle">leaf switch / rack</text>
-    <text x="1205" y="551" class="small" text-anchor="middle">leaf switch / rack</text>
-    <text x="1605" y="551" class="small" text-anchor="middle">leaf switch / rack</text>
-  </g>
-
-  <!-- Nodes -->
-  <g>
-    <rect x="175" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="325" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="575" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="725" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="1065" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="1215" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="1465" y="600" width="130" height="205" rx="3" class="node"/>
-    <rect x="1615" y="600" width="130" height="205" rx="3" class="node"/>
-  </g>
-  <g class="tiny" text-anchor="middle">
-    <text x="240" y="630">gpu-node-01</text><text x="390" y="630">gpu-node-02</text>
-    <text x="640" y="630">gpu-node-03</text><text x="790" y="630">gpu-node-04</text>
-    <text x="1130" y="630">gpu-node-05</text><text x="1280" y="630">gpu-node-06</text>
-    <text x="1530" y="630">gpu-node-07</text><text x="1680" y="630">gpu-node-08</text>
-  </g>
-
-  <!-- Pods -->
-  <g>
-    <rect x="193" y="680" width="94" height="62" rx="3" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
-    <text x="240" y="704" class="label" text-anchor="middle">P-0</text>
-    <text x="240" y="727" class="tiny" text-anchor="middle">Prefill</text>
-
-    <rect x="343" y="680" width="94" height="62" rx="3" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
-    <text x="390" y="704" class="label" text-anchor="middle">P-1</text>
-    <text x="390" y="727" class="tiny" text-anchor="middle">Prefill</text>
-
-    <rect x="1083" y="680" width="94" height="62" rx="3" fill="#eee" stroke="#666" stroke-width="2"/>
-    <text x="1130" y="704" class="label" text-anchor="middle">D-0</text>
-    <text x="1130" y="727" class="tiny" text-anchor="middle">Decode</text>
-
-    <rect x="1233" y="680" width="94" height="62" rx="3" fill="#eee" stroke="#666" stroke-width="2"/>
-    <text x="1280" y="704" class="label" text-anchor="middle">D-1</text>
-    <text x="1280" y="727" class="tiny" text-anchor="middle">Decode</text>
-  </g>
-
-  <text x="315" y="775" class="label" text-anchor="middle">Prefill Group</text>
-  <text x="1205" y="775" class="label" text-anchor="middle">Decode Group</text>
-  <path d="M485 830H1035" class="anti"/>
-  <rect x="722" y="807" width="76" height="46" rx="3" fill="#fff" stroke="#b85450" stroke-width="2"/>
-  <text x="760" y="839" font-size="28" font-weight="700" fill="#b85450" text-anchor="middle">≠</text>
-  <text x="760" y="880" class="small" fill="#b85450" text-anchor="middle">Group anti-affinity: different Tier-1 HyperNodes</text>
-
-  <rect x="145" y="902" width="1630" height="68" rx="3" fill="#fff" stroke="#bfbfbf" stroke-width="1.5"/>
-  <text x="960" y="941" class="label" text-anchor="middle">Result: separate resource pools · independent scaling · topology isolation</text>
 </svg>
