@@ -1,59 +1,94 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
-<defs>
-<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#595959"/></marker>
-<style>text{font-family:Arial,Helvetica,sans-serif;}</style>
-</defs>
-<rect x="0" y="0" width="1920" height="880" fill="#ffffff"/>
-<rect x="60" y="135" width="320" height="44" rx="18" fill="#f2f2f2" stroke="#999999" stroke-width="1.5"/>
-<text x="220.0" y="161.84" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">A flat PodGroup</text>
-<rect x="60" y="205" width="560" height="110" rx="3" fill="#ffffff" stroke="#666666" stroke-width="2"/>
-<text x="340.0" y="253.84" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">minMember / minResources</text>
-<text x="340.0" y="275.84000000000003" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">Admission threshold for the whole job only</text>
-<rect x="60" y="345" width="560" height="100" rx="3" fill="#ffffff" stroke="#666666" stroke-width="2"/>
-<text x="340.0" y="388.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Training parallel groups (TP / PP / DP)</text>
-<text x="340.0" y="410.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">Not expressed by a flat PodGroup</text>
-<rect x="60" y="475" width="560" height="100" rx="3" fill="#ffffff" stroke="#666666" stroke-width="2"/>
-<text x="340.0" y="518.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Inference roles (Prefill / Decode)</text>
-<text x="340.0" y="540.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">Not expressed by a flat PodGroup</text>
-<rect x="60" y="605" width="560" height="100" rx="3" fill="#ffffff" stroke="#666666" stroke-width="2"/>
-<text x="340.0" y="648.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Per-group topology placement</text>
-<text x="340.0" y="670.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">Not expressed by a flat PodGroup</text>
-<polygon points="660.0,395.0 726.0,395.0 770.0,465.0 726.0,535.0 660.0,535.0 698.5,465.0" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
-<rect x="780" y="135" width="460" height="44" rx="18" fill="#f2f2f2" stroke="#999999" stroke-width="1.5"/>
-<text x="1010.0" y="161.84" font-size="16" font-weight="700" fill="#1a1a1a" text-anchor="middle">Final hierarchy: PodGroup → SubGroup → Pod</text>
-<rect x="780" y="205" width="1100" height="100" rx="3" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
-<text x="1330.0" y="248.84" font-size="19" font-weight="700" fill="#1a1a1a" text-anchor="middle">PodGroup — job-wide admission</text>
-<text x="1330.0" y="270.84000000000003" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">minMember: whole job</text>
-<rect x="800" y="375" width="520" height="110" rx="3" fill="#eaf1fb" stroke="#6c8ebf" stroke-width="2"/>
-<text x="1060.0" y="412.84" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">SubGroup: Training</text>
-<text x="1060.0" y="434.84" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">TP / PP / DP parallel groups</text>
-<text x="1060.0" y="456.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">subGroupSize · minSubGroups · networkTopology</text>
-<rect x="1360" y="375" width="520" height="110" rx="3" fill="#eaf1fb" stroke="#6c8ebf" stroke-width="2"/>
-<text x="1620.0" y="412.84" font-size="17" font-weight="700" fill="#1a1a1a" text-anchor="middle">SubGroup: Inference</text>
-<text x="1620.0" y="434.84" font-size="15" font-weight="400" fill="#404040" text-anchor="middle">Prefill / Decode roles</text>
-<text x="1620.0" y="456.84" font-size="13" font-weight="400" fill="#666666" text-anchor="middle">subGroupSize · minSubGroups · networkTopology</text>
-<rect x="800.0" y="545" width="150" height="70" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
-<text x="875.0" y="584.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Pod</text>
-<rect x="1360.0" y="545" width="150" height="70" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
-<text x="1435.0" y="584.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Pod</text>
-<rect x="985.0" y="545" width="150" height="70" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
-<text x="1060.0" y="584.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Pod</text>
-<rect x="1545.0" y="545" width="150" height="70" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
-<text x="1620.0" y="584.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Pod</text>
-<rect x="1170.0" y="545" width="150" height="70" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
-<text x="1245.0" y="584.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Pod</text>
-<rect x="1730.0" y="545" width="150" height="70" rx="3" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
-<text x="1805.0" y="584.84" font-size="15" font-weight="700" fill="#404040" text-anchor="middle">Pod</text>
-<rect x="780" y="675" width="1100" height="70" rx="3" fill="#f2f2f2" stroke="#666666" stroke-width="1.5"/>
-<text x="1330.0" y="714.84" font-size="15" font-weight="700" fill="#262626" text-anchor="middle">SubGroupPolicy: selector · size (subGroupSize) · minSubGroups · networkTopology</text>
-<path d="M1330.0 305L1330.0 340L1060 340L1060 375" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1330.0 305L1330.0 340L1620 340L1620 375" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1060.0 485L1060.0 515L875.0 515L875.0 545" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1060.0 485L1060.0 515L1060.0 515L1060.0 545" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1060.0 485L1060.0 515L1245.0 515L1245.0 545" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1620.0 485L1620.0 515L1435.0 515L1435.0 545" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1620.0 485L1620.0 515L1620.0 515L1620.0 545" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<path d="M1620.0 485L1620.0 515L1805.0 515L1805.0 545" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-<text x="340" y="745" font-size="17" fill="#262626" text-anchor="middle">A flat PodGroup cannot say which Pods belong</text>
-<text x="340" y="773" font-size="17" fill="#262626" text-anchor="middle">together, or where each group should land.</text>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#6c8ebf"/>
+    </marker>
+    <style>text{font-family:Arial,Helvetica,sans-serif}</style>
+  </defs>
+  <rect width="1920" height="880" fill="#ffffff"/>
+
+  <text x="960" y="92" font-size="23" text-anchor="middle">
+    <tspan font-weight="700" fill="#28527d">PodGroup</tspan>
+    <tspan fill="#404040"> = whole-workload admission    ·    </tspan>
+    <tspan font-weight="700" fill="#28527d">SubGroup</tspan>
+    <tspan fill="#404040"> = local placement unit</tspan>
+  </text>
+
+  <rect x="60" y="180" width="880" height="580" rx="8" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/>
+  <text x="90" y="220" font-size="20" font-weight="700" fill="#404040">TRAINING</text>
+  <rect x="100" y="245" width="800" height="470" rx="8" fill="#f7faff" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="10 7"/>
+  <text x="125" y="280" font-size="19" font-weight="700" fill="#28527d">Training Job · PodGroup</text>
+  <text x="875" y="280" font-size="16" fill="#666666" text-anchor="end">whole-job gang admission</text>
+  <text x="500" y="320" font-size="16" fill="#595959" text-anchor="middle">Partition by TP group; PP stages use the same pattern</text>
+
+  <rect x="150" y="350" width="320" height="180" rx="5" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="310" y="385" font-size="19" font-weight="700" fill="#1a1a1a" text-anchor="middle">TP Group 0</text>
+  <text x="310" y="412" font-size="15" fill="#595959" text-anchor="middle">SubGroup</text>
+  <rect x="190" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="254" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="318" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="382" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="214" y="476" font-size="15" fill="#404040" text-anchor="middle">0</text>
+  <text x="278" y="476" font-size="15" fill="#404040" text-anchor="middle">1</text>
+  <text x="342" y="476" font-size="15" fill="#404040" text-anchor="middle">2</text>
+  <text x="406" y="476" font-size="15" fill="#404040" text-anchor="middle">3</text>
+
+  <rect x="530" y="350" width="320" height="180" rx="5" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="690" y="385" font-size="19" font-weight="700" fill="#1a1a1a" text-anchor="middle">TP Group 1</text>
+  <text x="690" y="412" font-size="15" fill="#595959" text-anchor="middle">SubGroup</text>
+  <rect x="570" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="634" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="698" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="762" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="594" y="476" font-size="15" fill="#404040" text-anchor="middle">4</text>
+  <text x="658" y="476" font-size="15" fill="#404040" text-anchor="middle">5</text>
+  <text x="722" y="476" font-size="15" fill="#404040" text-anchor="middle">6</text>
+  <text x="786" y="476" font-size="15" fill="#404040" text-anchor="middle">7</text>
+
+  <path d="M310 530L310 590" fill="none" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+  <path d="M690 530L690 590" fill="none" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+  <rect x="150" y="600" width="320" height="80" rx="4" fill="#f2f2f2" stroke="#8c8c8c" stroke-width="2"/>
+  <rect x="530" y="600" width="320" height="80" rx="4" fill="#f2f2f2" stroke="#8c8c8c" stroke-width="2"/>
+  <text x="310" y="635" font-size="17" font-weight="700" fill="#404040" text-anchor="middle">Topology boundary A</text>
+  <text x="310" y="660" font-size="14" fill="#666666" text-anchor="middle">e.g. one Leaf / HyperNode</text>
+  <text x="690" y="635" font-size="17" font-weight="700" fill="#404040" text-anchor="middle">Topology boundary B</text>
+  <text x="690" y="660" font-size="14" fill="#666666" text-anchor="middle">e.g. one Leaf / HyperNode</text>
+
+  <rect x="980" y="180" width="880" height="580" rx="8" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/>
+  <text x="1010" y="220" font-size="20" font-weight="700" fill="#404040">INFERENCE</text>
+  <rect x="1020" y="245" width="800" height="470" rx="8" fill="#f7faff" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="10 7"/>
+  <text x="1045" y="280" font-size="19" font-weight="700" fill="#28527d">ServingGroup · PodGroup</text>
+  <text x="1795" y="280" font-size="16" fill="#666666" text-anchor="end">whole-serving-group admission</text>
+  <text x="1420" y="320" font-size="16" fill="#595959" text-anchor="middle">Partition by serving role</text>
+
+  <rect x="1070" y="350" width="320" height="180" rx="5" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="1230" y="385" font-size="19" font-weight="700" fill="#1a1a1a" text-anchor="middle">Prefill Group</text>
+  <text x="1230" y="412" font-size="15" fill="#595959" text-anchor="middle">SubGroup</text>
+  <rect x="1150" y="445" width="56" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="1254" y="445" width="56" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="1178" y="476" font-size="15" fill="#404040" text-anchor="middle">P0</text>
+  <text x="1282" y="476" font-size="15" fill="#404040" text-anchor="middle">P1</text>
+
+  <rect x="1450" y="350" width="320" height="180" rx="5" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="1610" y="385" font-size="19" font-weight="700" fill="#1a1a1a" text-anchor="middle">Decode Group</text>
+  <text x="1610" y="412" font-size="15" fill="#595959" text-anchor="middle">SubGroup</text>
+  <rect x="1490" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="1554" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="1618" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <rect x="1682" y="445" width="48" height="48" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="1514" y="476" font-size="15" fill="#404040" text-anchor="middle">D0</text>
+  <text x="1578" y="476" font-size="15" fill="#404040" text-anchor="middle">D1</text>
+  <text x="1642" y="476" font-size="15" fill="#404040" text-anchor="middle">D2</text>
+  <text x="1706" y="476" font-size="15" fill="#404040" text-anchor="middle">D3</text>
+
+  <path d="M1230 530L1230 590" fill="none" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+  <path d="M1610 530L1610 590" fill="none" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+  <rect x="1070" y="600" width="320" height="80" rx="4" fill="#f2f2f2" stroke="#8c8c8c" stroke-width="2"/>
+  <rect x="1450" y="600" width="320" height="80" rx="4" fill="#f2f2f2" stroke="#8c8c8c" stroke-width="2"/>
+  <text x="1230" y="635" font-size="17" font-weight="700" fill="#404040" text-anchor="middle">Topology boundary C</text>
+  <text x="1230" y="660" font-size="14" fill="#666666" text-anchor="middle">Prefill placement scope</text>
+  <text x="1610" y="635" font-size="17" font-weight="700" fill="#404040" text-anchor="middle">Topology boundary D</text>
+  <text x="1610" y="660" font-size="14" fill="#666666" text-anchor="middle">Decode placement scope</text>
+
+  <text x="960" y="825" font-size="22" font-weight="700" fill="#28527d" text-anchor="middle">One workload · multiple placement units</text>
 </svg>
