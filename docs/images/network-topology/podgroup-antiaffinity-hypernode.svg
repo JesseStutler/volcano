@@ -11,52 +11,51 @@
   </defs>
   <rect width="900" height="620" fill="#ffffff"/>
   <text x="40" y="42" class="heading">PODGROUP ANTI-AFFINITY</text>
-  <text x="40" y="72" class="small">Serving scenario: place independent replica PodGroups in different Tier-1 HyperNodes.</text>
+  <text x="40" y="72" class="small">Place independent replica PodGroups in different Tier-1 HyperNodes.</text>
 
   <rect x="40" y="100" width="820" height="480" rx="7" fill="#f7f7f7" stroke="#8c8c8c" stroke-width="2"/>
   <text x="65" y="132" class="section">HyperNode Cluster</text>
-  <text x="835" y="132" class="tiny" text-anchor="end">separate leaf / failure domains</text>
+  <text x="835" y="132" class="tiny" text-anchor="end">Tier-1 = leaf switch / rack</text>
 
-  <rect x="70" y="158" width="355" height="380" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
+  <rect x="70" y="158" width="355" height="390" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
   <rect x="70" y="158" width="355" height="56" rx="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
   <rect x="70" y="204" width="355" height="10" fill="#dae8fc"/>
   <text x="247" y="192" class="section" text-anchor="middle">Tier-1 HyperNode A</text>
+  <rect x="100" y="278" width="295" height="220" rx="6" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
+  <rect x="137" y="262" width="220" height="38" rx="19" fill="#4e79a7"/>
+  <text x="247" y="287" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Serving PodGroup - Replica A</text>
+  <text x="247" y="326" class="tiny" text-anchor="middle">Prefill and Decode share one PodGroup</text>
+  <rect x="125" y="350" width="105" height="102" rx="5" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
+  <rect x="265" y="350" width="105" height="102" rx="5" fill="#eeeeee" stroke="#666666" stroke-width="2"/>
+  <text x="177" y="388" class="label" text-anchor="middle">Prefill</text>
+  <text x="177" y="414" class="tiny" text-anchor="middle">P-A</text>
+  <text x="317" y="388" class="label" text-anchor="middle">Decode</text>
+  <text x="317" y="414" class="tiny" text-anchor="middle">D-A</text>
+  <path d="M230 401H265" fill="none" stroke="#595959" stroke-width="2"/>
+  <text x="247" y="476" class="tiny" text-anchor="middle">KV transfer</text>
+  <text x="247" y="526" font-size="14" font-weight="700" fill="#28527d" text-anchor="middle">failure domain A</text>
 
-  <rect x="100" y="242" width="295" height="240" rx="6" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
-  <rect x="137" y="226" width="220" height="38" rx="19" fill="#4e79a7" stroke="#4e79a7"/>
-  <text x="247" y="251" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Serving PodGroup - Replica A</text>
-  <text x="247" y="292" class="tiny" text-anchor="middle">Prefill and Decode share one PodGroup</text>
-  <rect x="125" y="325" width="110" height="115" rx="5" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
-  <rect x="260" y="325" width="110" height="115" rx="5" fill="#eeeeee" stroke="#666666" stroke-width="2"/>
-  <text x="180" y="362" class="label" text-anchor="middle">Prefill</text>
-  <text x="180" y="390" class="tiny" text-anchor="middle">P-A</text>
-  <text x="315" y="362" class="label" text-anchor="middle">Decode</text>
-  <text x="315" y="390" class="tiny" text-anchor="middle">D-A</text>
-  <path d="M235 382H260" fill="none" stroke="#595959" stroke-width="2"/>
-  <text x="247" y="416" class="tiny" text-anchor="middle">KV transfer</text>
-  <text x="247" y="512" font-size="14" font-weight="700" fill="#28527d" text-anchor="middle">failure domain A</text>
-
-  <rect x="475" y="158" width="355" height="380" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
+  <rect x="475" y="158" width="355" height="390" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
   <rect x="475" y="158" width="355" height="56" rx="6" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
   <rect x="475" y="204" width="355" height="10" fill="#dae8fc"/>
   <text x="652" y="192" class="section" text-anchor="middle">Tier-1 HyperNode B</text>
+  <rect x="505" y="278" width="295" height="220" rx="6" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
+  <rect x="542" y="262" width="220" height="38" rx="19" fill="#4e79a7"/>
+  <text x="652" y="287" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Serving PodGroup - Replica B</text>
+  <text x="652" y="326" class="tiny" text-anchor="middle">Prefill and Decode share one PodGroup</text>
+  <rect x="530" y="350" width="105" height="102" rx="5" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
+  <rect x="670" y="350" width="105" height="102" rx="5" fill="#eeeeee" stroke="#666666" stroke-width="2"/>
+  <text x="582" y="388" class="label" text-anchor="middle">Prefill</text>
+  <text x="582" y="414" class="tiny" text-anchor="middle">P-B</text>
+  <text x="722" y="388" class="label" text-anchor="middle">Decode</text>
+  <text x="722" y="414" class="tiny" text-anchor="middle">D-B</text>
+  <path d="M635 401H670" fill="none" stroke="#595959" stroke-width="2"/>
+  <text x="652" y="476" class="tiny" text-anchor="middle">KV transfer</text>
+  <text x="652" y="526" font-size="14" font-weight="700" fill="#28527d" text-anchor="middle">failure domain B</text>
 
-  <rect x="505" y="242" width="295" height="240" rx="6" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
-  <rect x="542" y="226" width="220" height="38" rx="19" fill="#4e79a7" stroke="#4e79a7"/>
-  <text x="652" y="251" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Serving PodGroup - Replica B</text>
-  <text x="652" y="292" class="tiny" text-anchor="middle">Prefill and Decode share one PodGroup</text>
-  <rect x="530" y="325" width="110" height="115" rx="5" fill="#d6e4f0" stroke="#4e79a7" stroke-width="2"/>
-  <rect x="665" y="325" width="110" height="115" rx="5" fill="#eeeeee" stroke="#666666" stroke-width="2"/>
-  <text x="585" y="362" class="label" text-anchor="middle">Prefill</text>
-  <text x="585" y="390" class="tiny" text-anchor="middle">P-B</text>
-  <text x="720" y="362" class="label" text-anchor="middle">Decode</text>
-  <text x="720" y="390" class="tiny" text-anchor="middle">D-B</text>
-  <path d="M640 382H665" fill="none" stroke="#595959" stroke-width="2"/>
-  <text x="652" y="416" class="tiny" text-anchor="middle">KV transfer</text>
-  <text x="652" y="512" font-size="14" font-weight="700" fill="#28527d" text-anchor="middle">failure domain B</text>
-
-  <path d="M450 185V500" fill="none" stroke="#b85450" stroke-width="3" stroke-dasharray="10 7"/>
-  <rect x="417" y="325" width="66" height="66" rx="33" fill="#ffffff" stroke="#b85450" stroke-width="2"/>
-  <text x="450" y="368" font-size="30" font-weight="700" fill="#b85450" text-anchor="middle">≠</text>
-
+  <path d="M450 185V510" fill="none" stroke="#b85450" stroke-width="3" stroke-dasharray="10 7"/>
+  <rect x="400" y="226" width="100" height="32" rx="16" fill="#ffffff" stroke="#b85450" stroke-width="2"/>
+  <text x="450" y="247" font-size="12" font-weight="700" fill="#b85450" text-anchor="middle">SEPARATED</text>
+  <rect x="426" y="374" width="48" height="48" rx="24" fill="#ffffff" stroke="#b85450" stroke-width="2"/>
+  <text x="450" y="406" font-size="26" font-weight="700" fill="#b85450" text-anchor="middle">≠</text>
 </svg>
