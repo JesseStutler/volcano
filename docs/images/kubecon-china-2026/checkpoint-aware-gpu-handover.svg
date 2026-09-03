@@ -38,8 +38,7 @@
     <text x="537" y="376">GPU 4</text><text x="537" y="397">Rank 4</text><text x="631" y="376">GPU 5</text><text x="631" y="397">Rank 5</text>
     <text x="725" y="376">GPU 6</text><text x="725" y="397">Rank 6</text><text x="819" y="376">GPU 7</text><text x="819" y="397">Rank 7</text>
   </g>
-  <path d="M161 425H457M518 425H819" fill="none" stroke="#b85450" stroke-width="4"/>
-  <path d="M472 416L503 435M503 416L472 435" stroke="#b85450" stroke-width="4"/>
+  <path d="M161 425H819" fill="none" stroke="#6c8ebf" stroke-width="4"/>
   <text x="120" y="466" font-size="14" font-weight="700" fill="#595959">AFTER IMMEDIATE RECLAIM</text>
   <g stroke-width="1.5">
     <rect x="120" y="482" width="82" height="78" fill="#f2f2f2" stroke="#8c8c8c"/><rect x="214" y="482" width="82" height="78" fill="#f2f2f2" stroke="#8c8c8c"/>
@@ -48,22 +47,35 @@
     <rect x="684" y="482" width="82" height="78" fill="#d5e8d4" stroke="#82b366"/><rect x="778" y="482" width="82" height="78" fill="#d5e8d4" stroke="#82b366"/>
   </g>
   <g font-size="13" text-anchor="middle">
-    <text x="161" y="512" fill="#666666">GPU 0</text><text x="161" y="538" fill="#666666">rank stopped</text>
-    <text x="255" y="512" fill="#666666">GPU 1</text><text x="255" y="538" fill="#666666">rank stopped</text>
-    <text x="349" y="512" fill="#666666">GPU 2</text><text x="349" y="538" fill="#666666">rank stopped</text>
-    <text x="443" y="512" fill="#666666">GPU 3</text><text x="443" y="538" fill="#666666">rank stopped</text>
+    <text x="161" y="526" fill="#666666">GPU 0</text>
+    <text x="255" y="526" fill="#666666">GPU 1</text>
+    <text x="349" y="526" fill="#666666">GPU 2</text>
+    <text x="443" y="526" fill="#666666">GPU 3</text>
     <text x="537" y="512" fill="#345c2b">GPU 4</text><text x="537" y="538" fill="#345c2b">Serving S0</text>
     <text x="631" y="512" fill="#345c2b">GPU 5</text><text x="631" y="538" fill="#345c2b">Serving S1</text>
     <text x="725" y="512" fill="#345c2b">GPU 6</text><text x="725" y="538" fill="#345c2b">Serving S2</text>
     <text x="819" y="512" fill="#345c2b">GPU 7</text><text x="819" y="538" fill="#345c2b">Serving S3</text>
   </g>
 
-  <path d="M205 645H285V735H205zM265 645V665H285" fill="#ffffff" stroke="#b85450" stroke-width="2"/>
-  <path d="M192 638L298 744M298 638L192 744" stroke="#b85450" stroke-width="5"/>
-  <text x="350" y="666" font-size="17" font-weight="700" fill="#7f2f2b">In-memory training state is lost</text>
-  <text x="350" y="700" font-size="15" fill="#595959">The distributed job cannot continue with missing ranks.</text>
-  <rect x="350" y="723" width="300" height="52" rx="4" fill="#f8cecc" stroke="#b85450" stroke-width="2"/>
-  <text x="500" y="756" font-size="17" font-weight="700" fill="#7f2f2b" text-anchor="middle">Progress Lost - Job Restarts</text>
+  <text x="120" y="638" font-size="15" font-weight="700" fill="#7f2f2b">BROKEN TRAINING TOPOLOGY</text>
+  <g fill="#ffffff" stroke="#b85450" stroke-width="2">
+    <circle cx="155" cy="680" r="18"/><circle cx="215" cy="680" r="18"/><circle cx="275" cy="680" r="18"/><circle cx="335" cy="680" r="18"/>
+    <circle cx="410" cy="680" r="18"/><circle cx="470" cy="680" r="18"/><circle cx="530" cy="680" r="18"/><circle cx="590" cy="680" r="18"/>
+  </g>
+  <path d="M173 680H317M353 680L368 668L383 692L398 680M428 680H572" fill="none" stroke="#b85450" stroke-width="3"/>
+  <g font-size="11" fill="#7f2f2b" text-anchor="middle">
+    <text x="155" y="684">R0</text><text x="215" y="684">R1</text><text x="275" y="684">R2</text><text x="335" y="684">R3</text>
+    <text x="410" y="684">R4</text><text x="470" y="684">R5</text><text x="530" y="684">R6</text><text x="590" y="684">R7</text>
+  </g>
+  <text x="120" y="730" font-size="14" font-weight="700" fill="#595959">TRAINING PROGRESS</text>
+  <rect x="255" y="713" width="330" height="24" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5"/>
+  <rect x="470" y="713" width="115" height="24" fill="#f8cecc" stroke="#b85450" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="527" y="756" font-size="14" font-weight="700" fill="#7f2f2b" text-anchor="middle">Lost recent work</text>
+  <rect x="650" y="635" width="215" height="125" rx="5" fill="#f8cecc" stroke="#b85450" stroke-width="2"/>
+  <rect x="690" y="664" width="135" height="54" rx="3" fill="#ffffff" stroke="#b85450" stroke-width="1.5"/>
+  <text x="757" y="688" font-size="14" font-weight="700" fill="#7f2f2b" text-anchor="middle">Training Job</text>
+  <text x="757" y="708" font-size="12" fill="#7f2f2b" text-anchor="middle">start again</text>
+  <text x="757" y="746" font-size="17" font-weight="700" fill="#7f2f2b" text-anchor="middle">Restart Queue</text>
 
   <rect x="1000" y="95" width="865" height="735" rx="8" fill="#ffffff" stroke="#8c8c8c" stroke-width="2"/>
   <rect x="1000" y="95" width="865" height="58" rx="8" fill="#d5e8d4" stroke="#82b366" stroke-width="2"/>
@@ -103,31 +115,35 @@
     <rect x="1629" y="482" width="82" height="78" fill="#d5e8d4" stroke="#82b366"/><rect x="1723" y="482" width="82" height="78" fill="#d5e8d4" stroke="#82b366"/>
   </g>
   <g font-size="13" text-anchor="middle">
-    <text x="1106" y="512" fill="#666666">GPU 0</text><text x="1106" y="538" fill="#666666">rank paused</text>
-    <text x="1200" y="512" fill="#666666">GPU 1</text><text x="1200" y="538" fill="#666666">rank paused</text>
-    <text x="1294" y="512" fill="#666666">GPU 2</text><text x="1294" y="538" fill="#666666">rank paused</text>
-    <text x="1388" y="512" fill="#666666">GPU 3</text><text x="1388" y="538" fill="#666666">rank paused</text>
+    <text x="1106" y="526" fill="#666666">GPU 0</text>
+    <text x="1200" y="526" fill="#666666">GPU 1</text>
+    <text x="1294" y="526" fill="#666666">GPU 2</text>
+    <text x="1388" y="526" fill="#666666">GPU 3</text>
     <text x="1482" y="512" fill="#345c2b">GPU 4</text><text x="1482" y="538" fill="#345c2b">Serving S0</text>
     <text x="1576" y="512" fill="#345c2b">GPU 5</text><text x="1576" y="538" fill="#345c2b">Serving S1</text>
     <text x="1670" y="512" fill="#345c2b">GPU 6</text><text x="1670" y="538" fill="#345c2b">Serving S2</text>
     <text x="1764" y="512" fill="#345c2b">GPU 7</text><text x="1764" y="538" fill="#345c2b">Serving S3</text>
   </g>
 
-  <path d="M1110 650C1110 630 1230 630 1230 650V720C1230 740 1110 740 1110 720z" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
-  <ellipse cx="1170" cy="650" rx="60" ry="20" fill="#f7faff" stroke="#6c8ebf" stroke-width="2"/>
-  <path d="M1110 685C1110 705 1230 705 1230 685" fill="none" stroke="#6c8ebf" stroke-width="1.5"/>
-  <text x="1170" y="675" font-size="15" font-weight="700" fill="#28527d" text-anchor="middle">Checkpoint</text>
-  <text x="1170" y="696" font-size="14" fill="#28527d" text-anchor="middle">Storage</text>
-  <path d="M1230 685H1300" fill="none" stroke="#6c8ebf" stroke-width="2" marker-end="url(#arrow)"/>
-  <rect x="1300" y="645" width="500" height="100" rx="5" fill="#f7faff" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="7 5"/>
-  <text x="1550" y="674" font-size="15" font-weight="700" fill="#28527d" text-anchor="middle">Saved SubGroup B state</text>
+  <rect x="1065" y="625" width="540" height="155" rx="6" fill="#f7faff" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="1090" y="650" font-size="14" font-weight="700" fill="#28527d">CHECKPOINT STORAGE</text>
+  <rect x="1090" y="662" width="490" height="92" rx="5" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="1110" y="685" font-size="14" font-weight="700" fill="#28527d">Checkpoint Snapshot</text>
+  <path d="M1130 714H1480" fill="none" stroke="#6c8ebf" stroke-width="3"/>
   <g fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5">
-    <rect x="1350" y="691" width="70" height="36"/><rect x="1435" y="691" width="70" height="36"/><rect x="1520" y="691" width="70" height="36"/><rect x="1605" y="691" width="70" height="36"/>
+    <circle cx="1140" cy="714" r="15"/><circle cx="1190" cy="714" r="15"/><circle cx="1240" cy="714" r="15"/><circle cx="1290" cy="714" r="15"/>
+    <circle cx="1340" cy="714" r="15"/><circle cx="1390" cy="714" r="15"/><circle cx="1440" cy="714" r="15"/><circle cx="1490" cy="714" r="15"/>
   </g>
-  <g font-size="12" fill="#28527d" text-anchor="middle">
-    <text x="1385" y="714">Rank 4</text><text x="1470" y="714">Rank 5</text><text x="1555" y="714">Rank 6</text><text x="1640" y="714">Rank 7</text>
+  <g font-size="10" fill="#28527d" text-anchor="middle">
+    <text x="1140" y="718">R0</text><text x="1190" y="718">R1</text><text x="1240" y="718">R2</text><text x="1290" y="718">R3</text>
+    <text x="1340" y="718">R4</text><text x="1390" y="718">R5</text><text x="1440" y="718">R6</text><text x="1490" y="718">R7</text>
   </g>
-  <text x="1755" y="705" font-size="15" font-weight="700" fill="#345c2b" text-anchor="middle">ready to restore</text>
-  <rect x="1300" y="765" width="500" height="42" rx="4" fill="#d5e8d4" stroke="#82b366" stroke-width="2"/>
-  <text x="1550" y="792" font-size="17" font-weight="700" fill="#345c2b" text-anchor="middle">State Preserved - Ready to Resume</text>
+  <rect x="1515" y="690" width="42" height="48" rx="3" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <path d="M1523 714L1533 724L1550 703" fill="none" stroke="#527a45" stroke-width="3"/>
+  <rect x="1640" y="635" width="180" height="125" rx="5" fill="#d5e8d4" stroke="#82b366" stroke-width="2"/>
+  <rect x="1670" y="664" width="120" height="54" rx="3" fill="#ffffff" stroke="#82b366" stroke-width="1.5"/>
+  <text x="1730" y="687" font-size="14" font-weight="700" fill="#345c2b" text-anchor="middle">Training Job</text>
+  <text x="1730" y="707" font-size="12" fill="#345c2b" text-anchor="middle">same progress</text>
+  <text x="1730" y="746" font-size="17" font-weight="700" fill="#345c2b" text-anchor="middle">Resume Queue</text>
+  <text x="1335" y="807" font-size="16" font-weight="700" fill="#345c2b" text-anchor="middle">Complete topology and recent work are preserved</text>
 </svg>
