@@ -58,7 +58,7 @@
   <path d="M800.0 255L800.0 290L960.0 290L960.0 365" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
   <path d="M340.0 425L340.0 460L210.0 460L210.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
   <path d="M340.0 425L340.0 460L470.0 460L470.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M960.0 425L970.0 425L970.0 565L900.0 565" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M960.0 425L700.0 425L700.0 565L760.0 565" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
   <path d="M960.0 425L960.0 460L1090.0 460L1090.0 535" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
   <path d="M210.0 595L210.0 685" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
   <path d="M470.0 595L470.0 685" fill="none" stroke="#595959" stroke-width="2" marker-end="url(#arrow)"/>
