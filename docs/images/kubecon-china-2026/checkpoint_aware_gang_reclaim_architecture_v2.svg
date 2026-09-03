@@ -2,10 +2,11 @@
   <defs>
     <marker id="blueArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#4e79a7"/></marker>
     <marker id="greenArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#3b7d5c"/></marker>
+    <marker id="redArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#b85450"/></marker>
     <style>
       text{font-family:Arial,Helvetica,sans-serif;fill:#26384a}
       .eyebrow{font-size:12px;font-weight:700;letter-spacing:.8px;fill:#526d82}
-      .title{font-size:20px;font-weight:700;fill:#18354f}
+      .title{font-size:19px;font-weight:700;fill:#18354f}
       .label{font-size:15px;font-weight:700}
       .body{font-size:13px;fill:#52606d}
       .tiny{font-size:12px;fill:#66788a}
@@ -19,102 +20,103 @@
   <rect x="1124" y="42" width="210" height="28" rx="14" fill="#eef5ff" stroke="#7fa3c2"/>
   <text x="1229" y="61" font-size="12" font-weight="700" fill="#355e87" text-anchor="middle">PROPOSED VOLCANO EVOLUTION</text>
 
-  <!-- Queue pressure -->
-  <rect x="70" y="92" width="300" height="176" rx="8" fill="#f8fbfe" stroke="#7fa3c2" stroke-width="1.6"/>
-  <text x="92" y="122" class="title">Queue pressure</text>
+  <!-- Compact control objects -->
+  <rect x="70" y="92" width="300" height="180" rx="8" fill="#ffffff" stroke="#7fa3c2" stroke-width="1.6"/>
+  <text x="92" y="122" class="title">Volcano Queue</text>
   <line x1="92" y1="136" x2="348" y2="136" stroke="#c4d2df"/>
   <rect x="92" y="150" width="256" height="42" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
-  <text x="108" y="169" class="label">Serving Queue</text>
-  <text x="108" y="185" class="tiny">Pending PodGroup · short 4 GPUs</text>
-  <rect x="92" y="204" width="256" height="42" rx="6" fill="#f7f7f7" stroke="#aab8c5"/>
-  <text x="108" y="223" class="label">Training Queue</text>
-  <text x="108" y="239" class="tiny">Borrowed capacity · return 4 GPUs</text>
+  <text x="108" y="169" class="label">Serving PodGroup</text>
+  <text x="332" y="184" class="tiny" text-anchor="end">PENDING · needs 4 GPUs</text>
+  <rect x="92" y="206" width="256" height="42" rx="6" fill="#f7f7f7" stroke="#aab8c5"/>
+  <text x="108" y="225" class="label">Training Job A</text>
+  <text x="332" y="240" class="tiny" text-anchor="end">borrowed 4 GPUs</text>
 
-  <!-- Gang reclaim -->
-  <rect x="420" y="92" width="300" height="176" rx="8" fill="#eef5ff" stroke="#78a4d7" stroke-width="1.6"/>
-  <text x="442" y="122" class="title">Gang Reclaim</text>
-  <line x1="442" y1="136" x2="698" y2="136" stroke="#b7cbe0"/>
-  <circle cx="458" cy="159" r="11" fill="#4e79a7"/><text x="458" y="164" class="white" font-size="12" font-weight="700" text-anchor="middle">1</text>
-  <text x="480" y="164" class="label">Select complete victim PodGroup</text>
-  <circle cx="458" cy="199" r="11" fill="#4e79a7"/><text x="458" y="204" class="white" font-size="12" font-weight="700" text-anchor="middle">2</text>
-  <text x="480" y="204" class="label">Create ReclaimIntent</text>
-  <rect x="442" y="222" width="256" height="28" rx="5" fill="#ffffff" stroke="#b85450" stroke-width="1.4"/>
-  <text x="570" y="241" font-size="12" font-weight="700" fill="#8a3b37" text-anchor="middle">No eviction before all ranks are ready</text>
+  <rect x="420" y="92" width="300" height="180" rx="8" fill="#ffffff" stroke="#78a4d7" stroke-width="1.6"/>
+  <text x="442" y="122" class="title">Volcano Scheduler</text>
+  <line x1="442" y1="136" x2="698" y2="136" stroke="#c4d2df"/>
+  <circle cx="460" cy="164" r="12" fill="#4e79a7"/><text x="460" y="169" class="white" font-size="12" font-weight="700" text-anchor="middle">1</text>
+  <text x="484" y="169" class="label">Select complete victim Job</text>
+  <circle cx="460" cy="213" r="12" fill="#4e79a7"/><text x="460" y="218" class="white" font-size="12" font-weight="700" text-anchor="middle">2</text>
+  <text x="484" y="218" class="label">Scheduler writes ReclaimIntent</text>
+  <text x="484" y="240" class="tiny">end scheduling cycle · no eviction</text>
 
-  <!-- Training controller -->
-  <rect x="770" y="92" width="560" height="176" rx="8" fill="#f8fbfe" stroke="#78a4d7" stroke-width="1.6"/>
-  <text x="792" y="122" class="title">Training Controller</text>
+  <rect x="770" y="92" width="560" height="180" rx="8" fill="#ffffff" stroke="#78a4d7" stroke-width="1.6"/>
+  <text x="792" y="122" class="title">Job Controller watches intent</text>
   <line x1="792" y1="136" x2="1308" y2="136" stroke="#c4d2df"/>
-  <text x="792" y="160" class="label">Coordinate one gang checkpoint</text>
-  <text x="792" y="181" class="body">Fan out checkpoint requests and preserve the rank-to-shard mapping.</text>
-  <rect x="792" y="200" width="90" height="34" rx="5" fill="#edf7f2" stroke="#64a987"/><text x="837" y="222" class="label" fill="#285f49" text-anchor="middle">T0 ✓</text>
-  <rect x="892" y="200" width="90" height="34" rx="5" fill="#edf7f2" stroke="#64a987"/><text x="937" y="222" class="label" fill="#285f49" text-anchor="middle">T1 ✓</text>
-  <rect x="992" y="200" width="90" height="34" rx="5" fill="#edf7f2" stroke="#64a987"/><text x="1037" y="222" class="label" fill="#285f49" text-anchor="middle">T2 ✓</text>
-  <rect x="1092" y="200" width="90" height="34" rx="5" fill="#edf7f2" stroke="#64a987"/><text x="1137" y="222" class="label" fill="#285f49" text-anchor="middle">T3 ✓</text>
-  <rect x="1192" y="200" width="116" height="34" rx="17" fill="#3b7d5c"/>
-  <text x="1250" y="222" class="white" font-size="13" font-weight="700" text-anchor="middle">4/4 ranks ready</text>
+  <rect x="792" y="153" width="140" height="36" rx="18" fill="#eef5ff" stroke="#78a4d7"/>
+  <text x="862" y="176" class="label" text-anchor="middle">Checkpoint T0–T3</text>
+  <path d="M932 171H976" fill="none" stroke="#4e79a7" stroke-width="2" marker-end="url(#blueArrow)"/>
+  <rect x="976" y="153" width="116" height="36" rx="18" fill="#edf7f2" stroke="#64a987"/>
+  <text x="1034" y="176" class="label" fill="#285f49" text-anchor="middle">4/4 READY</text>
+  <path d="M1092 171H1136" fill="none" stroke="#3b7d5c" stroke-width="2" marker-end="url(#greenArrow)"/>
+  <rect x="1136" y="153" width="172" height="36" rx="18" fill="#fff4f3" stroke="#b85450"/>
+  <text x="1222" y="176" class="label" fill="#7f2f2b" text-anchor="middle">Evict T0–T3 together</text>
+  <text x="792" y="226" class="body">Job Controller evicts the gang only after every rank checkpoint is durable.</text>
 
-  <!-- Short control-plane connectors -->
-  <path d="M370 180H420" fill="none" stroke="#4e79a7" stroke-width="2.2" marker-end="url(#blueArrow)"/>
-  <text x="395" y="168" class="tiny" text-anchor="middle">demand</text>
-  <path d="M720 180H770" fill="none" stroke="#4e79a7" stroke-width="2.2" marker-end="url(#blueArrow)"/>
-  <text x="745" y="151" class="tiny" text-anchor="middle">Reclaim</text>
-  <text x="745" y="165" class="tiny" text-anchor="middle">Intent</text>
+  <path d="M370 182H420" fill="none" stroke="#4e79a7" stroke-width="2.2" marker-end="url(#blueArrow)"/>
+  <text x="395" y="169" class="tiny" text-anchor="middle">demand</text>
 
-  <!-- Physical victim placement -->
-  <rect x="70" y="310" width="650" height="264" rx="8" fill="#f8fafc" stroke="#91a6b8" stroke-width="1.6"/>
-  <text x="92" y="340" class="title">Tier-1 HyperNode · victim placement</text>
-  <text x="698" y="340" class="tiny" text-anchor="end">one complete Training PodGroup</text>
-  <rect x="92" y="358" width="606" height="166" rx="7" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
-  <rect x="250" y="342" width="290" height="34" rx="17" fill="#4e79a7"/>
-  <text x="395" y="365" class="white" font-size="14" font-weight="700" text-anchor="middle">Training PodGroup · selected victim</text>
-  <rect x="112" y="398" width="130" height="92" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
-  <rect x="257" y="398" width="130" height="92" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
-  <rect x="402" y="398" width="130" height="92" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
-  <rect x="547" y="398" width="130" height="92" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
-  <text x="177" y="432" class="label" text-anchor="middle">GPU 0 · T0</text><text x="177" y="455" class="tiny" text-anchor="middle">rank snapshot ✓</text><text x="177" y="475" class="tiny" text-anchor="middle">running</text>
-  <text x="322" y="432" class="label" text-anchor="middle">GPU 1 · T1</text><text x="322" y="455" class="tiny" text-anchor="middle">rank snapshot ✓</text><text x="322" y="475" class="tiny" text-anchor="middle">running</text>
-  <text x="467" y="432" class="label" text-anchor="middle">GPU 2 · T2</text><text x="467" y="455" class="tiny" text-anchor="middle">rank snapshot ✓</text><text x="467" y="475" class="tiny" text-anchor="middle">running</text>
-  <text x="612" y="432" class="label" text-anchor="middle">GPU 3 · T3</text><text x="612" y="455" class="tiny" text-anchor="middle">rank snapshot ✓</text><text x="612" y="475" class="tiny" text-anchor="middle">running</text>
-  <rect x="185" y="535" width="420" height="26" rx="13" fill="#ffffff" stroke="#b85450"/>
-  <text x="395" y="553" font-size="12" font-weight="700" fill="#8a3b37" text-anchor="middle">EVICTION GATE · locked until checkpoint manifest is complete</text>
+  <!-- Physical placement is the visual anchor -->
+  <rect x="70" y="318" width="850" height="380" rx="8" fill="#f8fafc" stroke="#91a6b8" stroke-width="1.6"/>
+  <text x="92" y="349" class="title">Tier-1 HyperNode · 4 GPUs</text>
 
-  <!-- Checkpoint artifact -->
-  <rect x="770" y="310" width="560" height="264" rx="8" fill="#f7fbf9" stroke="#64a987" stroke-width="1.6"/>
-  <text x="792" y="340" class="title">Shared checkpoint storage</text>
-  <text x="1308" y="340" class="tiny" text-anchor="end">durable recovery contract</text>
-  <rect x="792" y="358" width="220" height="150" rx="7" fill="#ffffff" stroke="#64a987"/>
-  <text x="812" y="385" class="label">Rank snapshots</text>
-  <rect x="812" y="400" width="82" height="32" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="853" y="421" class="tiny" text-anchor="middle">T0.ckpt</text>
-  <rect x="908" y="400" width="82" height="32" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="949" y="421" class="tiny" text-anchor="middle">T1.ckpt</text>
-  <rect x="812" y="444" width="82" height="32" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="853" y="465" class="tiny" text-anchor="middle">T2.ckpt</text>
-  <rect x="908" y="444" width="82" height="32" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="949" y="465" class="tiny" text-anchor="middle">T3.ckpt</text>
-  <text x="902" y="494" class="tiny" text-anchor="middle">model / optimizer shards</text>
-  <rect x="1032" y="358" width="276" height="160" rx="7" fill="#ffffff" stroke="#64a987"/>
-  <text x="1052" y="385" class="label">PodGroup checkpoint manifest</text>
-  <text x="1052" y="414" class="body">• step + RNG + dataloader state</text>
-  <text x="1052" y="440" class="body">• world size + rank / shard mapping</text>
-  <text x="1052" y="466" class="body">• all snapshot object references</text>
-  <rect x="1052" y="478" width="236" height="34" rx="5" fill="#edf7f2" stroke="#64a987"/>
-  <text x="1170" y="500" font-size="13" font-weight="700" fill="#285f49" text-anchor="middle">checkpointRef created atomically</text>
-  <path d="M720 444H770" fill="none" stroke="#3b7d5c" stroke-width="2.2" marker-end="url(#greenArrow)"/>
-  <path d="M1050 268V310" fill="none" stroke="#4e79a7" stroke-width="2.2" marker-end="url(#blueArrow)"/>
-  <text x="1064" y="292" class="tiny">coordinate + verify</text>
-  <rect x="956" y="532" width="188" height="28" rx="14" fill="#3b7d5c"/>
-  <text x="1050" y="551" class="white" font-size="12" font-weight="700" text-anchor="middle">BARRIER OPEN · 4/4 READY</text>
-  <path d="M1050 560V610" fill="none" stroke="#3b7d5c" stroke-width="2.2" marker-end="url(#greenArrow)"/>
-  <text x="1065" y="590" class="tiny">commit</text>
+  <rect x="92" y="374" width="806" height="132" rx="7" fill="#ffffff" stroke="#4e79a7" stroke-width="2" stroke-dasharray="8 6"/>
+  <rect x="250" y="358" width="300" height="34" rx="17" fill="#4e79a7"/>
+  <text x="400" y="381" class="white" font-size="14" font-weight="700" text-anchor="middle">Training Job A · victim gang</text>
+  <rect x="112" y="409" width="174" height="72" rx="6" fill="#f7f7f7" stroke="#91a6b8"/>
+  <rect x="309" y="409" width="174" height="72" rx="6" fill="#f7f7f7" stroke="#91a6b8"/>
+  <rect x="506" y="409" width="174" height="72" rx="6" fill="#f7f7f7" stroke="#91a6b8"/>
+  <rect x="703" y="409" width="174" height="72" rx="6" fill="#f7f7f7" stroke="#91a6b8"/>
+  <text x="199" y="438" class="label" text-anchor="middle">GPU 0 · T0</text><text x="199" y="463" class="tiny" text-anchor="middle">snapshot ✓</text>
+  <text x="396" y="438" class="label" text-anchor="middle">GPU 1 · T1</text><text x="396" y="463" class="tiny" text-anchor="middle">snapshot ✓</text>
+  <text x="593" y="438" class="label" text-anchor="middle">GPU 2 · T2</text><text x="593" y="463" class="tiny" text-anchor="middle">snapshot ✓</text>
+  <text x="790" y="438" class="label" text-anchor="middle">GPU 3 · T3</text><text x="790" y="463" class="tiny" text-anchor="middle">snapshot ✓</text>
 
-  <!-- Atomic handover -->
-  <rect x="70" y="610" width="1260" height="88" rx="8" fill="#fbfcfd" stroke="#91a6b8" stroke-width="1.5"/>
-  <text x="92" y="637" class="eyebrow">ATOMIC HANDOVER AFTER THE CHECKPOINT BARRIER</text>
-  <rect x="92" y="642" width="420" height="46" rx="6" fill="#fff4f3" stroke="#b85450"/>
-  <text x="302" y="660" class="label" fill="#7f2f2b" text-anchor="middle">Evict whole PodGroup</text>
-  <text x="302" y="680" class="tiny" text-anchor="middle">victim requeued with checkpointRef / restoreFrom</text>
-  <path d="M512 665H566" fill="none" stroke="#4e79a7" stroke-width="2" marker-end="url(#blueArrow)"/>
-  <rect x="566" y="642" width="260" height="46" rx="6" fill="#f7f7f7" stroke="#aab8c5"/>
-  <text x="696" y="670" class="label" text-anchor="middle">Release 4 GPUs</text>
-  <path d="M826 665H880" fill="none" stroke="#4e79a7" stroke-width="2" marker-end="url(#blueArrow)"/>
-  <rect x="880" y="642" width="428" height="46" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
-  <text x="1094" y="670" class="label" text-anchor="middle">Admit Serving PodGroup as a gang</text>
+  <rect x="748" y="330" width="134" height="58" rx="4" fill="#ffffff" stroke="#4e79a7" stroke-width="1.5"/>
+  <path d="M846 330L882 366H846Z" fill="#eef5ff" stroke="#4e79a7" stroke-width="1.2"/>
+  <text x="815" y="352" class="label" text-anchor="middle">ReclaimIntent</text>
+  <text x="815" y="374" class="tiny" text-anchor="middle">Job A · 4 GPUs</text>
+  <path d="M570 272V300H815V330" fill="none" stroke="#4e79a7" stroke-width="2.2" marker-end="url(#blueArrow)"/>
+  <path d="M835 330V302H862V272" fill="none" stroke="#4e79a7" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#blueArrow)"/>
+
+  <line x1="112" y1="530" x2="878" y2="530" stroke="#b85450" stroke-width="2"/>
+  <rect x="350" y="513" width="290" height="34" rx="17" fill="#ffffff" stroke="#b85450" stroke-width="1.5"/>
+  <text x="495" y="536" font-size="13" font-weight="700" fill="#8a3b37" text-anchor="middle">JOB CONTROLLER EVICTS THE GANG</text>
+  <path d="M1222 189V292H935V530H878" fill="none" stroke="#b85450" stroke-width="2.2" marker-end="url(#redArrow)"/>
+
+  <rect x="92" y="570" width="806" height="105" rx="7" fill="#ffffff" stroke="#78a4d7" stroke-width="2"/>
+  <text x="112" y="594" class="eyebrow">NEXT SCHEDULING CYCLE · ADMIT SERVING PODGROUP</text>
+  <rect x="112" y="608" width="174" height="50" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
+  <rect x="309" y="608" width="174" height="50" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
+  <rect x="506" y="608" width="174" height="50" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
+  <rect x="703" y="608" width="174" height="50" rx="6" fill="#eef5ff" stroke="#78a4d7"/>
+  <text x="199" y="639" class="label" text-anchor="middle">GPU 0 · S0</text>
+  <text x="396" y="639" class="label" text-anchor="middle">GPU 1 · S1</text>
+  <text x="593" y="639" class="label" text-anchor="middle">GPU 2 · S2</text>
+  <text x="790" y="639" class="label" text-anchor="middle">GPU 3 · S3</text>
+
+  <!-- Checkpoint artifacts, not a prose panel -->
+  <rect x="970" y="318" width="360" height="244" rx="8" fill="#ffffff" stroke="#64a987" stroke-width="1.6"/>
+  <text x="992" y="349" class="title">Checkpoint artifacts</text>
+  <line x1="992" y1="361" x2="1308" y2="361" stroke="#c7ddd2"/>
+  <rect x="992" y="379" width="70" height="42" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="1027" y="405" class="tiny" text-anchor="middle">T0.ckpt</text>
+  <rect x="1074" y="379" width="70" height="42" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="1109" y="405" class="tiny" text-anchor="middle">T1.ckpt</text>
+  <rect x="1156" y="379" width="70" height="42" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="1191" y="405" class="tiny" text-anchor="middle">T2.ckpt</text>
+  <rect x="1238" y="379" width="70" height="42" rx="5" fill="#edf7f2" stroke="#8bc0a5"/><text x="1273" y="405" class="tiny" text-anchor="middle">T3.ckpt</text>
+  <rect x="992" y="440" width="316" height="76" rx="6" fill="#f7fbf9" stroke="#64a987"/>
+  <text x="1012" y="466" class="label">manifest</text>
+  <text x="1012" y="491" class="body">step · RNG · optimizer · rank/shard map</text>
+  <rect x="1054" y="527" width="192" height="28" rx="14" fill="#3b7d5c"/>
+  <text x="1150" y="546" class="white" font-size="12" font-weight="700" text-anchor="middle">4/4 READY · checkpointRef</text>
+  <path d="M920 445H970" fill="none" stroke="#3b7d5c" stroke-width="2.2" marker-end="url(#greenArrow)"/>
+  <path d="M1150 516V527" fill="none" stroke="#3b7d5c" stroke-width="1.8" marker-end="url(#greenArrow)"/>
+  <path d="M1054 541H980V202H1034V189" fill="none" stroke="#3b7d5c" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#greenArrow)"/>
+
+  <rect x="970" y="590" width="360" height="108" rx="8" fill="#f7fbf9" stroke="#64a987" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="992" y="621" class="title">Training Job A · recoverable</text>
+  <rect x="992" y="638" width="198" height="38" rx="6" fill="#edf7f2" stroke="#64a987"/>
+  <text x="1091" y="662" class="label" fill="#285f49" text-anchor="middle">checkpointRef</text>
+  <text x="1210" y="654" class="body">restore later</text>
+  <text x="1210" y="672" class="tiny">by Job Controller</text>
+  <path d="M1150 562V590" fill="none" stroke="#3b7d5c" stroke-width="2" marker-end="url(#greenArrow)"/>
 </svg>
