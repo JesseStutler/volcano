@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="880" viewBox="0 0 1920 880">
+  <defs>
+    <marker id="arrowGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#6b7280"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#c88a16"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #263238; }
+      .heading { font-size: 20px; font-weight: 700; }
+      .label { font-size: 17px; font-weight: 700; }
+      .small { font-size: 14px; fill: #5f6873; }
+      .tiny { font-size: 12px; fill: #6b7280; }
+      .podText { font-size: 13px; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1920" height="880" fill="#ffffff"/>
+
+  <!-- Kthena logical model -->
+  <rect x="60" y="60" width="440" height="760" rx="12" fill="#f7faff" stroke="#6c8ebf" stroke-width="2" stroke-dasharray="9 6"/>
+  <circle cx="94" cy="96" r="18" fill="#4472c4"/>
+  <text x="94" y="103" font-size="19" font-weight="700" fill="#ffffff" text-anchor="middle">K</text>
+  <text x="125" y="103" class="heading">Kthena ModelServing</text>
+  <rect x="378" y="80" width="88" height="30" rx="15" fill="#e7eef9" stroke="#9bb4d4"/>
+  <text x="422" y="100" class="tiny" text-anchor="middle">1 ServingGroup</text>
+
+  <rect x="94" y="142" width="372" height="620" rx="9" fill="#ffffff" stroke="#527bb3" stroke-width="2.2"/>
+  <rect x="94" y="142" width="372" height="58" rx="9" fill="#eaf1fb"/>
+  <rect x="94" y="181" width="372" height="19" fill="#eaf1fb"/>
+  <text x="120" y="178" class="label">ServingGroup 0</text>
+  <rect x="355" y="157" width="83" height="28" rx="14" fill="#ffffff" stroke="#6c8ebf"/>
+  <text x="396.5" y="176" class="tiny" text-anchor="middle">1P3D</text>
+
+  <rect x="124" y="228" width="312" height="142" rx="8" fill="#eef8f1" stroke="#6da37c" stroke-width="2"/>
+  <text x="148" y="260" class="label" fill="#376946">Prefill Role</text>
+  <text x="409" y="260" class="tiny" text-anchor="end">1 replica</text>
+  <rect x="148" y="286" width="118" height="54" rx="5" fill="#ffffff" stroke="#6da37c" stroke-width="1.6"/>
+  <rect x="292" y="286" width="118" height="54" rx="5" fill="#ffffff" stroke="#6da37c" stroke-width="1.6"/>
+  <text x="207" y="319" class="podText" text-anchor="middle">P Entry</text>
+  <text x="351" y="319" class="podText" text-anchor="middle">P Worker</text>
+
+  <rect x="124" y="397" width="312" height="286" rx="8" fill="#eef4fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="148" y="429" class="label" fill="#31567d">Decode Role</text>
+  <text x="409" y="429" class="tiny" text-anchor="end">3 replicas</text>
+
+  <rect x="148" y="456" width="264" height="56" rx="5" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <rect x="148" y="528" width="264" height="56" rx="5" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <rect x="148" y="600" width="264" height="56" rx="5" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="172" y="490" class="podText">D0</text>
+  <text x="172" y="562" class="podText">D1</text>
+  <text x="172" y="634" class="podText">D2</text>
+  <rect x="217" y="469" width="82" height="30" rx="4" fill="#f8fafc" stroke="#aab3bd"/>
+  <rect x="313" y="469" width="82" height="30" rx="4" fill="#f8fafc" stroke="#aab3bd"/>
+  <rect x="217" y="541" width="82" height="30" rx="4" fill="#f8fafc" stroke="#aab3bd"/>
+  <rect x="313" y="541" width="82" height="30" rx="4" fill="#f8fafc" stroke="#aab3bd"/>
+  <rect x="217" y="613" width="82" height="30" rx="4" fill="#f8fafc" stroke="#aab3bd"/>
+  <rect x="313" y="613" width="82" height="30" rx="4" fill="#f8fafc" stroke="#aab3bd"/>
+  <text x="258" y="489" class="tiny" text-anchor="middle">Entry</text>
+  <text x="354" y="489" class="tiny" text-anchor="middle">Worker</text>
+  <text x="258" y="561" class="tiny" text-anchor="middle">Entry</text>
+  <text x="354" y="561" class="tiny" text-anchor="middle">Worker</text>
+  <text x="258" y="633" class="tiny" text-anchor="middle">Entry</text>
+  <text x="354" y="633" class="tiny" text-anchor="middle">Worker</text>
+
+  <path d="M175 718H385" fill="none" stroke="#7d8792" stroke-width="2"/>
+  <circle cx="175" cy="718" r="7" fill="#6da37c"/>
+  <circle cx="205" cy="718" r="7" fill="#6da37c"/>
+  <circle cx="235" cy="718" r="7" fill="#6c8ebf"/>
+  <circle cx="265" cy="718" r="7" fill="#6c8ebf"/>
+  <circle cx="295" cy="718" r="7" fill="#6c8ebf"/>
+  <circle cx="325" cy="718" r="7" fill="#6c8ebf"/>
+  <circle cx="355" cy="718" r="7" fill="#6c8ebf"/>
+  <circle cx="385" cy="718" r="7" fill="#6c8ebf"/>
+  <text x="280" y="746" class="tiny" text-anchor="middle">gang admission · 8 pods</text>
+
+  <!-- Volcano bridge -->
+  <path d="M500 435H548" fill="none" stroke="#6b7280" stroke-width="2.2" marker-end="url(#arrowGray)"/>
+  <text x="524" y="414" class="small" text-anchor="middle">schedule</text>
+  <rect x="550" y="346" width="230" height="178" rx="10" fill="#ffffff" stroke="#6c8ebf" stroke-width="2"/>
+  <path d="M643 378L665 365L687 378V404L665 417L643 404z" fill="#4472c4"/>
+  <path d="M653 383L665 404L677 383" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="665" y="450" class="label" text-anchor="middle">Volcano</text>
+  <text x="665" y="476" class="small" text-anchor="middle">Gang + Topology</text>
+  <path d="M780 435H838" fill="none" stroke="#6b7280" stroke-width="2.2" marker-end="url(#arrowGray)"/>
+  <text x="809" y="414" class="small" text-anchor="middle">place</text>
+
+  <!-- Physical HyperNode placement -->
+  <rect x="840" y="60" width="1020" height="760" rx="12" fill="#fbfcfe" stroke="#7d8792" stroke-width="2.2" stroke-dasharray="9 6"/>
+  <text x="872" y="101" class="heading">Tier-2 HyperNode</text>
+  <rect x="1060" y="78" width="226" height="28" rx="14" fill="#eaf1fb" stroke="#9bb4d4"/>
+  <text x="1173" y="97" font-size="13" fill="#5f6873" text-anchor="middle">groupPolicy · hard · Tier 2</text>
+  <rect x="1302" y="78" width="292" height="28" rx="14" fill="#f4f7fc" stroke="#9bb4d4"/>
+  <text x="1448" y="97" font-size="13" fill="#5f6873" text-anchor="middle">rolePolicy · each instance within Tier 1</text>
+  <text x="1822" y="101" class="small" text-anchor="end">ServingGroup 0 placement domain</text>
+
+  <rect x="886" y="140" width="360" height="620" rx="10" fill="#f3faf5" stroke="#6da37c" stroke-width="2"/>
+  <text x="914" y="178" class="label" fill="#376946">Tier-1 HyperNode A</text>
+  <rect x="1100" y="157" width="112" height="27" rx="13.5" fill="#ffffff" stroke="#8eb99a"/>
+  <text x="1156" y="176" font-size="13" fill="#5f6873" text-anchor="middle">EXAMPLE</text>
+  <text x="914" y="205" class="small">Prefill locality</text>
+
+  <rect x="930" y="244" width="272" height="405" rx="8" fill="#ffffff" stroke="#7f9b87" stroke-width="1.8"/>
+  <rect x="953" y="270" width="226" height="46" rx="5" fill="#eef8f1" stroke="#6da37c" stroke-width="1.5"/>
+  <text x="1066" y="299" class="podText" text-anchor="middle">P Entry</text>
+  <rect x="953" y="334" width="226" height="248" rx="6" fill="#f8faf9" stroke="#9eaaa1" stroke-width="1.4"/>
+  <text x="972" y="361" class="small">GPU node</text>
+  <rect x="972" y="382" width="188" height="72" rx="5" fill="#eef8f1" stroke="#6da37c" stroke-width="1.5"/>
+  <text x="1066" y="411" class="podText" text-anchor="middle">P Worker</text>
+  <text x="1066" y="436" class="tiny" text-anchor="middle">prompt compute + KV build</text>
+  <path d="M1066 316V334" fill="none" stroke="#6da37c" stroke-width="2" marker-end="url(#arrowGray)"/>
+  <g fill="#263238">
+    <rect x="972" y="482" width="38" height="34" rx="4"/>
+    <rect x="1022" y="482" width="38" height="34" rx="4"/>
+    <rect x="1072" y="482" width="38" height="34" rx="4"/>
+    <rect x="1122" y="482" width="38" height="34" rx="4"/>
+  </g>
+  <text x="1066" y="540" class="tiny" text-anchor="middle">4 GPUs</text>
+  <path d="M972 555H1160" fill="none" stroke="#6da37c" stroke-width="4" stroke-linecap="round"/>
+  <text x="1066" y="610" class="tiny" text-anchor="middle">high-bandwidth local fabric</text>
+
+  <rect x="1284" y="140" width="532" height="620" rx="10" fill="#f4f7fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="1312" y="178" class="label" fill="#31567d">Tier-1 HyperNode B</text>
+  <rect x="1669" y="157" width="112" height="27" rx="13.5" fill="#ffffff" stroke="#9bb4d4"/>
+  <text x="1725" y="176" font-size="13" fill="#5f6873" text-anchor="middle">EXAMPLE</text>
+  <text x="1312" y="205" class="small">Decode locality</text>
+
+  <rect x="1330" y="235" width="440" height="126" rx="8" fill="#ffffff" stroke="#8296b1" stroke-width="1.7"/>
+  <rect x="1330" y="385" width="440" height="126" rx="8" fill="#ffffff" stroke="#8296b1" stroke-width="1.7"/>
+  <rect x="1330" y="535" width="440" height="126" rx="8" fill="#ffffff" stroke="#8296b1" stroke-width="1.7"/>
+  <text x="1356" y="270" class="label" fill="#31567d">D0</text>
+  <text x="1356" y="420" class="label" fill="#31567d">D1</text>
+  <text x="1356" y="570" class="label" fill="#31567d">D2</text>
+
+  <g fill="#eef4fc" stroke="#6c8ebf" stroke-width="1.4">
+    <rect x="1410" y="253" width="105" height="40" rx="4"/>
+    <rect x="1525" y="247" width="225" height="72" rx="5" fill="#f8fafc" stroke="#aab3bd"/>
+    <rect x="1410" y="403" width="105" height="40" rx="4"/>
+    <rect x="1525" y="397" width="225" height="72" rx="5" fill="#f8fafc" stroke="#aab3bd"/>
+    <rect x="1410" y="553" width="105" height="40" rx="4"/>
+    <rect x="1525" y="547" width="225" height="72" rx="5" fill="#f8fafc" stroke="#aab3bd"/>
+  </g>
+  <text x="1541" y="266" class="tiny">GPU node</text>
+  <text x="1541" y="416" class="tiny">GPU node</text>
+  <text x="1541" y="566" class="tiny">GPU node</text>
+  <g fill="#eef4fc" stroke="#6c8ebf" stroke-width="1.4">
+    <rect x="1541" y="276" width="88" height="30" rx="4"/>
+    <rect x="1541" y="426" width="88" height="30" rx="4"/>
+    <rect x="1541" y="576" width="88" height="30" rx="4"/>
+  </g>
+  <g class="tiny" text-anchor="middle">
+    <text x="1462.5" y="278">Entry</text>
+    <text x="1585" y="296">Worker</text>
+    <text x="1462.5" y="428">Entry</text>
+    <text x="1585" y="446">Worker</text>
+    <text x="1462.5" y="578">Entry</text>
+    <text x="1585" y="596">Worker</text>
+  </g>
+  <g fill="#263238">
+    <rect x="1650" y="276" width="34" height="30" rx="4"/>
+    <rect x="1696" y="276" width="34" height="30" rx="4"/>
+    <rect x="1650" y="426" width="34" height="30" rx="4"/>
+    <rect x="1696" y="426" width="34" height="30" rx="4"/>
+    <rect x="1650" y="576" width="34" height="30" rx="4"/>
+    <rect x="1696" y="576" width="34" height="30" rx="4"/>
+  </g>
+  <text x="1550" y="703" class="tiny" text-anchor="middle">token generation replicas</text>
+
+  <!-- Concrete PD data path -->
+  <path d="M1202 448H1307" fill="none" stroke="#c88a16" stroke-width="3"/>
+  <path d="M1307 298V598" fill="none" stroke="#c88a16" stroke-width="3"/>
+  <path d="M1307 298H1342" fill="none" stroke="#c88a16" stroke-width="3" marker-end="url(#arrowAmber)"/>
+  <path d="M1307 448H1342" fill="none" stroke="#c88a16" stroke-width="3" marker-end="url(#arrowAmber)"/>
+  <path d="M1307 598H1342" fill="none" stroke="#c88a16" stroke-width="3" marker-end="url(#arrowAmber)"/>
+  <rect x="1210" y="415" width="110" height="25" rx="12.5" fill="#ffffff" stroke="#d9b36c"/>
+  <text x="1265" y="433" class="tiny" text-anchor="middle" fill="#9a6810">KV transfer</text>
+</svg>
