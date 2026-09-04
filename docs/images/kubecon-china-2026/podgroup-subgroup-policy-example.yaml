@@ -1,0 +1,20 @@
+# PodGroup spec excerpt
+# labelSelector and matchLabelKeys are omitted for slide readability.
+spec:
+  minMember: 8
+  networkTopology:
+    mode: hard
+    highestTierAllowed: 3
+  subGroupPolicy:
+    - name: prefill
+      subGroupSize: 4
+      minSubGroups: 1
+      networkTopology:
+        mode: hard
+        highestTierAllowed: 1
+    - name: decode
+      subGroupSize: 2
+      minSubGroups: 2
+      networkTopology:
+        mode: soft
+        highestTierAllowed: 2
