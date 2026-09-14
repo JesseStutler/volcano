@@ -38,6 +38,12 @@ type rejectionAggregate struct {
 	hintKeys sets.Set[unschedulable.HintKey] // nil means coarse fallback
 }
 
+// jobRejectionScope contains rejections produced by one Job evaluation.
+type jobRejectionScope struct {
+	jobID      api.JobID
+	rejections map[rejectionKey]*rejectionAggregate
+}
+
 // AddRejection records, for the current session, that plugin made job
 // unschedulable through the given source, optionally naming the failed tasks.
 // Rejections are drained into the unschedulable-job cache at CloseSession.
@@ -52,14 +58,7 @@ func (ssn *Session) AddRejectionWithKeys(jobID api.JobID, plugin string, source 
 	if !ssn.unschedulableJobCacheEnabled {
 		return
 	}
-	if ssn.jobRejections == nil {
-		ssn.jobRejections = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
-	}
-	rejectionsByKey := ssn.jobRejections[jobID]
-	if rejectionsByKey == nil {
-		rejectionsByKey = make(map[rejectionKey]*rejectionAggregate)
-		ssn.jobRejections[jobID] = rejectionsByKey
-	}
+	rejectionsByKey := ssn.rejectionsForWrite(jobID)
 	key := rejectionKey{plugin: plugin, source: source}
 	aggregate, ok := rejectionsByKey[key]
 	if !ok {
@@ -89,9 +88,38 @@ func (ssn *Session) AddRejectionWithKeys(jobID api.JobID, plugin string, source 
 	}
 }
 
+// rejectionsForWrite returns the active evaluation aggregate for jobID, or the
+// Session aggregate when the Job is not being evaluated in a rejection scope.
+func (ssn *Session) rejectionsForWrite(jobID api.JobID) map[rejectionKey]*rejectionAggregate {
+	for i := len(ssn.jobRejectionScopes) - 1; i >= 0; i-- {
+		scope := &ssn.jobRejectionScopes[i]
+		if scope.jobID != jobID {
+			continue
+		}
+		if scope.rejections == nil {
+			scope.rejections = make(map[rejectionKey]*rejectionAggregate)
+		}
+		return scope.rejections
+	}
+
+	if ssn.jobRejections == nil {
+		ssn.jobRejections = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
+	}
+	rejectionsByKey := ssn.jobRejections[jobID]
+	if rejectionsByKey == nil {
+		rejectionsByKey = make(map[rejectionKey]*rejectionAggregate)
+		ssn.jobRejections[jobID] = rejectionsByKey
+	}
+	return rejectionsByKey
+}
+
 // rejectionsForJob returns the rejections accumulated for job this session.
 func (ssn *Session) rejectionsForJob(jobID api.JobID) []unschedulable.Rejection {
-	rejectionsByKey := ssn.jobRejections[jobID]
+	return buildRejections(ssn.jobRejections[jobID])
+}
+
+// buildRejections converts an aggregate into stable rejection values.
+func buildRejections(rejectionsByKey map[rejectionKey]*rejectionAggregate) []unschedulable.Rejection {
 	if len(rejectionsByKey) == 0 {
 		return nil
 	}
@@ -123,6 +151,11 @@ func (ssn *Session) rejectionsForJob(jobID api.JobID) []unschedulable.Rejection 
 	return rejections
 }
 
+// restoreJobRejectionScopes restores the scope stack to its previous length.
+func (ssn *Session) restoreJobRejectionScopes(scopeIndex int) {
+	ssn.jobRejectionScopes = ssn.jobRejectionScopes[:scopeIndex]
+}
+
 // CollectJobRejections runs evaluate with an isolated rejection aggregate for
 // jobID and returns only the rejections recorded during that evaluation.
 // Rejections recorded before the call remain in the Session aggregate.
@@ -132,18 +165,9 @@ func (ssn *Session) CollectJobRejections(jobID api.JobID, evaluate func()) []uns
 		return nil
 	}
 
-	retainedRejections := ssn.jobRejections[jobID]
-	// Detach existing rejections so AddRejection creates an isolated aggregate
-	// for this evaluation.
-	delete(ssn.jobRejections, jobID)
-
+	scopeIndex := len(ssn.jobRejectionScopes)
+	ssn.jobRejectionScopes = append(ssn.jobRejectionScopes, jobRejectionScope{jobID: jobID})
+	defer ssn.restoreJobRejectionScopes(scopeIndex)
 	evaluate()
-	collectedRejections := ssn.rejectionsForJob(jobID)
-
-	// Remove the evaluation's aggregate before restoring the retained one.
-	delete(ssn.jobRejections, jobID)
-	if retainedRejections != nil {
-		ssn.jobRejections[jobID] = retainedRejections
-	}
-	return collectedRejections
+	return buildRejections(ssn.jobRejectionScopes[scopeIndex].rejections)
 }

@@ -170,7 +170,9 @@ type Session struct {
 	// unschedulable-job cache. Keyed by Job ID, then by the plugin and extension
 	// point that produced the rejection; the value tracks failed task IDs and the
 	// optional hint-key aggregate for that rejection key.
-	jobRejections                map[api.JobID]map[rejectionKey]*rejectionAggregate
+	jobRejections map[api.JobID]map[rejectionKey]*rejectionAggregate
+	// jobRejectionScopes isolates rejections produced by nested Job and SubJob evaluations.
+	jobRejectionScopes           []jobRejectionScope
 	unschedulableJobCacheEnabled bool
 
 	NodesInShard sets.Set[string]

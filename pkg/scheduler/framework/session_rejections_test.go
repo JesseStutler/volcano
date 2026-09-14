@@ -111,7 +111,9 @@ func TestCollectJobRejections(t *testing.T) {
 		cacheEnabled     bool
 		before           []unschedulable.Rejection
 		during           []unschedulable.Rejection
+		nested           []unschedulable.Rejection
 		wantCollected    []unschedulable.Rejection
+		wantNested       []unschedulable.Rejection
 		wantRemaining    []unschedulable.Rejection
 		wantCallbackRuns bool
 	}{
@@ -127,7 +129,7 @@ func TestCollectJobRejections(t *testing.T) {
 			},
 		},
 		{
-			name:             "keeps existing rejections outside the callback",
+			name:             "keeps the session aggregate unchanged during evaluation",
 			cacheEnabled:     true,
 			wantCallbackRuns: true,
 			before: []unschedulable.Rejection{
@@ -150,6 +152,23 @@ func TestCollectJobRejections(t *testing.T) {
 				{Plugin: "trial", Source: unschedulable.RejectionPredicate, Tasks: []api.TaskID{"task-b"}},
 			},
 		},
+		{
+			name:         "isolates nested evaluations",
+			cacheEnabled: true,
+			during: []unschedulable.Rejection{
+				{Plugin: "outer", Source: unschedulable.RejectionPredicate, Tasks: []api.TaskID{"task-a"}},
+			},
+			nested: []unschedulable.Rejection{
+				{Plugin: "inner", Source: unschedulable.RejectionPredicate, Tasks: []api.TaskID{"task-b"}},
+			},
+			wantCollected: []unschedulable.Rejection{
+				{Plugin: "outer", Source: unschedulable.RejectionPredicate, Tasks: []api.TaskID{"task-a"}},
+			},
+			wantNested: []unschedulable.Rejection{
+				{Plugin: "inner", Source: unschedulable.RejectionPredicate, Tasks: []api.TaskID{"task-b"}},
+			},
+			wantCallbackRuns: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -160,15 +179,25 @@ func TestCollectJobRejections(t *testing.T) {
 			}
 
 			callbackRuns := false
+			var nestedRejections []unschedulable.Rejection
 			collected := ssn.CollectJobRejections("job", func() {
 				callbackRuns = true
 				for _, rejection := range test.during {
 					ssn.AddRejectionWithKeys("job", rejection.Plugin, rejection.Source, rejection.HintKeys, rejection.Tasks...)
 				}
+				assert.Equal(t, test.before, ssn.rejectionsForJob("job"))
+				if len(test.nested) > 0 {
+					nestedRejections = ssn.CollectJobRejections("job", func() {
+						for _, rejection := range test.nested {
+							ssn.AddRejectionWithKeys("job", rejection.Plugin, rejection.Source, rejection.HintKeys, rejection.Tasks...)
+						}
+					})
+				}
 			})
 
 			assert.Equal(t, test.wantCallbackRuns, callbackRuns)
 			assert.Equal(t, test.wantCollected, collected)
+			assert.Equal(t, test.wantNested, nestedRejections)
 			assert.Equal(t, test.wantRemaining, ssn.rejectionsForJob("job"))
 		})
 	}
