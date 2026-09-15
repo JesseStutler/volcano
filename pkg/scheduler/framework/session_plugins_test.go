@@ -327,7 +327,6 @@ func TestPrePredicateFnRecordsUnschedulablePlugin(t *testing.T) {
 			Tiers:                        []conf.Tier{{Plugins: []conf.PluginOption{{Name: "predicates", EnabledPredicate: &enabled}}}},
 			prePredicateFns:              make(map[string]api.PrePredicateFn),
 			unschedulableJobCacheEnabled: true,
-			jobRejections:                make(map[api.JobID]map[rejectionKey]*rejectionAggregate),
 		}
 		ssn.AddPrePredicateFn("predicates", fn)
 		return ssn
@@ -489,7 +488,6 @@ func TestReconcileUnschedulableCache(t *testing.T) {
 				Queues:                       map[api.QueueID]*api.QueueInfo{},
 				unschedulableJobCache:        fakeCache,
 				unschedulableJobCacheEnabled: true,
-				jobRejections:                make(map[api.JobID]map[rejectionKey]*rejectionAggregate),
 			}
 			test.prepare(ssn, job)
 

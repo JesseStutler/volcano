@@ -44,6 +44,13 @@ type jobRejectionScope struct {
 	rejections map[rejectionKey]*rejectionAggregate
 }
 
+// jobRejectionTracker stores confirmed Session rejections and isolates
+// rejections produced while evaluating nested allocation candidates.
+type jobRejectionTracker struct {
+	recorded         map[api.JobID]map[rejectionKey]*rejectionAggregate
+	evaluationScopes []jobRejectionScope
+}
+
 // AddRejection records, for the current session, that plugin made job
 // unschedulable through the given source, optionally naming the failed tasks.
 // Rejections are drained into the unschedulable-job cache at CloseSession.
@@ -58,7 +65,13 @@ func (ssn *Session) AddRejectionWithKeys(jobID api.JobID, plugin string, source 
 	if !ssn.unschedulableJobCacheEnabled {
 		return
 	}
-	rejectionsByKey := ssn.rejectionsForWrite(jobID)
+	ssn.jobRejections.record(jobID, plugin, source, hintKeys, tasks...)
+}
+
+// record adds a rejection to the active evaluation scope for jobID, or to the
+// confirmed Session aggregate when no matching scope is active.
+func (tracker *jobRejectionTracker) record(jobID api.JobID, plugin string, source unschedulable.RejectionSource, hintKeys []unschedulable.HintKey, tasks ...api.TaskID) {
+	rejectionsByKey := tracker.rejectionsForWrite(jobID)
 	key := rejectionKey{plugin: plugin, source: source}
 	aggregate, ok := rejectionsByKey[key]
 	if !ok {
@@ -90,9 +103,9 @@ func (ssn *Session) AddRejectionWithKeys(jobID api.JobID, plugin string, source 
 
 // rejectionsForWrite returns the active evaluation aggregate for jobID, or the
 // Session aggregate when the Job is not being evaluated in a rejection scope.
-func (ssn *Session) rejectionsForWrite(jobID api.JobID) map[rejectionKey]*rejectionAggregate {
-	for i := len(ssn.jobRejectionScopes) - 1; i >= 0; i-- {
-		scope := &ssn.jobRejectionScopes[i]
+func (tracker *jobRejectionTracker) rejectionsForWrite(jobID api.JobID) map[rejectionKey]*rejectionAggregate {
+	for i := len(tracker.evaluationScopes) - 1; i >= 0; i-- {
+		scope := &tracker.evaluationScopes[i]
 		if scope.jobID != jobID {
 			continue
 		}
@@ -102,20 +115,25 @@ func (ssn *Session) rejectionsForWrite(jobID api.JobID) map[rejectionKey]*reject
 		return scope.rejections
 	}
 
-	if ssn.jobRejections == nil {
-		ssn.jobRejections = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
+	if tracker.recorded == nil {
+		tracker.recorded = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
 	}
-	rejectionsByKey := ssn.jobRejections[jobID]
+	rejectionsByKey := tracker.recorded[jobID]
 	if rejectionsByKey == nil {
 		rejectionsByKey = make(map[rejectionKey]*rejectionAggregate)
-		ssn.jobRejections[jobID] = rejectionsByKey
+		tracker.recorded[jobID] = rejectionsByKey
 	}
 	return rejectionsByKey
 }
 
 // rejectionsForJob returns the rejections accumulated for job this session.
 func (ssn *Session) rejectionsForJob(jobID api.JobID) []unschedulable.Rejection {
-	return buildRejections(ssn.jobRejections[jobID])
+	return ssn.jobRejections.list(jobID)
+}
+
+// list returns the confirmed rejections recorded for jobID.
+func (tracker *jobRejectionTracker) list(jobID api.JobID) []unschedulable.Rejection {
+	return buildRejections(tracker.recorded[jobID])
 }
 
 // buildRejections converts an aggregate into stable rejection values.
@@ -151,9 +169,20 @@ func buildRejections(rejectionsByKey map[rejectionKey]*rejectionAggregate) []uns
 	return rejections
 }
 
-// restoreJobRejectionScopes restores the scope stack to its previous length.
-func (ssn *Session) restoreJobRejectionScopes(scopeIndex int) {
-	ssn.jobRejectionScopes = ssn.jobRejectionScopes[:scopeIndex]
+// collect runs evaluate in a new rejection scope and returns the rejections
+// produced by that evaluation.
+func (tracker *jobRejectionTracker) collect(jobID api.JobID, evaluate func()) []unschedulable.Rejection {
+	scopeIndex := len(tracker.evaluationScopes)
+	tracker.evaluationScopes = append(tracker.evaluationScopes, jobRejectionScope{jobID: jobID})
+	defer tracker.restoreScopes(scopeIndex)
+
+	evaluate()
+	return buildRejections(tracker.evaluationScopes[scopeIndex].rejections)
+}
+
+// restoreScopes restores the evaluation stack to its previous length.
+func (tracker *jobRejectionTracker) restoreScopes(scopeIndex int) {
+	tracker.evaluationScopes = tracker.evaluationScopes[:scopeIndex]
 }
 
 // CollectJobRejections runs evaluate with an isolated rejection aggregate for
@@ -165,9 +194,5 @@ func (ssn *Session) CollectJobRejections(jobID api.JobID, evaluate func()) []uns
 		return nil
 	}
 
-	scopeIndex := len(ssn.jobRejectionScopes)
-	ssn.jobRejectionScopes = append(ssn.jobRejectionScopes, jobRejectionScope{jobID: jobID})
-	defer ssn.restoreJobRejectionScopes(scopeIndex)
-	evaluate()
-	return buildRejections(ssn.jobRejectionScopes[scopeIndex].rejections)
+	return ssn.jobRejections.collect(jobID, evaluate)
 }

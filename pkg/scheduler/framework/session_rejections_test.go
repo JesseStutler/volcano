@@ -27,11 +27,7 @@ import (
 )
 
 func newRejectionTestSession(enabled bool) *Session {
-	ssn := &Session{unschedulableJobCacheEnabled: enabled}
-	if enabled {
-		ssn.jobRejections = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
-	}
-	return ssn
+	return &Session{unschedulableJobCacheEnabled: enabled}
 }
 
 func TestAddRejectionDeduplicatesTasks(t *testing.T) {
@@ -199,6 +195,10 @@ func TestCollectJobRejections(t *testing.T) {
 			assert.Equal(t, test.wantCollected, collected)
 			assert.Equal(t, test.wantNested, nestedRejections)
 			assert.Equal(t, test.wantRemaining, ssn.rejectionsForJob("job"))
+			if !test.cacheEnabled {
+				assert.Nil(t, ssn.jobRejections.recorded)
+				assert.Nil(t, ssn.jobRejections.evaluationScopes)
+			}
 		})
 	}
 }

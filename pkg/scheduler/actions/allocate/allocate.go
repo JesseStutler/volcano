@@ -461,20 +461,20 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 	alloc.recorder.SnapshotSubJobStatus(job, jobWorksheet)
 
-	var failedRejections []unschedulable.Rejection
+	var failedCandidateRejections []unschedulable.Rejection
 	hyperNodeGradients := ssn.HyperNodeGradientForJobFn(job, hyperNodeToAllocate, api.PurposeAllocate)
 	for gradient, hyperNodes := range hyperNodeGradients {
 		stmtBackup := make(map[string]*framework.Statement)   // backup the statement after the job is allocated to a hyperNode
 		jobWorksheetsBackup := make(map[string]*JobWorksheet) // backup the job worksheet after the job is allocated to a hyperNode
 		subJobsAllocationScores := make(map[string]float64)   // save the subJobs allocation score of the job allocated to a hyperNode
-		rejectionsBackup := make(map[string][]unschedulable.Rejection)
+		var candidateRejectionsByHyperNode map[string][]unschedulable.Rejection
 
 		for _, hyperNode := range hyperNodes {
 			var stmtList []*framework.Statement
 			var subJobsAllocationScore float64
 			var jobWorksheetCopy *JobWorksheet
 
-			trialRejections := ssn.CollectJobRejections(job.UID, func() {
+			candidateRejections := ssn.CollectJobRejections(job.UID, func() {
 				// Clone jobWorksheet and rest job's fit err to make sure it's a clean cache when everytime filter a hyperNode and do not affect each other between hyperNodes.
 				job.ResetFitErr()
 				jobWorksheetCopy = jobWorksheet.Clone()
@@ -505,16 +505,21 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 			mergedStmt := framework.SaveOperations(stmtList...)
 			if len(mergedStmt.Operations()) == 0 {
-				failedRejections = append(failedRejections, trialRejections...)
+				failedCandidateRejections = append(failedCandidateRejections, candidateRejections...)
 				continue // skip recording this empty solution
 			}
 			if ssn.JobReady(job) || ssn.JobPipelined(job) {
 				stmtBackup[hyperNode.Name] = mergedStmt                          // backup successful solution
 				jobWorksheetsBackup[hyperNode.Name] = jobWorksheetCopy           // backup remains subJobs
 				subJobsAllocationScores[hyperNode.Name] = subJobsAllocationScore // save the subJobs allocation score of the job
-				rejectionsBackup[hyperNode.Name] = trialRejections
+				if len(candidateRejections) > 0 {
+					if candidateRejectionsByHyperNode == nil {
+						candidateRejectionsByHyperNode = make(map[string][]unschedulable.Rejection)
+					}
+					candidateRejectionsByHyperNode[hyperNode.Name] = candidateRejections
+				}
 			} else {
-				failedRejections = append(failedRejections, trialRejections...)
+				failedCandidateRejections = append(failedCandidateRejections, candidateRejections...)
 			}
 
 			// dry run in every hyperNode
@@ -544,7 +549,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 		// inherit the remains worksheet after allocate to the best hyperNode
 		jobWorksheet.ShallowCopyFrom(jobWorksheetsBackup[bestHyperNode])
-		recordJobRejections(ssn, job.UID, rejectionsBackup[bestHyperNode])
+		recordJobRejections(ssn, job.UID, candidateRejectionsByHyperNode[bestHyperNode])
 
 		alloc.recorder.SaveJobDecision(job.UID, bestHyperNode)
 		klog.V(3).InfoS("Allocate job to hyperNode success", "job", job.UID, "hyperNode", bestHyperNode)
@@ -552,7 +557,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 		return finalStmt
 	}
 
-	recordJobRejections(ssn, job.UID, failedRejections)
+	recordJobRejections(ssn, job.UID, failedCandidateRejections)
 	klog.V(5).InfoS("Cannot find any solution for job", "job", job.UID)
 	return nil
 }
@@ -576,17 +581,17 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 		}
 	}
 
-	var failedRejections []unschedulable.Rejection
+	var failedCandidateRejections []unschedulable.Rejection
 	hyperNodeGradients := ssn.HyperNodeGradientForSubJobFn(subJob, hyperNodeForJob, api.PurposeAllocate)
 	for gradient, hyperNodes := range hyperNodeGradients {
 		stmtBackup := make(map[string]*framework.Statement)         // backup the statement after the subJob is allocated to a hyperNode
 		subJobWorksheetsBackup := make(map[string]*SubJobWorksheet) // backup the subJob worksheet after the subJob is allocated to a hyperNode
-		rejectionsBackup := make(map[string][]unschedulable.Rejection)
+		var candidateRejectionsByHyperNode map[string][]unschedulable.Rejection
 
 		for _, hyperNode := range hyperNodes {
 			var stmt *framework.Statement
 			var subJobWorksheetCopy *SubJobWorksheet
-			trialRejections := ssn.CollectJobRejections(job.UID, func() {
+			candidateRejections := ssn.CollectJobRejections(job.UID, func() {
 				// Clone subJobWorksheet and rest subJob's fit err to make sure it's a clean cache when everytime filter a hyperNode and do not affect each other between hyperNodes.
 				job.ResetSubJobFitErr(subJob.UID)
 				subJobWorksheetCopy = subJobWorksheet.Clone()
@@ -599,10 +604,15 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 			if stmt != nil && len(stmt.Operations()) > 0 {
 				stmtBackup[hyperNode.Name] = framework.SaveOperations(stmt)  // backup successful solution
 				subJobWorksheetsBackup[hyperNode.Name] = subJobWorksheetCopy // backup remains tasks
-				rejectionsBackup[hyperNode.Name] = trialRejections
+				if len(candidateRejections) > 0 {
+					if candidateRejectionsByHyperNode == nil {
+						candidateRejectionsByHyperNode = make(map[string][]unschedulable.Rejection)
+					}
+					candidateRejectionsByHyperNode[hyperNode.Name] = candidateRejections
+				}
 				stmt.Discard() // dry run in every hyperNode
 			} else {
-				failedRejections = append(failedRejections, trialRejections...)
+				failedCandidateRejections = append(failedCandidateRejections, candidateRejections...)
 			}
 		}
 
@@ -630,7 +640,7 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 
 		// inherit the remains worksheet after allocate to the best hyperNode
 		subJobWorksheet.ShallowCopyFrom(subJobWorksheetsBackup[bestHyperNode])
-		recordJobRejections(ssn, job.UID, rejectionsBackup[bestHyperNode])
+		recordJobRejections(ssn, job.UID, candidateRejectionsByHyperNode[bestHyperNode])
 
 		alloc.recorder.SaveSubJobDecision(subJob.Job, hyperNodeForJob.Name, subJob.UID, newAllocatedHyperNode)
 		klog.V(3).InfoS("Allocate subJob to hyperNode success", "subJob", subJob.UID,
@@ -639,7 +649,7 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 		return finalStmt, bestScore
 	}
 
-	recordJobRejections(ssn, job.UID, failedRejections)
+	recordJobRejections(ssn, job.UID, failedCandidateRejections)
 	klog.V(5).InfoS("Cannot find any solution for subJob", "subJob", subJob.UID)
 	return nil, 0
 }
