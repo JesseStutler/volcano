@@ -38,16 +38,22 @@ type rejectionAggregate struct {
 	hintKeys sets.Set[unschedulable.HintKey] // nil means coarse fallback
 }
 
-// jobRejectionScope contains rejections produced by one Job evaluation.
+// jobRejectionScope contains rejections produced while evaluating one
+// allocation candidate for a Job or one of its SubJobs. SubJob rejections use
+// the owning Job ID because the unschedulable cache stores Job-level records.
 type jobRejectionScope struct {
 	jobID      api.JobID
 	rejections map[rejectionKey]*rejectionAggregate
 }
 
-// jobRejectionTracker stores confirmed Session rejections and isolates
-// rejections produced while evaluating nested allocation candidates.
+// jobRejectionTracker keeps temporary candidate rejections separate from the
+// rejections confirmed for the current Session.
 type jobRejectionTracker struct {
-	recorded         map[api.JobID]map[rejectionKey]*rejectionAggregate
+	// recorded contains confirmed rejections that will be reconciled with the
+	// unschedulable Job cache when the Session closes.
+	recorded map[api.JobID]map[rejectionKey]*rejectionAggregate
+	// evaluationScopes is a stack because Job candidate evaluation can contain
+	// nested SubJob candidate evaluations.
 	evaluationScopes []jobRejectionScope
 }
 
@@ -104,6 +110,9 @@ func (tracker *jobRejectionTracker) record(jobID api.JobID, plugin string, sourc
 // rejectionsForWrite returns the active evaluation aggregate for jobID, or the
 // Session aggregate when the Job is not being evaluated in a rejection scope.
 func (tracker *jobRejectionTracker) rejectionsForWrite(jobID api.JobID) map[rejectionKey]*rejectionAggregate {
+	// Search from the innermost evaluation outwards. When Job and SubJob
+	// evaluations are nested, a rejection belongs to the currently active
+	// SubJob candidate first.
 	for i := len(tracker.evaluationScopes) - 1; i >= 0; i-- {
 		scope := &tracker.evaluationScopes[i]
 		if scope.jobID != jobID {
@@ -115,6 +124,8 @@ func (tracker *jobRejectionTracker) rejectionsForWrite(jobID api.JobID) map[reje
 		return scope.rejections
 	}
 
+	// Without an active candidate evaluation, the caller has confirmed the
+	// rejection and it belongs to the Session result.
 	if tracker.recorded == nil {
 		tracker.recorded = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
 	}
@@ -172,11 +183,14 @@ func buildRejections(rejectionsByKey map[rejectionKey]*rejectionAggregate) []uns
 // collect runs evaluate in a new rejection scope and returns the rejections
 // produced by that evaluation.
 func (tracker *jobRejectionTracker) collect(jobID api.JobID, evaluate func()) []unschedulable.Rejection {
+	// Remember the previous stack length so the deferred restore removes only
+	// the scope created by this call and any nested scopes.
 	scopeIndex := len(tracker.evaluationScopes)
 	tracker.evaluationScopes = append(tracker.evaluationScopes, jobRejectionScope{jobID: jobID})
 	defer tracker.restoreScopes(scopeIndex)
 
 	evaluate()
+	// The return value is built before the deferred restore removes this scope.
 	return buildRejections(tracker.evaluationScopes[scopeIndex].rejections)
 }
 
@@ -185,9 +199,11 @@ func (tracker *jobRejectionTracker) restoreScopes(scopeIndex int) {
 	tracker.evaluationScopes = tracker.evaluationScopes[:scopeIndex]
 }
 
-// CollectJobRejections runs evaluate with an isolated rejection aggregate for
-// jobID and returns only the rejections recorded during that evaluation.
-// Rejections recorded before the call remain in the Session aggregate.
+// CollectJobRejections runs evaluate inside a temporary rejection scope and
+// returns only the rejections produced by that evaluation. Callers can then
+// keep or discard those rejections after choosing an allocation candidate.
+// Nested calls are isolated from their parent evaluation until the caller
+// explicitly records the returned rejections.
 func (ssn *Session) CollectJobRejections(jobID api.JobID, evaluate func()) []unschedulable.Rejection {
 	if !ssn.unschedulableJobCacheEnabled {
 		evaluate()
