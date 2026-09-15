@@ -23,11 +23,9 @@ package framework
 import (
 	"context"
 	"errors"
-	"sort"
 
 	fwk "k8s.io/kube-scheduler/framework"
 
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
@@ -1241,121 +1239,6 @@ func (ssn *Session) AddHintProvider(pluginName string, p unschedulable.HintProvi
 		return
 	}
 	ssn.unschedulableJobCache.AddHintProvider(pluginName, p)
-}
-
-// rejectionKey identifies a rejection by the plugin and extension point that
-// produced it, so repeated rejections for the same key merge their tasks.
-type rejectionKey struct {
-	plugin string
-	source unschedulable.RejectionSource
-}
-
-type rejectionAggregate struct {
-	tasks    sets.Set[api.TaskID]
-	hintKeys sets.Set[unschedulable.HintKey] // nil means coarse fallback
-}
-
-// AddRejection records, for the current session, that plugin made job
-// unschedulable through the given source, optionally naming the failed tasks.
-// Rejections are drained into the unschedulable-job cache at CloseSession.
-func (ssn *Session) AddRejection(job api.JobID, plugin string, source unschedulable.RejectionSource, tasks ...api.TaskID) {
-	ssn.AddRejectionWithKeys(job, plugin, source, nil, tasks...)
-}
-
-// AddRejectionWithKeys records, for the current session, that plugin made
-// job unschedulable through the given source, optionally naming the failed
-// tasks and the hint keys that were available for that rejection.
-func (ssn *Session) AddRejectionWithKeys(job api.JobID, plugin string, source unschedulable.RejectionSource, hintKeys []unschedulable.HintKey, tasks ...api.TaskID) {
-	if !ssn.unschedulableJobCacheEnabled {
-		return
-	}
-	if ssn.jobRejections == nil {
-		ssn.jobRejections = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
-	}
-	byKey := ssn.jobRejections[job]
-	if byKey == nil {
-		byKey = make(map[rejectionKey]*rejectionAggregate)
-		ssn.jobRejections[job] = byKey
-	}
-	key := rejectionKey{plugin: plugin, source: source}
-	acc, ok := byKey[key]
-	if !ok {
-		acc = &rejectionAggregate{tasks: sets.New[api.TaskID]()}
-		byKey[key] = acc
-	}
-	acc.tasks.Insert(tasks...)
-
-	if !ok {
-		if len(hintKeys) == 0 {
-			return
-		}
-		acc.hintKeys = sets.New[unschedulable.HintKey](hintKeys...)
-		if acc.hintKeys.Len() > unschedulable.MaxHintKeysPerPluginEvent {
-			acc.hintKeys = nil
-		}
-		return
-	}
-
-	if acc.hintKeys == nil || len(hintKeys) == 0 {
-		acc.hintKeys = nil
-		return
-	}
-	acc.hintKeys.Insert(hintKeys...)
-	if acc.hintKeys.Len() > unschedulable.MaxHintKeysPerPluginEvent {
-		acc.hintKeys = nil
-	}
-}
-
-// rejectionsForJob returns the rejections accumulated for job this session.
-func (ssn *Session) rejectionsForJob(job api.JobID) []unschedulable.Rejection {
-	byKey := ssn.jobRejections[job]
-	if len(byKey) == 0 {
-		return nil
-	}
-	rejections := make([]unschedulable.Rejection, 0, len(byKey))
-	for key, taskSet := range byKey {
-		var taskIDs []api.TaskID
-		if taskSet.tasks.Len() > 0 {
-			taskIDs = sets.List(taskSet.tasks)
-			sort.Slice(taskIDs, func(i, j int) bool { return taskIDs[i] < taskIDs[j] })
-		}
-		var hintKeys []unschedulable.HintKey
-		if taskSet.hintKeys != nil {
-			hintKeys = sets.List(taskSet.hintKeys)
-			sort.Slice(hintKeys, func(i, j int) bool { return hintKeys[i] < hintKeys[j] })
-		}
-		rejections = append(rejections, unschedulable.Rejection{
-			Plugin:   key.plugin,
-			Source:   key.source,
-			Tasks:    taskIDs,
-			HintKeys: hintKeys,
-		})
-	}
-	sort.Slice(rejections, func(i, j int) bool {
-		if rejections[i].Plugin != rejections[j].Plugin {
-			return rejections[i].Plugin < rejections[j].Plugin
-		}
-		return rejections[i].Source < rejections[j].Source
-	})
-	return rejections
-}
-
-// CollectJobRejections runs fn with an isolated rejection aggregate for job and
-// returns the rejections recorded by fn. Rejections recorded before the call
-// remain in the Session aggregate.
-func (ssn *Session) CollectJobRejections(job api.JobID, fn func()) (collected []unschedulable.Rejection) {
-	previous := ssn.jobRejections[job]
-	delete(ssn.jobRejections, job)
-	defer func() {
-		collected = ssn.rejectionsForJob(job)
-		delete(ssn.jobRejections, job)
-		if previous != nil {
-			ssn.jobRejections[job] = previous
-		}
-	}()
-
-	fn()
-	return
 }
 
 // applyCachedSkips derives each pending Job's Skip decision from the

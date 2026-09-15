@@ -461,20 +461,20 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 	alloc.recorder.SnapshotSubJobStatus(job, jobWorksheet)
 
-	var failedRejections []unschedulable.Rejection
+	var failedCandidateRejections []unschedulable.Rejection
 	hyperNodeGradients := ssn.HyperNodeGradientForJobFn(job, hyperNodeToAllocate, api.PurposeAllocate)
 	for gradient, hyperNodes := range hyperNodeGradients {
 		stmtBackup := make(map[string]*framework.Statement)   // backup the statement after the job is allocated to a hyperNode
 		jobWorksheetsBackup := make(map[string]*JobWorksheet) // backup the job worksheet after the job is allocated to a hyperNode
 		subJobsAllocationScores := make(map[string]float64)   // save the subJobs allocation score of the job allocated to a hyperNode
-		rejectionsBackup := make(map[string][]unschedulable.Rejection)
+		var candidateRejectionsByHyperNode map[string][]unschedulable.Rejection
 
 		for _, hyperNode := range hyperNodes {
 			var stmtList []*framework.Statement
 			var subJobsAllocationScore float64
 			var jobWorksheetCopy *JobWorksheet
 
-			trialRejections := ssn.CollectJobRejections(job.UID, func() {
+			candidateRejections := ssn.CollectJobRejections(job.UID, func() {
 				// Clone jobWorksheet and rest job's fit err to make sure it's a clean cache when everytime filter a hyperNode and do not affect each other between hyperNodes.
 				job.ResetFitErr()
 				jobWorksheetCopy = jobWorksheet.Clone()
@@ -502,19 +502,24 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 				// reset the subJobs to initial status
 				alloc.recorder.RecoverSubJobStatus(job)
 			})
+			if len(candidateRejections) > 0 {
+				if candidateRejectionsByHyperNode == nil {
+					candidateRejectionsByHyperNode = make(map[string][]unschedulable.Rejection)
+				}
+				candidateRejectionsByHyperNode[hyperNode.Name] = candidateRejections
+			}
 
 			mergedStmt := framework.SaveOperations(stmtList...)
 			if len(mergedStmt.Operations()) == 0 {
-				failedRejections = append(failedRejections, trialRejections...)
+				failedCandidateRejections = append(failedCandidateRejections, candidateRejections...)
 				continue // skip recording this empty solution
 			}
 			if ssn.JobReady(job) || ssn.JobPipelined(job) {
 				stmtBackup[hyperNode.Name] = mergedStmt                          // backup successful solution
 				jobWorksheetsBackup[hyperNode.Name] = jobWorksheetCopy           // backup remains subJobs
 				subJobsAllocationScores[hyperNode.Name] = subJobsAllocationScore // save the subJobs allocation score of the job
-				rejectionsBackup[hyperNode.Name] = trialRejections
 			} else {
-				failedRejections = append(failedRejections, trialRejections...)
+				failedCandidateRejections = append(failedCandidateRejections, candidateRejections...)
 			}
 
 			// dry run in every hyperNode
@@ -544,7 +549,10 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 		// inherit the remains worksheet after allocate to the best hyperNode
 		jobWorksheet.ShallowCopyFrom(jobWorksheetsBackup[bestHyperNode])
-		recordJobRejections(ssn, job.UID, rejectionsBackup[bestHyperNode])
+		if len(candidateRejectionsByHyperNode) > 0 {
+			hardMode, highestAllowedTier := job.IsHardTopologyMode()
+			recordAllowedCandidateRejections(ssn, job.UID, bestHyperNode, hardMode, highestAllowedTier, candidateRejectionsByHyperNode)
+		}
 
 		alloc.recorder.SaveJobDecision(job.UID, bestHyperNode)
 		klog.V(3).InfoS("Allocate job to hyperNode success", "job", job.UID, "hyperNode", bestHyperNode)
@@ -552,7 +560,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 		return finalStmt
 	}
 
-	recordJobRejections(ssn, job.UID, failedRejections)
+	recordJobRejections(ssn, job.UID, failedCandidateRejections)
 	klog.V(5).InfoS("Cannot find any solution for job", "job", job.UID)
 	return nil
 }
@@ -576,17 +584,17 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 		}
 	}
 
-	var failedRejections []unschedulable.Rejection
+	var failedCandidateRejections []unschedulable.Rejection
 	hyperNodeGradients := ssn.HyperNodeGradientForSubJobFn(subJob, hyperNodeForJob, api.PurposeAllocate)
 	for gradient, hyperNodes := range hyperNodeGradients {
 		stmtBackup := make(map[string]*framework.Statement)         // backup the statement after the subJob is allocated to a hyperNode
 		subJobWorksheetsBackup := make(map[string]*SubJobWorksheet) // backup the subJob worksheet after the subJob is allocated to a hyperNode
-		rejectionsBackup := make(map[string][]unschedulable.Rejection)
+		var candidateRejectionsByHyperNode map[string][]unschedulable.Rejection
 
 		for _, hyperNode := range hyperNodes {
 			var stmt *framework.Statement
 			var subJobWorksheetCopy *SubJobWorksheet
-			trialRejections := ssn.CollectJobRejections(job.UID, func() {
+			candidateRejections := ssn.CollectJobRejections(job.UID, func() {
 				// Clone subJobWorksheet and rest subJob's fit err to make sure it's a clean cache when everytime filter a hyperNode and do not affect each other between hyperNodes.
 				job.ResetSubJobFitErr(subJob.UID)
 				subJobWorksheetCopy = subJobWorksheet.Clone()
@@ -595,14 +603,19 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 					"subJob", subJob.UID, "taskNum", subJobWorksheetCopy.tasks.Len(), "hyperNode", hyperNode.Name)
 				stmt = alloc.allocateResourcesForTasks(subJob, subJobWorksheetCopy.tasks, hyperNode.Name)
 			})
+			if len(candidateRejections) > 0 {
+				if candidateRejectionsByHyperNode == nil {
+					candidateRejectionsByHyperNode = make(map[string][]unschedulable.Rejection)
+				}
+				candidateRejectionsByHyperNode[hyperNode.Name] = candidateRejections
+			}
 
 			if stmt != nil && len(stmt.Operations()) > 0 {
 				stmtBackup[hyperNode.Name] = framework.SaveOperations(stmt)  // backup successful solution
 				subJobWorksheetsBackup[hyperNode.Name] = subJobWorksheetCopy // backup remains tasks
-				rejectionsBackup[hyperNode.Name] = trialRejections
-				stmt.Discard() // dry run in every hyperNode
+				stmt.Discard()                                               // dry run in every hyperNode
 			} else {
-				failedRejections = append(failedRejections, trialRejections...)
+				failedCandidateRejections = append(failedCandidateRejections, candidateRejections...)
 			}
 		}
 
@@ -630,7 +643,10 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 
 		// inherit the remains worksheet after allocate to the best hyperNode
 		subJobWorksheet.ShallowCopyFrom(subJobWorksheetsBackup[bestHyperNode])
-		recordJobRejections(ssn, job.UID, rejectionsBackup[bestHyperNode])
+		if len(candidateRejectionsByHyperNode) > 0 {
+			hardMode, highestAllowedTier := subJob.IsHardTopologyMode()
+			recordAllowedCandidateRejections(ssn, job.UID, bestHyperNode, hardMode, highestAllowedTier, candidateRejectionsByHyperNode)
+		}
 
 		alloc.recorder.SaveSubJobDecision(subJob.Job, hyperNodeForJob.Name, subJob.UID, newAllocatedHyperNode)
 		klog.V(3).InfoS("Allocate subJob to hyperNode success", "subJob", subJob.UID,
@@ -639,7 +655,7 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 		return finalStmt, bestScore
 	}
 
-	recordJobRejections(ssn, job.UID, failedRejections)
+	recordJobRejections(ssn, job.UID, failedCandidateRejections)
 	klog.V(5).InfoS("Cannot find any solution for subJob", "subJob", subJob.UID)
 	return nil, 0
 }
@@ -648,6 +664,31 @@ func (alloc *Action) allocateForSubJob(subJob *api.SubJobInfo, subJobWorksheet *
 func recordJobRejections(ssn *framework.Session, jobID api.JobID, rejections []unschedulable.Rejection) {
 	for _, rejection := range rejections {
 		ssn.AddRejectionWithKeys(jobID, rejection.Plugin, rejection.Source, rejection.HintKeys, rejection.Tasks...)
+	}
+}
+
+// recordAllowedCandidateRejections records rejections from candidates that
+// remain reachable after the selected HyperNode constrains future searches.
+func recordAllowedCandidateRejections(
+	ssn *framework.Session,
+	jobID api.JobID,
+	bestHyperNode string,
+	hardTopology bool,
+	highestAllowedTier int,
+	rejectionsByHyperNode map[string][]unschedulable.Rejection,
+) {
+	for candidate, rejections := range rejectionsByHyperNode {
+		if candidate != bestHyperNode {
+			if !hardTopology {
+				continue
+			}
+			commonAncestor := ssn.HyperNodes.GetLCAHyperNode(bestHyperNode, candidate)
+			ancestor, found := ssn.HyperNodes[commonAncestor]
+			if !found || ancestor.Tier() > highestAllowedTier {
+				continue
+			}
+		}
+		recordJobRejections(ssn, jobID, rejections)
 	}
 }
 

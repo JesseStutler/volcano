@@ -55,6 +55,7 @@ import (
 	networktopologyaware "volcano.sh/volcano/pkg/scheduler/plugins/network-topology-aware"
 	"volcano.sh/volcano/pkg/scheduler/plugins/nodeorder"
 	"volcano.sh/volcano/pkg/scheduler/plugins/predicates"
+	"volcano.sh/volcano/pkg/scheduler/plugins/priority"
 	"volcano.sh/volcano/pkg/scheduler/plugins/proportion"
 	"volcano.sh/volcano/pkg/scheduler/plugins/util/resourcefit"
 	"volcano.sh/volcano/pkg/scheduler/unschedulable"
@@ -6364,6 +6365,132 @@ func TestAllocateTopologyRejections(t *testing.T) {
 			if gotRejections != testCase.wantRejections {
 				t.Fatalf("Job rejections recorded = %v, want %v", gotRejections, testCase.wantRejections)
 			}
+		})
+	}
+}
+
+func TestAllocateTopologyRejectionsRespectHighestAllowedTier(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, volcanofeatures.UnschedulableJobCache, true)
+
+	trueValue := true
+	tiers := []conf.Tier{{Plugins: []conf.PluginOption{
+		{
+			Name:                gang.PluginName,
+			EnabledJobOrder:     &trueValue,
+			EnabledJobReady:     &trueValue,
+			EnabledJobPipelined: &trueValue,
+			EnabledJobStarving:  &trueValue,
+		},
+		{
+			Name:             priority.PluginName,
+			EnabledTaskOrder: &trueValue,
+		},
+		{
+			Name:             predicates.PluginName,
+			EnabledPredicate: &trueValue,
+		},
+		{
+			Name:                     networktopologyaware.PluginName,
+			EnabledHyperNodeGradient: &trueValue,
+		},
+	}}}
+	plugins := map[string]framework.PluginBuilder{
+		gang.PluginName:                 gang.New,
+		priority.PluginName:             priority.New,
+		predicates.PluginName:           predicates.New,
+		networktopologyaware.PluginName: networktopologyaware.New,
+	}
+
+	tests := []struct {
+		name               string
+		highestAllowedTier int
+		wantIndexedNodes   int
+	}{
+		{
+			name:               "selected tier is the scheduling boundary",
+			highestAllowedTier: 1,
+			wantIndexedNodes:   1,
+		},
+		{
+			name:               "sibling HyperNodes remain eligible within the allowed tier",
+			highestAllowedTier: 2,
+			wantIndexedNodes:   2,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			blockedPod := util.BuildPod("c1", "blocked", "", v1.PodPending, api.BuildResourceList("1", "1Gi"), "pg1",
+				map[string]string{"volcano.sh/task-spec": "blocked"}, nil)
+			blockedPod.Annotations[api.TaskPriorityAnnotation] = "100"
+			schedulablePod := util.BuildPod("c1", "schedulable", "", v1.PodPending, api.BuildResourceList("1", "1Gi"), "pg1",
+				map[string]string{"volcano.sh/task-spec": "schedulable"}, nil)
+
+			test := uthelper.TestCommonStruct{
+				Name:    testCase.name,
+				Plugins: plugins,
+				PodGroups: []*schedulingv1.PodGroup{
+					util.BuildPodGroupWithNetWorkTopologies("pg1", "c1", "", "q1", 1, nil,
+						schedulingv1.PodGroupInqueue, "hard", testCase.highestAllowedTier),
+				},
+				Pods: []*v1.Pod{blockedPod, schedulablePod},
+				Nodes: []*v1.Node{
+					util.BuildNode("s0-n1", api.BuildResourceList("2", "4Gi", []api.ScalarResource{{Name: "pods", Value: "10"}}...), nil),
+					util.BuildNode("s1-n1", api.BuildResourceList("2", "4Gi", []api.ScalarResource{{Name: "pods", Value: "10"}}...), nil),
+				},
+				HyperNodesSetByTier: map[int]sets.Set[string]{
+					1: sets.New[string]("s0", "s1"),
+					2: sets.New[string]("s2"),
+				},
+				HyperNodesMap: map[string]*api.HyperNodeInfo{
+					"s0": api.NewHyperNodeInfo(api.BuildHyperNode("s0", 1, []api.MemberConfig{{Name: "s0-n1", Type: topologyv1alpha1.MemberTypeNode, Selector: "exact"}})),
+					"s1": api.NewHyperNodeInfo(api.BuildHyperNode("s1", 1, []api.MemberConfig{{Name: "s1-n1", Type: topologyv1alpha1.MemberTypeNode, Selector: "exact"}})),
+					"s2": api.NewHyperNodeInfo(api.BuildHyperNode("s2", 2, []api.MemberConfig{
+						{Name: "s0", Type: topologyv1alpha1.MemberTypeHyperNode, Selector: "exact"},
+						{Name: "s1", Type: topologyv1alpha1.MemberTypeHyperNode, Selector: "exact"},
+					})),
+				},
+				HyperNodes: map[string]sets.Set[string]{
+					"s0": sets.New[string]("s0-n1"),
+					"s1": sets.New[string]("s1-n1"),
+					"s2": sets.New[string]("s0-n1", "s1-n1"),
+				},
+				Queues:           []*schedulingv1.Queue{util.BuildQueue("q1", 1, nil)},
+				ExpectBindsNum:   1,
+				MinimalBindCheck: true,
+			}
+
+			fakeCache := &fakeUnschedulableCacheForAllocate{}
+			ssn := test.RegisterSession(tiers, nil, framework.WithUnschedulableJobCache(fakeCache))
+			// Give each candidate a node-scoped CPU rejection so the test can
+			// observe which candidate results remain after HyperNode selection.
+			ssn.AddPredicateFn(predicates.PluginName, func(task *api.TaskInfo, node *api.NodeInfo) error {
+				if task.Name != "blocked" {
+					return nil
+				}
+				return api.NewFitErrWithStatus(task, node, &api.Status{
+					Code:                  api.Unschedulable,
+					Plugin:                resourcefit.ProviderName,
+					Reason:                api.WrapInsufficientResourceReason([]string{"cpu"}),
+					InsufficientResources: []string{"cpu"},
+				})
+			})
+			test.Run([]framework.Action{New()})
+			checkErr := test.CheckAll(0)
+			test.Close()
+			if checkErr != nil {
+				t.Fatal(checkErr)
+			}
+
+			indexedNodes := sets.New[string]()
+			for _, rejection := range fakeCache.recorded["c1/pg1"] {
+				for _, node := range []string{"s0-n1", "s1-n1"} {
+					if hasNodeGrowthKeyForDimension(rejection.HintKeys, node, "cpu") {
+						indexedNodes.Insert(node)
+					}
+				}
+			}
+			assert.Equal(t, testCase.wantIndexedNodes, indexedNodes.Len(), "indexed node count")
 		})
 	}
 }

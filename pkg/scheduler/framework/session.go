@@ -165,12 +165,9 @@ type Session struct {
 	// The key is task's UID, value is the CycleState.
 	cycleStatesMap sync.Map
 
-	// jobRejections accumulates, during a session, the plugin rejections that made
-	// each Job unschedulable. It is drained at CloseSession into the
-	// unschedulable-job cache. Keyed by Job ID, then by the plugin and extension
-	// point that produced the rejection; the value tracks failed task IDs and the
-	// optional hint-key aggregate for that rejection key.
-	jobRejections                map[api.JobID]map[rejectionKey]*rejectionAggregate
+	// jobRejections records confirmed rejections and isolates rejections produced
+	// by nested Job and SubJob evaluations.
+	jobRejections                jobRejectionTracker
 	unschedulableJobCacheEnabled bool
 
 	NodesInShard sets.Set[string]
@@ -248,7 +245,6 @@ func openSession(schedulerCache cache.Cache, unschedulableJobCache unschedulable
 		unschedulableJobCacheEnabled:  unschedulableJobCacheEnabled,
 	}
 	if unschedulableJobCacheEnabled {
-		ssn.jobRejections = make(map[api.JobID]map[rejectionKey]*rejectionAggregate)
 		unschedulableJobCache.BeginSession()
 	}
 

@@ -462,8 +462,60 @@ func unschedulableJobIDForPod(pod *v1.Pod) (schedulingapi.JobID, bool) {
 }
 
 func (sc *SchedulerCache) invalidateUnschedulableJobForPod(pod *v1.Pod) {
+	if sc.unschedulableJobCache == nil {
+		return
+	}
 	if jobID, ok := unschedulableJobIDForPod(pod); ok {
 		sc.unschedulableJobCache.Invalidate(jobID)
+	}
+}
+
+// invalidateUnschedulableJobsForPodUpdate removes cached results when the Pod
+// changes its owning Job or changes scheduling inputs within the same Job.
+func (sc *SchedulerCache) invalidateUnschedulableJobsForPodUpdate(oldPod, newPod *v1.Pod, schedulingInputsChanged bool) {
+	oldJobID, oldHasJob := unschedulableJobIDForPod(oldPod)
+	newJobID, newHasJob := unschedulableJobIDForPod(newPod)
+	sameJobAssignment := oldHasJob == newHasJob && oldJobID == newJobID
+
+	if sameJobAssignment && !schedulingInputsChanged {
+		return
+	}
+	if sameJobAssignment {
+		sc.invalidateUnschedulableJobForPod(newPod)
+		return
+	}
+
+	if oldHasJob {
+		sc.unschedulableJobCache.Invalidate(oldJobID)
+	}
+	if newHasJob {
+		sc.unschedulableJobCache.Invalidate(newJobID)
+	}
+}
+
+// handleUnschedulableJobCachePodUpdate invalidates cached scheduling results
+// affected by the Pod update and dispatches the corresponding scheduling events.
+func (sc *SchedulerCache) handleUnschedulableJobCachePodUpdate(oldPod, newPod *v1.Pod) {
+	if sc.unschedulableJobCache == nil {
+		return
+	}
+
+	// A terminal Pod releases all of its node resources, so dispatch it as a
+	// Delete event to subscribers that react to resource release.
+	terminalRelease := !schedulingapi.CompletedStatus(schedulingapi.GetTaskStatus(oldPod)) &&
+		schedulingapi.CompletedStatus(schedulingapi.GetTaskStatus(newPod))
+	events := kubeschedulerframework.PodSchedulingPropertiesChange(newPod, oldPod)
+	schedulingInputsChanged := terminalRelease || slices.ContainsFunc(events, func(event fwk.ClusterEvent) bool {
+		return event.ActionType != fwk.Update
+	})
+	sc.invalidateUnschedulableJobsForPodUpdate(oldPod, newPod, schedulingInputsChanged)
+
+	if terminalRelease {
+		sc.unschedulableJobCache.OnEvent(fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}, oldPod, nil)
+		return
+	}
+	for _, event := range events {
+		sc.unschedulableJobCache.OnEvent(fwk.ClusterEvent{Resource: fwk.Pod, ActionType: event.ActionType}, oldPod, newPod)
 	}
 }
 
@@ -512,40 +564,7 @@ func (sc *SchedulerCache) UpdatePod(oldObj, newObj interface{}) {
 		return
 	}
 
-	// A terminal Pod releases all of its node resources, so it is dispatched as Delete
-	// to wake any subscriber that reacts to resource release.
-	terminalRelease := !schedulingapi.CompletedStatus(schedulingapi.GetTaskStatus(oldPod)) &&
-		schedulingapi.CompletedStatus(schedulingapi.GetTaskStatus(newPod))
-	events := kubeschedulerframework.PodSchedulingPropertiesChange(newPod, oldPod)
-	// PodSchedulingPropertiesChange returns the generic Update mask when it
-	// cannot classify an update more precisely, including routine Pod status
-	// churn. Only a concrete action such as UpdatePodLabel or
-	// UpdatePodScaleDown proves that the owning Job's scheduling inputs changed;
-	// invalidating on generic Update would turn ordinary status updates into
-	// cache misses.
-	hasSpecificSchedulingEvent := slices.ContainsFunc(events, func(event fwk.ClusterEvent) bool {
-		return event.ActionType != fwk.Update
-	})
-	oldJobID, oldHasJob := unschedulableJobIDForPod(oldPod)
-	newJobID, newHasJob := unschedulableJobIDForPod(newPod)
-	jobAssignmentChanged := oldHasJob != newHasJob || oldJobID != newJobID
-	if jobAssignmentChanged {
-		if oldHasJob {
-			sc.unschedulableJobCache.Invalidate(oldJobID)
-		}
-		if newHasJob {
-			sc.unschedulableJobCache.Invalidate(newJobID)
-		}
-	} else if terminalRelease || hasSpecificSchedulingEvent {
-		sc.invalidateUnschedulableJobForPod(newPod)
-	}
-	if terminalRelease {
-		sc.unschedulableJobCache.OnEvent(fwk.ClusterEvent{Resource: fwk.Pod, ActionType: fwk.Delete}, oldPod, nil)
-	} else {
-		for _, event := range events {
-			sc.unschedulableJobCache.OnEvent(fwk.ClusterEvent{Resource: fwk.Pod, ActionType: event.ActionType}, oldPod, newPod)
-		}
-	}
+	sc.handleUnschedulableJobCachePodUpdate(oldPod, newPod)
 	klog.V(4).Infof("Updated pod <%s/%v> in cache.", oldPod.Namespace, oldPod.Name)
 }
 
