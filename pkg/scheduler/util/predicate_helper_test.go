@@ -17,15 +17,11 @@ limitations under the License.
 package util
 
 import (
-	"flag"
 	"fmt"
-	"io"
-	"os"
 	"reflect"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/klog/v2"
 
 	"volcano.sh/volcano/cmd/scheduler/app/options"
 	"volcano.sh/volcano/pkg/scheduler/api"
@@ -239,55 +235,6 @@ func TestPredicateNodes(t *testing.T) {
 				t.Fatalf("expected error %s, got %s", tt.expectedErr, gotErr)
 			}
 		})
-	}
-}
-
-//go:noinline
-func benchmarkPredicateFailure(task *api.TaskInfo, node *api.NodeInfo) error {
-	return api.NewFitError(task, node, "predicate failed")
-}
-
-func BenchmarkPredicateNodesAllFail(b *testing.B) {
-	klogFlags := flag.NewFlagSet("benchmark-klog", flag.ContinueOnError)
-	klog.InitFlags(klogFlags)
-	verbosity := os.Getenv("BENCH_KLOG_V")
-	if verbosity == "" {
-		verbosity = "0"
-	}
-	if err := klogFlags.Set("v", verbosity); err != nil {
-		b.Fatalf("set klog verbosity: %v", err)
-	}
-	klog.LogToStderr(false)
-	klog.SetOutput(io.Discard)
-
-	for _, nodeCount := range []int{1000, 10000} {
-		nodes := make([]*api.NodeInfo, nodeCount)
-		for i := range nodes {
-			nodes[i] = &api.NodeInfo{Name: fmt.Sprintf("node-%d", i)}
-		}
-
-		for _, enableErrorCache := range []bool{false, true} {
-			b.Run(fmt.Sprintf("nodes=%d/cache=%t", nodeCount, enableErrorCache), func(b *testing.B) {
-				options.ServerOpts = &options.ServerOption{
-					MinPercentageOfNodesToFind: 5,
-					MinNodesToFind:             1,
-					PercentageOfNodesToFind:    100,
-					ShardingMode:               commonutil.NoneShardingMode,
-				}
-				task := &api.TaskInfo{Job: "job1", TaskRole: "worker", Namespace: "ns", Name: "task"}
-
-				b.ReportAllocs()
-				b.ResetTimer()
-				for range b.N {
-					predicateNodes, _ := NewPredicateHelper().PredicateNodes(
-						task, nodes, benchmarkPredicateFailure, enableErrorCache, sets.Set[string](nil),
-					)
-					if len(predicateNodes) != 0 {
-						b.Fatalf("expected no predicate nodes, got %d", len(predicateNodes))
-					}
-				}
-			})
-		}
 	}
 }
 
