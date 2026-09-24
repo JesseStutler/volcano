@@ -89,10 +89,9 @@ func TestPredicateNodesLogsFreshFailuresAtV5(t *testing.T) {
 	logs.Reset()
 	options.ServerOpts.ShardingMode = commonutil.HardShardingMode
 	NewPredicateHelper().PredicateNodes(task, nodes, predicateFn, false, sets.New[string]())
-	for _, want := range []string{`"Predicate failed"`, `task="ns/task"`, `node="node1"`, `err="node isn't in scheduler node shard"`} {
-		if !strings.Contains(logs.String(), want) {
-			t.Errorf("expected hard-sharding log to contain %q, got: %s", want, logs.String())
-		}
+	want := "Predicates failed: node node1 is not in scheduler shard"
+	if !strings.Contains(logs.String(), want) {
+		t.Errorf("expected hard-sharding log to contain %q, got: %s", want, logs.String())
 	}
 
 	logs.Reset()

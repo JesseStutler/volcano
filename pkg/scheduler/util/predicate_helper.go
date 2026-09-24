@@ -100,7 +100,7 @@ func (ph *predicateHelper) PredicateNodes(task *api.TaskInfo, nodes []*api.NodeI
 
 		if options.ServerOpts.ShardingMode == util.HardShardingMode && !nodesInShard.Has(node.Name) {
 			err := fmt.Errorf("node isn't in scheduler node shard")
-			klog.V(5).InfoS("Predicate failed", "task", klog.KRef(task.Namespace, task.Name), "node", node.Name, "err", err)
+			klog.V(5).Infof("Predicates failed: node %s is not in scheduler shard", node.Name)
 			nodeErrors[index] = nodePredicateError{nodeName: node.Name, err: err}
 			return
 		}
