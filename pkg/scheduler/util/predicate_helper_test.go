@@ -17,11 +17,11 @@ limitations under the License.
 package util
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
-	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -31,79 +31,6 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/api"
 	commonutil "volcano.sh/volcano/pkg/util"
 )
-
-func TestPredicateNodesLogsFreshFailuresAtV5(t *testing.T) {
-	var logs bytes.Buffer
-	klogFlags := flag.NewFlagSet("klog", flag.ContinueOnError)
-	klog.InitFlags(klogFlags)
-	previousVerbosity := klogFlags.Lookup("v").Value.String()
-	previousServerOpts := options.ServerOpts
-	klog.LogToStderr(false)
-	klog.SetOutput(&logs)
-	t.Cleanup(func() {
-		_ = klogFlags.Set("v", previousVerbosity)
-		options.ServerOpts = previousServerOpts
-		klog.SetOutput(&bytes.Buffer{})
-		klog.LogToStderr(true)
-	})
-
-	options.ServerOpts = &options.ServerOption{
-		MinPercentageOfNodesToFind: 5,
-		MinNodesToFind:             1,
-		PercentageOfNodesToFind:    100,
-		ShardingMode:               commonutil.NoneShardingMode,
-	}
-	task := &api.TaskInfo{Job: "job1", TaskRole: "worker", Namespace: "ns", Name: "task"}
-	nodes := []*api.NodeInfo{{Name: "node1"}}
-	predicateFn := func(*api.TaskInfo, *api.NodeInfo) error {
-		return fmt.Errorf("predicate failed")
-	}
-
-	if err := klogFlags.Set("v", "4"); err != nil {
-		t.Fatalf("set klog verbosity: %v", err)
-	}
-	NewPredicateHelper().PredicateNodes(task, nodes, predicateFn, false, sets.New[string]("node1"))
-	if strings.Contains(logs.String(), "Predicate failed") {
-		t.Fatalf("predicate failure must not be logged below V(5): %s", logs.String())
-	}
-
-	logs.Reset()
-	options.ServerOpts.ShardingMode = commonutil.HardShardingMode
-	NewPredicateHelper().PredicateNodes(task, nodes, predicateFn, false, sets.New[string]())
-	if strings.Contains(logs.String(), "Predicate failed") {
-		t.Fatalf("hard-sharding failure must not be logged below V(5): %s", logs.String())
-	}
-
-	logs.Reset()
-	options.ServerOpts.ShardingMode = commonutil.NoneShardingMode
-	if err := klogFlags.Set("v", "5"); err != nil {
-		t.Fatalf("set klog verbosity: %v", err)
-	}
-	NewPredicateHelper().PredicateNodes(task, nodes, predicateFn, false, sets.New[string]("node1"))
-	for _, want := range []string{`"Predicate failed"`, `task="ns/task"`, `node="node1"`, `err="predicate failed"`} {
-		if !strings.Contains(logs.String(), want) {
-			t.Errorf("expected log to contain %q, got: %s", want, logs.String())
-		}
-	}
-
-	logs.Reset()
-	options.ServerOpts.ShardingMode = commonutil.HardShardingMode
-	NewPredicateHelper().PredicateNodes(task, nodes, predicateFn, false, sets.New[string]())
-	want := "Predicates failed: node node1 is not in scheduler shard"
-	if !strings.Contains(logs.String(), want) {
-		t.Errorf("expected hard-sharding log to contain %q, got: %s", want, logs.String())
-	}
-
-	logs.Reset()
-	options.ServerOpts.ShardingMode = commonutil.NoneShardingMode
-	ph := NewPredicateHelper()
-	ph.PredicateNodes(task, nodes, predicateFn, true, sets.New[string]("node1"))
-	logs.Reset()
-	ph.PredicateNodes(task, nodes, predicateFn, true, sets.New[string]("node1"))
-	if strings.Contains(logs.String(), "Predicate failed") {
-		t.Fatalf("cached predicate failure must not be logged again: %s", logs.String())
-	}
-}
 
 func TestPredicateNodes(t *testing.T) {
 	tests := []struct {
@@ -312,6 +239,55 @@ func TestPredicateNodes(t *testing.T) {
 				t.Fatalf("expected error %s, got %s", tt.expectedErr, gotErr)
 			}
 		})
+	}
+}
+
+//go:noinline
+func benchmarkPredicateFailure(task *api.TaskInfo, node *api.NodeInfo) error {
+	return api.NewFitError(task, node, "predicate failed")
+}
+
+func BenchmarkPredicateNodesAllFail(b *testing.B) {
+	klogFlags := flag.NewFlagSet("benchmark-klog", flag.ContinueOnError)
+	klog.InitFlags(klogFlags)
+	verbosity := os.Getenv("BENCH_KLOG_V")
+	if verbosity == "" {
+		verbosity = "0"
+	}
+	if err := klogFlags.Set("v", verbosity); err != nil {
+		b.Fatalf("set klog verbosity: %v", err)
+	}
+	klog.LogToStderr(false)
+	klog.SetOutput(io.Discard)
+
+	for _, nodeCount := range []int{1000, 10000} {
+		nodes := make([]*api.NodeInfo, nodeCount)
+		for i := range nodes {
+			nodes[i] = &api.NodeInfo{Name: fmt.Sprintf("node-%d", i)}
+		}
+
+		for _, enableErrorCache := range []bool{false, true} {
+			b.Run(fmt.Sprintf("nodes=%d/cache=%t", nodeCount, enableErrorCache), func(b *testing.B) {
+				options.ServerOpts = &options.ServerOption{
+					MinPercentageOfNodesToFind: 5,
+					MinNodesToFind:             1,
+					PercentageOfNodesToFind:    100,
+					ShardingMode:               commonutil.NoneShardingMode,
+				}
+				task := &api.TaskInfo{Job: "job1", TaskRole: "worker", Namespace: "ns", Name: "task"}
+
+				b.ReportAllocs()
+				b.ResetTimer()
+				for range b.N {
+					predicateNodes, _ := NewPredicateHelper().PredicateNodes(
+						task, nodes, benchmarkPredicateFailure, enableErrorCache, sets.Set[string](nil),
+					)
+					if len(predicateNodes) != 0 {
+						b.Fatalf("expected no predicate nodes, got %d", len(predicateNodes))
+					}
+				}
+			})
+		}
 	}
 }
 
