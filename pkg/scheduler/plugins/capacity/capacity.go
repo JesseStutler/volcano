@@ -1802,7 +1802,7 @@ func (cp *capacityPlugin) checkJobEnqueueableHierarchically(ssn *framework.Sessi
 				}
 			}
 
-			ssn.RecordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), util.FormatResourceNames("queue resource quota insufficient", "insufficient", resourceNames))
+			ssn.RecordPodGroupEventForPlugin(cp.Name(), job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), util.FormatResourceNames("queue resource quota insufficient", "insufficient", resourceNames))
 			return false
 		}
 	}

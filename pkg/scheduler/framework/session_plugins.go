@@ -609,6 +609,9 @@ func (ssn *Session) JobEnqueueable(obj interface{}) bool {
 				return false
 			}
 			if res > 0 {
+				if job, ok := obj.(*api.JobInfo); ok {
+					ssn.cache.ClearPodGroupEvents(job.PodGroup, "plugin/"+plugin.Name)
+				}
 				hasFound = true
 			}
 		}
@@ -624,6 +627,12 @@ func (ssn *Session) JobEnqueueable(obj interface{}) bool {
 
 // JobEnqueued invoke jobEnqueuedFns function of the plugins
 func (ssn *Session) JobEnqueued(obj interface{}) {
+	// Admission can bypass JobEnqueueable when MinResources is unset.
+	if job, ok := obj.(*api.JobInfo); ok {
+		for name := range ssn.jobEnqueueableFns {
+			ssn.cache.ClearPodGroupEvents(job.PodGroup, "plugin/"+name)
+		}
+	}
 	for _, tier := range ssn.Tiers {
 		for _, plugin := range tier.Plugins {
 			if !isEnabled(plugin.EnabledJobEnqueued) {

@@ -114,3 +114,23 @@ configure the plugins evicting the least pods in the first tier. And configure o
 If the first tier can pick out victims, it will not call the functions registered in the plugins, which is configured at
 the second tier.
 
+## Repeated scheduling events
+
+The scheduler suppresses unchanged PodGroup scheduling events across sessions.
+The cache summary and each built-in plugin retain their own latest event type,
+reason, and message. A change to any of these fields is reported immediately.
+After admission or scheduling recovers, the same failure can be reported again.
+
+An unchanged failure is reported again on the first attempt at least 30 minutes
+later. This keeps ongoing failures visible with the default Kubernetes Event
+TTL without writing an Event on every scheduling attempt. Delivery remains best
+effort; a shorter custom Event TTL can leave gaps between reports.
+
+Event counts therefore describe submitted reports, not scheduling attempts.
+Deduplication state is local to the scheduler process and is removed when the
+PodGroup is deleted. A scheduler restart may report the same failure again.
+
+Custom plugins can use `Session.RecordPodGroupEventForPlugin` with their plugin
+name to keep their diagnostics separate. `Session.RecordPodGroupEvent` remains
+available with its original event-delivery behavior. Pod events and
+bind, eviction, and preemption events retain their existing behavior.

@@ -17,16 +17,24 @@ limitations under the License.
 package overcommit
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
 	schedulingv1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	"volcano.sh/volcano/pkg/scheduler/api"
+	"volcano.sh/volcano/pkg/scheduler/cache"
 	"volcano.sh/volcano/pkg/scheduler/conf"
 	"volcano.sh/volcano/pkg/scheduler/framework"
+	"volcano.sh/volcano/pkg/scheduler/plugins/proportion"
 	"volcano.sh/volcano/pkg/scheduler/uthelper"
 	"volcano.sh/volcano/pkg/scheduler/util"
 )
@@ -135,4 +143,100 @@ func TestOvercommitPlugin(t *testing.T) {
 		})
 	}
 
+}
+
+func TestJobEnqueueable(t *testing.T) {
+	const failureEvent = "Normal Unschedulable resource in cluster is overused: overused cpu"
+	type attempt struct {
+		cpu            string
+		skip           bool
+		expectedPermit bool
+	}
+	tests := []struct {
+		name            string
+		queueCapability v1.ResourceList
+		attempts        []attempt
+		expected        []string
+	}{
+		{
+			name:     "unchanged failure across sessions",
+			attempts: []attempt{{cpu: "2"}, {cpu: "2"}},
+			expected: []string{failureEvent},
+		},
+		{
+			name:     "failure can recur after the plugin permits admission",
+			attempts: []attempt{{cpu: "2"}, {cpu: "1", expectedPermit: true}, {cpu: "2"}},
+			expected: []string{failureEvent, failureEvent},
+		},
+		{
+			name:     "skipped evaluation is not recovery",
+			attempts: []attempt{{cpu: "2"}, {cpu: "2", skip: true}, {cpu: "2"}},
+			expected: []string{failureEvent},
+		},
+		{
+			name:     "admission without min resources clears the failure",
+			attempts: []attempt{{cpu: "2"}, {expectedPermit: true}, {cpu: "2"}},
+			expected: []string{failureEvent, failureEvent},
+		},
+		{
+			name:            "one plugin recovers while another keeps rejecting",
+			queueCapability: api.BuildResourceList("1", "512Ki"),
+			attempts:        []attempt{{cpu: "2"}, {cpu: "1"}, {cpu: "2"}, {cpu: "1"}},
+			expected: []string{
+				failureEvent,
+				"Normal Unschedulable queue resource quota insufficient: insufficient memory",
+				failureEvent,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			framework.RegisterPluginBuilder(PluginName, New)
+			t.Cleanup(framework.CleanupPluginBuilders)
+			recorder := record.NewFakeRecorder(len(tt.attempts) * 2)
+			sc := cache.NewCustomMockSchedulerCache("volcano", nil, nil, &util.FakeStatusUpdater{}, nil, recorder)
+			t.Cleanup(func() { cache.ShutdownMockSchedulerCache(sc) })
+			sc.AddOrUpdateNode(util.BuildNode("node", api.BuildResourceList("1", "1Gi"), nil))
+			sc.AddQueueV1beta1(util.BuildQueue("default", 1, tt.queueCapability))
+			pg := util.BuildPodGroup("job", "test", "default", 1, nil, schedulingv1.PodGroupPending)
+			pg.UID = "job-uid"
+			sc.AddPodGroupV1beta1(pg)
+			tiers := []conf.Tier{{Plugins: []conf.PluginOption{{Name: PluginName, EnabledJobEnqueued: ptr.To(true), Arguments: framework.Arguments{overCommitFactor: 1.0}}}}}
+			if tt.queueCapability != nil {
+				framework.RegisterPluginBuilder(proportion.PluginName, proportion.New)
+				tiers[0].Plugins = append(tiers[0].Plugins, conf.PluginOption{Name: proportion.PluginName, EnabledJobEnqueued: ptr.To(true)})
+			}
+			for index, attempt := range tt.attempts {
+				next := pg.DeepCopy()
+				next.ResourceVersion = strconv.Itoa(index + 1)
+				next.Spec.MinResources = nil
+				if attempt.cpu != "" {
+					resources := api.BuildResourceList(attempt.cpu, "1Mi")
+					next.Spec.MinResources = &resources
+				}
+				sc.UpdatePodGroupV1beta1(pg, next)
+				pg = next
+				ssn := framework.OpenSession(sc, tiers, nil)
+				job := ssn.Jobs[api.JobID("test/job")]
+				require.NotNil(t, job)
+				if !attempt.skip {
+					// The enqueue action skips plugin checks for best-effort jobs.
+					permit := job.PodGroup.Spec.MinResources == nil || ssn.JobEnqueueable(job)
+					assert.Equal(t, attempt.expectedPermit, permit)
+					if job.PodGroup.Spec.MinResources == nil {
+						ssn.JobEnqueued(job)
+					}
+				}
+				framework.CloseSession(ssn)
+			}
+			var actual []string
+			for len(recorder.Events) > 0 {
+				event := <-recorder.Events
+				if strings.HasPrefix(event, "Normal Unschedulable ") {
+					actual = append(actual, event)
+				}
+			}
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
 }

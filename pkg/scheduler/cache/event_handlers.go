@@ -1019,6 +1019,10 @@ func (sc *SchedulerCache) setPodGroup(ss *schedulingapi.PodGroup) error {
 		sc.Jobs[job] = schedulingapi.NewJobInfo(job)
 	}
 
+	if old := sc.Jobs[job].PodGroup; old != nil && old.UID != ss.UID {
+		// Informers may deliver deletion and recreation as a single update.
+		delete(sc.podGroupEvents, old.UID)
+	}
 	sc.Jobs[job].SetPodGroup(ss)
 	sc.Jobs[job].Queue = queueID
 
@@ -1177,6 +1181,7 @@ func (sc *SchedulerCache) DeletePodGroupV1beta1(obj interface{}) {
 
 	jobID := schedulingapi.JobID(fmt.Sprintf("%s/%s", ss.Namespace, ss.Name))
 	sc.Mutex.Lock()
+	delete(sc.podGroupEvents, ss.UID)
 	err := sc.deletePodGroup(jobID)
 	sc.Mutex.Unlock()
 	if err != nil {
