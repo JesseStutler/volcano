@@ -129,7 +129,7 @@ func (op *overcommitPlugin) OnSessionOpen(ssn *framework.Session) {
 		klog.V(4).Infof("Resource in cluster is overused, reject job <%s/%s> to be inqueue",
 			job.Namespace, job.Name)
 
-		ssn.RecordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), util.FormatResourceNames("resource in cluster is overused", "overused", resourceNames))
+		ssn.RecordPodGroupEventForPlugin(op.Name(), job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), util.FormatResourceNames("resource in cluster is overused", "overused", resourceNames))
 		return util.Reject
 	})
 

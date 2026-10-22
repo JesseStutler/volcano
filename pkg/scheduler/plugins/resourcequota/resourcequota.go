@@ -87,7 +87,7 @@ func (rq *resourceQuotaPlugin) OnSessionOpen(ssn *framework.Session) {
 					failedHard,
 				)
 				klog.V(4).Infof("enqueueable false for job: %s/%s, because :%s", job.Namespace, job.Name, msg)
-				ssn.RecordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), msg)
+				ssn.RecordPodGroupEventForPlugin(rq.Name(), job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), msg)
 				return util.Reject
 			}
 		}
