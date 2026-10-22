@@ -24,11 +24,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kcache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/utils/cpuset"
@@ -400,6 +402,28 @@ func TestSchedulerCache_UpdatePodGroupV1beta1(t *testing.T) {
 			t.Errorf("Expected pg to be: %v but got :%v in case %d", test.Expected, pg, i)
 		}
 	}
+	t.Run("recreation delivered as an update removes old event state", func(t *testing.T) {
+		sc := NewDefaultMockSchedulerCache("volcano")
+		t.Cleanup(func() { ShutdownMockSchedulerCache(sc) })
+		old := util.BuildPodGroup("job", "test", "default", 1, nil, schedulingv1.PodGroupPending)
+		old.UID, old.ResourceVersion = "old-job", "1"
+		sc.AddPodGroupV1beta1(old)
+		sc.RecordJobStatusEvent(sc.Jobs[api.JobID("test/job")].Clone(), false)
+		require.Len(t, sc.podGroupEvents, 1)
+
+		replacement := old.DeepCopy()
+		replacement.UID, replacement.ResourceVersion = "new-job", "2"
+		sc.UpdatePodGroupV1beta1(old, replacement)
+		assert.Empty(t, sc.podGroupEvents)
+		sc.RecordJobStatusEvent(sc.Jobs[api.JobID("test/job")].Clone(), false)
+		expected := map[types.UID]bool{replacement.UID: true}
+		actual := make(map[types.UID]bool)
+		for uid := range sc.podGroupEvents {
+			actual[uid] = true
+		}
+		assert.Equal(t, expected, actual)
+	})
+
 }
 
 func TestUpdatePodGroupUnschedulableCache(t *testing.T) {
@@ -828,6 +852,52 @@ func TestSchedulerCache_DeletePodGroupV1beta1(t *testing.T) {
 			t.Errorf("Expected job  to be: %v but got :%v in case %d", test.Expected, job, i)
 		}
 	}
+	for _, tt := range []struct {
+		name      string
+		tombstone bool
+	}{
+		{name: "events are removed on deletion"},
+		{name: "events are removed on tombstone deletion", tombstone: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := NewDefaultMockSchedulerCache("volcano")
+			t.Cleanup(func() { ShutdownMockSchedulerCache(sc) })
+			pg := util.BuildPodGroup("job", "test", "default", 1, nil, schedulingv1.PodGroupPending)
+			pg.UID = "old-job"
+			sc.AddPodGroupV1beta1(pg)
+			job := sc.Jobs[api.JobID("test/job")].Clone()
+			sc.RecordJobStatusEvent(job, false)
+			require.Len(t, sc.podGroupEvents, 1)
+			var deleted interface{} = pg
+			if tt.tombstone {
+				deleted = kcache.DeletedFinalStateUnknown{Key: "test/job", Obj: pg}
+			}
+			sc.DeletePodGroupV1beta1(deleted)
+			assert.Empty(t, sc.podGroupEvents)
+			// An in-flight session must not retain a deleted UID again.
+			sc.RecordJobStatusEvent(job, false)
+			assert.Empty(t, sc.podGroupEvents)
+			replacement := pg.DeepCopy()
+			replacement.UID = "new-job"
+			sc.AddPodGroupV1beta1(replacement)
+			newJob := sc.Jobs[api.JobID("test/job")].Clone()
+			sc.RecordJobStatusEvent(newJob, false)
+			sc.RecordJobStatusEvent(newJob, false)
+			assert.Len(t, sc.podGroupEvents, 1)
+			expected := []string{
+				"Warning Unschedulable 0/0 tasks in gang unschedulable: pod group is not ready, 1 minAvailable",
+				"Warning Unschedulable 0/0 tasks in gang unschedulable: pod group is not ready, 1 minAvailable",
+				"Warning Unschedulable 0/0 tasks in gang unschedulable: pod group is not ready, 1 minAvailable",
+			}
+			var actual []string
+			recorder := sc.Recorder.(*record.FakeRecorder)
+			for len(recorder.Events) > 0 {
+				actual = append(actual, <-recorder.Events)
+			}
+			assert.Equal(t, expected, actual)
+		})
+	}
+
 }
 
 func TestSchedulerCache_AddQueueV1beta1(t *testing.T) {

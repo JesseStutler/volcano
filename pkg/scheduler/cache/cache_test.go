@@ -25,11 +25,13 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -42,6 +44,8 @@ import (
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	clocktesting "k8s.io/utils/clock/testing"
+	"volcano.sh/apis/pkg/apis/scheduling"
 	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
 	vcclientfake "volcano.sh/apis/pkg/client/clientset/versioned/fake"
@@ -50,6 +54,97 @@ import (
 	"volcano.sh/volcano/pkg/scheduler/util"
 	schedulercache "volcano.sh/volcano/pkg/schedulercommon/cache"
 )
+
+func TestRecordJobStatusEvent(t *testing.T) {
+	const pendingEvent = "Warning Unschedulable 1/1 tasks in gang unschedulable: pod group is not ready, 1 Pending, 1 minAvailable; Pending: 1 Unschedulable"
+	tests := []struct {
+		name               string
+		phases             []scheduling.PodGroupPhase
+		elapsed            []time.Duration
+		updatePG           bool
+		expected           []string
+		expectedPodUpdates int
+	}{
+		{
+			name:               "unchanged failure across sessions",
+			phases:             []scheduling.PodGroupPhase{scheduling.PodGroupInqueue, scheduling.PodGroupInqueue},
+			expected:           []string{pendingEvent},
+			expectedPodUpdates: 2,
+		},
+		{
+			name:               "same failure after recovery without a status write",
+			phases:             []scheduling.PodGroupPhase{scheduling.PodGroupInqueue, scheduling.PodGroupRunning, scheduling.PodGroupInqueue},
+			expected:           []string{pendingEvent, pendingEvent},
+			expectedPodUpdates: 2,
+		},
+		{
+			name:               "scheduled event is retained",
+			phases:             []scheduling.PodGroupPhase{scheduling.PodGroupInqueue, scheduling.PodGroupRunning},
+			updatePG:           true,
+			expected:           []string{pendingEvent, "Normal Scheduled pod group is ready"},
+			expectedPodUpdates: 1,
+		},
+		{
+			name:               "unchanged failures refresh without sliding the deadline",
+			phases:             []scheduling.PodGroupPhase{scheduling.PodGroupInqueue, scheduling.PodGroupInqueue, scheduling.PodGroupInqueue, scheduling.PodGroupInqueue},
+			elapsed:            []time.Duration{0, podGroupEventRefreshInterval - time.Second, time.Second, time.Second},
+			expected:           []string{pendingEvent, pendingEvent},
+			expectedPodUpdates: 4,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sc := NewDefaultMockSchedulerCache("volcano")
+			t.Cleanup(func() { ShutdownMockSchedulerCache(sc) })
+			pg := util.BuildPodGroup("job", "test", "default", 1, nil, vcv1beta1.PodGroupInqueue)
+			pg.UID = "job-uid"
+			sc.AddPodGroupV1beta1(pg)
+			pod := util.BuildPod("test", "task", "", v1.PodPending, api.BuildResourceList("1", "1Gi"), pg.Name, nil, nil)
+			_, err := sc.kubeClient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{})
+			require.NoError(t, err)
+			sc.AddPod(pod)
+
+			fakeClock := clocktesting.NewFakeClock(time.Now())
+			sc.eventClock = fakeClock
+			for index, phase := range tt.phases {
+				if tt.elapsed != nil {
+					fakeClock.Step(tt.elapsed[index])
+				}
+				sc.OnSessionOpen()
+				job := sc.Jobs[api.JobID("test/job")].Clone()
+				job.PodGroup.Status.Phase = phase
+				if phase == scheduling.PodGroupRunning {
+					for _, task := range job.Tasks {
+						job.UpdateTaskStatus(task, api.Running)
+					}
+				}
+				sc.RecordJobStatusEvent(job, tt.updatePG)
+				sc.OnSessionClose()
+			}
+			var actual []string
+			recorder := sc.Recorder.(*record.FakeRecorder)
+			for len(recorder.Events) > 0 {
+				event := <-recorder.Events
+				if !strings.HasPrefix(event, "Warning FailedScheduling ") {
+					actual = append(actual, event)
+				}
+			}
+			assert.Equal(t, tt.expected, actual)
+			// Each snapshot still has the old Pod status, as it can before an
+			// informer update. Skipping a PG event must not skip Pod processing.
+			updates := 0
+			for _, action := range sc.kubeClient.(*kubefake.Clientset).Actions() {
+				if action.Matches("update", "pods") && action.GetSubresource() == "status" {
+					updates++
+					updated := action.(kubetesting.UpdateAction).GetObject().(*v1.Pod)
+					require.Len(t, updated.Status.Conditions, 1)
+					assert.Equal(t, api.PodReasonUnschedulable, updated.Status.Conditions[0].Reason)
+				}
+			}
+			assert.Equal(t, tt.expectedPodUpdates, updates)
+		})
+	}
+}
 
 // addDRAResource returns at once even at the maximum count and scales the capacity
 // exactly, without relying on the caller to bound count.

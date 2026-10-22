@@ -56,6 +56,7 @@ import (
 	kubefeatures "k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
 	"k8s.io/kubernetes/pkg/scheduler/util/assumecache"
+	"k8s.io/utils/clock"
 	"stathat.com/c/consistent"
 
 	batch "volcano.sh/apis/pkg/apis/batch/v1alpha1"
@@ -151,6 +152,10 @@ type SchedulerCache struct {
 	PodGroupBinder BatchBinder
 
 	Recorder record.EventRecorder
+	// Protected by Mutex; retained across sessions and removed on PG deletion.
+	podGroupEvents podGroupEventCache
+	// A nil eventClock uses real time.
+	eventClock clock.PassiveClock
 
 	Jobs                 map[schedulingapi.JobID]*schedulingapi.JobInfo
 	Nodes                map[string]*schedulingapi.NodeInfo
@@ -1798,9 +1803,12 @@ func (sc *SchedulerCache) RecordJobStatusEvent(job *schedulingapi.JobInfo, updat
 			len(job.Tasks),
 			fitErrStr)
 		// TODO: should we skip pod unschedulable event if pod group is unschedulable due to gates to avoid printing too many messages?
-		sc.recordPodGroupEvent(job.PodGroup, v1.EventTypeWarning, string(scheduling.PodGroupUnschedulableType), msg)
-	} else if updatePG {
-		sc.recordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupScheduled), string(scheduling.PodGroupReady))
+		sc.RecordPodGroupEvent(job.PodGroup, "scheduler", v1.EventTypeWarning, string(scheduling.PodGroupUnschedulableType), msg)
+	} else {
+		sc.ClearPodGroupEvents(job.PodGroup, "")
+		if updatePG {
+			sc.RecordPodGroupEvent(job.PodGroup, "", v1.EventTypeNormal, string(scheduling.PodGroupScheduled), string(scheduling.PodGroupReady))
+		}
 	}
 
 	baseErrorMessage := fitErrStr
@@ -1905,19 +1913,6 @@ func (sc *SchedulerCache) updateJobInfo(job *schedulingapi.JobInfo) {
 // UpdateQueueStatus update the status of queue.
 func (sc *SchedulerCache) UpdateQueueStatus(queue *schedulingapi.QueueInfo) error {
 	return sc.StatusUpdater.UpdateQueueStatus(queue)
-}
-
-func (sc *SchedulerCache) recordPodGroupEvent(podGroup *schedulingapi.PodGroup, eventType, reason, msg string) {
-	if podGroup == nil {
-		return
-	}
-
-	pg := &vcv1beta1.PodGroup{}
-	if err := schedulingscheme.Scheme.Convert(&podGroup.PodGroup, pg, nil); err != nil {
-		klog.Errorf("Error while converting PodGroup to v1alpha1.PodGroup with error: %v", err)
-		return
-	}
-	sc.Recorder.Eventf(pg, eventType, reason, "%s", msg)
 }
 
 func (sc *SchedulerCache) SetMetricsConf(conf map[string]string) {

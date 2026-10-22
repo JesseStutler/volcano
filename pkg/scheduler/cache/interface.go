@@ -91,6 +91,12 @@ type Cache interface {
 	// EventRecorder returns the event recorder
 	EventRecorder() record.EventRecorder
 
+	// RecordPodGroupEvent deduplicates scheduling diagnostics across sessions.
+	RecordPodGroupEvent(podGroup *api.PodGroup, source, eventType, reason, message string)
+
+	// ClearPodGroupEvents clears a recovered source, or all sources when empty.
+	ClearPodGroupEvents(podGroup *api.PodGroup, source string)
+
 	// RegisterBinder registers the passed binder to the cache's binderRegistry
 	RegisterBinder(name string, binder interface{})
 

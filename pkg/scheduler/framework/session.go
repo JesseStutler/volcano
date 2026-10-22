@@ -38,14 +38,11 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	k8sframework "k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
-	schedulingscheme "volcano.sh/apis/pkg/apis/scheduling/scheme"
-	vcv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	topologyv1alpha1 "volcano.sh/apis/pkg/apis/topology/v1alpha1"
 	vcclient "volcano.sh/apis/pkg/client/clientset/versioned"
 	"volcano.sh/volcano/pkg/features"
@@ -71,7 +68,6 @@ type Session struct {
 
 	kubeClient            kubernetes.Interface
 	vcClient              vcclient.Interface
-	recorder              record.EventRecorder
 	cache                 cache.Cache
 	unschedulableJobCache unschedulableJobCache
 	restConfig            *rest.Config
@@ -194,7 +190,6 @@ func openSession(schedulerCache cache.Cache, unschedulableJobCache unschedulable
 		kubeClient:            schedulerCache.Client(),
 		vcClient:              schedulerCache.VCClient(),
 		restConfig:            schedulerCache.ClientConfig(),
-		recorder:              schedulerCache.EventRecorder(),
 		cache:                 schedulerCache,
 		unschedulableJobCache: unschedulableJobCache,
 		informerFactory:       schedulerCache.SharedInformerFactory(),
@@ -994,18 +989,15 @@ func (ssn *Session) InformerFactory() informers.SharedInformerFactory {
 	return ssn.informerFactory
 }
 
-// RecordPodGroupEvent records podGroup events
+// RecordPodGroupEvent records PodGroup events. Plugins should use
+// RecordPodGroupEventForPlugin to keep independent diagnostics separate.
 func (ssn *Session) RecordPodGroupEvent(podGroup *api.PodGroup, eventType, reason, msg string) {
-	if podGroup == nil {
-		return
-	}
+	ssn.cache.RecordPodGroupEvent(podGroup, "", eventType, reason, msg)
+}
 
-	pg := &vcv1beta1.PodGroup{}
-	if err := schedulingscheme.Scheme.Convert(&podGroup.PodGroup, pg, nil); err != nil {
-		klog.Errorf("Error while converting PodGroup to v1alpha1.PodGroup with error: %v", err)
-		return
-	}
-	ssn.recorder.Eventf(pg, eventType, reason, "%s", msg)
+// RecordPodGroupEventForPlugin records a plugin's latest scheduling diagnostic.
+func (ssn *Session) RecordPodGroupEventForPlugin(pluginName string, podGroup *api.PodGroup, eventType, reason, msg string) {
+	ssn.cache.RecordPodGroupEvent(podGroup, "plugin/"+pluginName, eventType, reason, msg)
 }
 
 // SharedDRAManager returns the shared DRAManager from cache
