@@ -1,0 +1,25 @@
+# 只读观察示例：这是调度成功后 ResourceClaim 的状态节选，不是 apply 输入。
+# 假设调度器选择 node-a / gpu-0；UID 以实际 Pod UID 为准。
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: train-gpu
+  namespace: default
+status:
+  allocation:
+    devices:
+      results:
+      - request: accelerator
+        driver: gpu.example.com
+        pool: node-a
+        device: gpu-0
+    nodeSelector:
+      nodeSelectorTerms:
+      - matchFields:
+        - key: metadata.name
+          operator: In
+          values: [node-a]
+  reservedFor:
+  - resource: pods
+    name: trainer
+    uid: 00000000-0000-0000-0000-000000000001

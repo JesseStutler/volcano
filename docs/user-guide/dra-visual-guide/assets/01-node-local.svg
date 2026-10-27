@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 580" role="img" aria-labelledby="title desc">
+<title id="title">本地设备：从需求找到一张 GPU</title><desc id="desc">Pod trainer 引用 train-gpu Claim，Claim 引用 gpu-any Class；Class 匹配 ResourceSlice 中的设备。node-a-gpus 的 nodeName 为 node-a。假设分配 gpu-0，Claim status 记录 driver、pool、device。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="580" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="580" rx="20" fill="url(#grid)"/>
+<g data-kind="pod">
+<rect x="32" y="36" width="282" height="112" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="54" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
+<text x="62" y="68" font-size="13" font-weight="700" fill="#536574">POD · default</text>
+<text x="54" y="102" font-size="23" font-weight="650" fill="#183341">trainer</text>
+<text x="54" y="130" font-size="14" font-weight="400" fill="#64757d">resourceClaimName: train-gpu</text>
+</g>
+<g data-kind="claim">
+<rect x="32" y="218" width="282" height="190" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="236" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="62" y="250" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM · default</text>
+<text x="54" y="284" font-size="23" font-weight="650" fill="#183341">train-gpu</text>
+<text x="54" y="312" font-size="14" font-weight="400" fill="#64757d">request: accelerator</text>
+<text x="54" y="336" font-size="14" font-weight="400" fill="#64757d">deviceClassName: gpu-any</text>
+<text x="54" y="360" font-size="14" font-weight="400" fill="#64757d">count: 1</text>
+</g>
+<g data-kind="cls">
+<rect x="390" y="36" width="378" height="112" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="406" y="54" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
+<text x="420" y="68" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>
+<text x="412" y="102" font-size="23" font-weight="650" fill="#183341">gpu-any</text>
+<text x="412" y="130" font-size="14" font-weight="400" fill="#64757d">CEL: driver == gpu.example.com</text>
+</g>
+<polyline points="172,148 172,218" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="172" cy="218" r="4" fill="#b66b28"/>
+<text x="186" y="189" font-size="13" font-weight="400" fill="#b66b28">按名字引用</text>
+<polyline points="314,270 350,270 350,94 390,94" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="390" cy="94" r="4" fill="#8054a6"/>
+<text x="330" y="192" font-size="12" font-weight="400" fill="#8054a6">引用</text>
+<g data-kind="node">
+<rect x="390" y="218" width="738" height="270" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
+<text x="414" y="252" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="483" y="254" font-size="23" font-weight="650" fill="#183341">node-a</text>
+<text x="861" y="251" font-size="14" font-weight="400" fill="#3568a5">spec.nodeName: node-a</text>
+</g><g data-kind="slice">
+<rect x="412" y="274" width="694" height="192" rx="14" fill="#f0f7f3" stroke="#b5d6c5"/>
+<text x="434" y="301" font-size="16" font-weight="650" fill="#0c7b70">ResourceSlice · node-a-gpus</text>
+<text x="812" y="301" font-size="13" font-weight="400" fill="#64757d">pool: node-a / 1 slice</text>
+<rect x="434" y="326" width="312" height="104" rx="12" fill="#e7f3ec" stroke="#64a990"/>
+<rect x="452" y="350" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="446,355 452,355" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="452" cy="355" r="4" fill="#7dbaa3"/>
+<polyline points="446,366 452,366" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="452" cy="366" r="4" fill="#7dbaa3"/>
+<polyline points="446,377 452,377" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="452" cy="377" r="4" fill="#7dbaa3"/>
+<text x="504" y="363" font-size="21" font-weight="650" fill="#183341">gpu-0</text>
+<text x="504" y="389" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="452" y="414" font-size="13" font-weight="400" fill="#0c7b70">已分配 · 仍在库存中</text>
+<rect x="770" y="326" width="312" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="788" y="350" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="782,355 788,355" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="788" cy="355" r="4" fill="#7dbaa3"/>
+<polyline points="782,366 788,366" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="788" cy="366" r="4" fill="#7dbaa3"/>
+<polyline points="782,377 788,377" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="788" cy="377" r="4" fill="#7dbaa3"/>
+<text x="840" y="363" font-size="21" font-weight="650" fill="#183341">gpu-1</text>
+<text x="840" y="389" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="788" y="414" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+</g>
+<polyline points="579,148 579,180 1120,180 1120,312 590,312 590,326" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="590" cy="326" r="4" fill="#8054a6"/>
+<polyline points="926,312 926,326" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="926" cy="326" r="4" fill="#8054a6"/>
+<text x="664" y="171" font-size="14" font-weight="400" fill="#8054a6">CEL 匹配设备，不是绑定节点</text>
+<text x="34" y="443" font-size="13" font-weight="400" fill="#64757d">实线：字段引用</text>
+<text x="34" y="470" font-size="13" font-weight="400" fill="#8054a6">虚线：选择条件匹配</text>
+<rect x="32" y="512" width="1096" height="46" rx="10" fill="#183341" stroke="#183341"/>
+<text x="52" y="541" font-size="14" font-weight="600" fill="#a8c5ba">分配结果</text>
+<text x="152" y="541" font-size="16" font-weight="400" fill="#ffffff" class="mono">status.allocation → (gpu.example.com, node-a, gpu-0)</text>
+</svg>

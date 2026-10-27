@@ -2,6 +2,10 @@
 
 This document describes the steps required to enable Dynamic Resource Allocation (DRA) support in the Volcano scheduler.
 
+For an illustrated introduction to the DRA object relationships, see the
+[DRA visual guide (Chinese)](dra-visual-guide/README.md), including SVG/PNG diagrams,
+an offline HTML viewer, and example YAML manifests.
+
 ## Prerequisites
 Before proceeding with the configuration steps, ensure your cluster meets the following prerequisites:
 

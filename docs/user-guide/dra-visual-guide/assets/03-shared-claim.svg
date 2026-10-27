@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 580" role="img" aria-labelledby="title desc">
+<title id="title">共享 Claim：两个 Pod，一份分配</title><desc id="desc">trainer-a 与 trainer-b 都引用 shared-gpu。shared-gpu 只分配 node-a 的 gpu-0。两个 Pod 复用同一分配，used 为 1 而不是 2；两个 Pod 都必须能访问该设备。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="580" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="580" rx="20" fill="url(#grid)"/>
+<g data-kind="pod">
+<rect x="32" y="58" width="260" height="120" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="76" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
+<text x="62" y="90" font-size="13" font-weight="700" fill="#536574">POD · default</text>
+<text x="54" y="124" font-size="23" font-weight="650" fill="#183341">trainer-a</text>
+<text x="54" y="152" font-size="14" font-weight="400" fill="#64757d">第一个使用者</text>
+</g>
+<g data-kind="pod">
+<rect x="32" y="270" width="260" height="120" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="288" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
+<text x="62" y="302" font-size="13" font-weight="700" fill="#536574">POD · default</text>
+<text x="54" y="336" font-size="23" font-weight="650" fill="#183341">trainer-b</text>
+<text x="54" y="364" font-size="14" font-weight="400" fill="#64757d">复用已分配的 Claim</text>
+</g>
+<g data-kind="claim">
+<rect x="384" y="164" width="330" height="210" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="400" y="182" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="414" y="196" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM · default</text>
+<text x="406" y="230" font-size="23" font-weight="650" fill="#183341">shared-gpu</text>
+<text x="406" y="258" font-size="14" font-weight="400" fill="#64757d">deviceClassName: gpu-any</text>
+<text x="406" y="282" font-size="14" font-weight="400" fill="#64757d">count: 1</text>
+<text x="406" y="306" font-size="14" font-weight="400" fill="#64757d">status: node-a / gpu-0</text>
+<text x="406" y="330" font-size="14" font-weight="400" fill="#64757d">reservedFor: trainer-a, trainer-b</text>
+</g>
+<polyline points="292,118 338,118 338,224 384,224" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="384" cy="224" r="4" fill="#b66b28"/>
+<polyline points="292,330 338,330 338,296 384,296" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="384" cy="296" r="4" fill="#b66b28"/>
+<text x="306" y="446" font-size="15" font-weight="650" fill="#b66b28">两次引用</text>
+<g data-kind="node">
+<rect x="806" y="58" width="322" height="388" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
+<text x="830" y="91" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="830" y="124" font-size="24" font-weight="650" fill="#183341">node-a</text>
+</g><g data-kind="slice">
+<text x="830" y="155" font-size="13" font-weight="400" fill="#0c7b70">ResourceSlice: node-a-gpus</text>
+<rect x="830" y="178" width="274" height="104" rx="12" fill="#e7f3ec" stroke="#64a990"/>
+<rect x="848" y="202" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="842,207 848,207" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="848" cy="207" r="4" fill="#7dbaa3"/>
+<polyline points="842,218 848,218" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="848" cy="218" r="4" fill="#7dbaa3"/>
+<polyline points="842,229 848,229" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="848" cy="229" r="4" fill="#7dbaa3"/>
+<text x="900" y="215" font-size="21" font-weight="650" fill="#183341">gpu-0</text>
+<text x="900" y="241" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="848" y="266" font-size="13" font-weight="400" fill="#0c7b70">已分配 · 仍在库存中</text>
+<rect x="830" y="304" width="274" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="848" y="328" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="842,333 848,333" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="848" cy="333" r="4" fill="#7dbaa3"/>
+<polyline points="842,344 848,344" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="848" cy="344" r="4" fill="#7dbaa3"/>
+<polyline points="842,355 848,355" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="848" cy="355" r="4" fill="#7dbaa3"/>
+<text x="900" y="341" font-size="21" font-weight="650" fill="#183341">gpu-1</text>
+<text x="900" y="367" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="848" y="392" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+</g>
+<polyline points="714,230 830,230" fill="none" stroke="#0c7b70" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="830" cy="230" r="4" fill="#0c7b70"/>
+<text x="728" y="215" font-size="13" font-weight="400" fill="#0c7b70">同一设备</text>
+<text x="434" y="414" font-size="15" font-weight="650" fill="#b66b28">一份 allocation</text>
+<rect x="32" y="490" width="1096" height="68" rx="12" fill="#183341" stroke="#183341"/>
+<text x="56" y="518" font-size="15" font-weight="400" fill="#b0ccc2">Node / gpu-any</text>
+<text x="56" y="543" font-size="19" font-weight="600" fill="#ffffff">Allocatable = 2    Used = 1    第二个 Pod 的新增设备需求 = 0</text>
+</svg>

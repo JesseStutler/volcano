@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 580" role="img" aria-labelledby="title desc">
+<title id="title">DeviceClass 是可重叠的选择条件</title><desc id="desc">gpu-any 匹配 node-a 和 node-b 的四张 GPU；gpu-a100 只匹配 node-a 的两张 A100。同一张 A100 同时属于两个匹配集合，但仍是一张物理设备。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="580" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="580" rx="20" fill="url(#grid)"/>
+<g data-kind="cls">
+<rect x="32" y="30" width="526" height="120" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="48" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
+<text x="62" y="62" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>
+<text x="54" y="96" font-size="23" font-weight="650" fill="#183341">gpu-any</text>
+<text x="54" y="124" font-size="14" font-weight="400" fill="#64757d">driver == gpu.example.com → 匹配 4 张卡</text>
+</g>
+<g data-kind="cls">
+<rect x="602" y="30" width="526" height="120" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="618" y="48" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
+<text x="632" y="62" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>
+<text x="624" y="96" font-size="23" font-weight="650" fill="#183341">gpu-a100</text>
+<text x="624" y="124" font-size="14" font-weight="400" fill="#64757d">相同 driver，且 model == A100 → 匹配 2 张卡</text>
+</g>
+<polyline points="180,150 180,230" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="180" cy="230" r="4" fill="#8054a6"/>
+<polyline points="410,150 410,184 850,184 850,230" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="850" cy="230" r="4" fill="#8054a6"/>
+<polyline points="760,150 760,204 300,204 300,230" fill="none" stroke="#b16b9b" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="300" cy="230" r="4" fill="#b16b9b"/>
+<g data-kind="node">
+<rect x="32" y="230" width="526" height="262" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
+<text x="56" y="266" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="123" y="268" font-size="23" font-weight="650" fill="#183341">node-a</text>
+</g><g data-kind="slice">
+<rect x="50" y="286" width="490" height="188" rx="14" fill="#f0f7f3" stroke="#b5d6c5"/>
+<text x="68" y="315" font-size="16" font-weight="650" fill="#0c7b70">ResourceSlice · node-a-gpus</text>
+<text x="68" y="339" font-size="13" font-weight="400" fill="#64757d">pool: node-a</text>
+<rect x="68" y="354" width="216" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="86" y="378" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="80,383 86,383" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="86" cy="383" r="4" fill="#7dbaa3"/>
+<polyline points="80,394 86,394" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="86" cy="394" r="4" fill="#7dbaa3"/>
+<polyline points="80,405 86,405" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="86" cy="405" r="4" fill="#7dbaa3"/>
+<text x="138" y="391" font-size="21" font-weight="650" fill="#183341">gpu-0</text>
+<text x="138" y="417" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="86" y="442" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+<rect x="306" y="354" width="216" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="324" y="378" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="318,383 324,383" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="324" cy="383" r="4" fill="#7dbaa3"/>
+<polyline points="318,394 324,394" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="324" cy="394" r="4" fill="#7dbaa3"/>
+<polyline points="318,405 324,405" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="324" cy="405" r="4" fill="#7dbaa3"/>
+<text x="376" y="391" font-size="21" font-weight="650" fill="#183341">gpu-1</text>
+<text x="376" y="417" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="324" y="442" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+</g>
+<g data-kind="node">
+<rect x="602" y="230" width="526" height="262" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
+<text x="626" y="266" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="693" y="268" font-size="23" font-weight="650" fill="#183341">node-b</text>
+</g><g data-kind="slice">
+<rect x="620" y="286" width="490" height="188" rx="14" fill="#f0f7f3" stroke="#b5d6c5"/>
+<text x="638" y="315" font-size="16" font-weight="650" fill="#0c7b70">ResourceSlice · node-b-gpus</text>
+<text x="638" y="339" font-size="13" font-weight="400" fill="#64757d">pool: node-b</text>
+<rect x="638" y="354" width="216" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="656" y="378" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="650,383 656,383" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="656" cy="383" r="4" fill="#7dbaa3"/>
+<polyline points="650,394 656,394" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="656" cy="394" r="4" fill="#7dbaa3"/>
+<polyline points="650,405 656,405" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="656" cy="405" r="4" fill="#7dbaa3"/>
+<text x="708" y="391" font-size="21" font-weight="650" fill="#183341">gpu-0</text>
+<text x="708" y="417" font-size="14" font-weight="400" fill="#64757d">H100</text>
+<text x="656" y="442" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+<rect x="876" y="354" width="216" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="894" y="378" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="888,383 894,383" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="894" cy="383" r="4" fill="#7dbaa3"/>
+<polyline points="888,394 894,394" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="894" cy="394" r="4" fill="#7dbaa3"/>
+<polyline points="888,405 894,405" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="894" cy="405" r="4" fill="#7dbaa3"/>
+<text x="946" y="391" font-size="21" font-weight="650" fill="#183341">gpu-1</text>
+<text x="946" y="417" font-size="14" font-weight="400" fill="#64757d">H100</text>
+<text x="894" y="442" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+</g>
+<rect x="32" y="512" width="1096" height="46" rx="10" fill="#f1ebf6" stroke="#d5c4e2"/>
+<text x="52" y="541" font-size="18" font-weight="600" fill="#8054a6">4 张 + 2 张 ≠ 6 张物理 GPU。Class 是重叠视图，不能直接相加。</text>
+</svg>

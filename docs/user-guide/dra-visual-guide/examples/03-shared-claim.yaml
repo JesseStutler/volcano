@@ -1,0 +1,88 @@
+# 教学示例：两个 Pod 引用同一 ResourceClaim，复用同一份分配结果。
+# 这不表示驱动自动提供时间片或容量隔离；示意 trainer-a 分配后 trainer-b 复用。
+apiVersion: v1
+kind: Node
+metadata:
+  name: node-a
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: node-a-gpus
+spec:
+  driver: gpu.example.com
+  nodeName: node-a
+  pool:
+    name: node-a
+    generation: 1
+    resourceSliceCount: 1
+  devices:
+  - name: gpu-0
+    attributes:
+      model:
+        string: A100
+  - name: gpu-1
+    attributes:
+      model:
+        string: A100
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: gpu-any
+spec:
+  selectors:
+  - cel:
+      expression: 'device.driver == "gpu.example.com"'
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: shared-gpu
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: gpu-any
+        allocationMode: ExactCount
+        count: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: trainer-a
+  namespace: default
+spec:
+  schedulerName: volcano
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: shared-gpu
+  containers:
+  - name: app
+    image: busybox:1.36
+    command: ["sh", "-c", "sleep 3600"]
+    resources:
+      claims:
+      - name: gpu
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: trainer-b
+  namespace: default
+spec:
+  schedulerName: volcano
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: shared-gpu
+  containers:
+  - name: app
+    image: busybox:1.36
+    command: ["sh", "-c", "sleep 3600"]
+    resources:
+      claims:
+      - name: gpu

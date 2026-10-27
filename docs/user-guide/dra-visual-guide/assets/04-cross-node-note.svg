@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 250" role="img" aria-labelledby="title desc">
+<title id="title">跨节点可见不等于多份设备</title><desc id="desc">一个 allNodes ResourceSlice 发布一张设备。node-a 和 node-b 都可访问，但全局只有一张设备。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="250" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="250" rx="20" fill="url(#grid)"/>
+<g data-kind="node">
+<rect x="28" y="54" width="248" height="126" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="44" y="72" width="4" height="17" rx="2" fill="#3568a5" stroke="#3568a5"/>
+<text x="58" y="86" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="50" y="120" font-size="23" font-weight="650" fill="#183341">node-a</text>
+<text x="50" y="148" font-size="14" font-weight="400" fill="#64757d">可以访问</text>
+</g>
+<g data-kind="node">
+<rect x="884" y="54" width="248" height="126" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="900" y="72" width="4" height="17" rx="2" fill="#3568a5" stroke="#3568a5"/>
+<text x="914" y="86" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="906" y="120" font-size="23" font-weight="650" fill="#183341">node-b</text>
+<text x="906" y="148" font-size="14" font-weight="400" fill="#64757d">可以访问</text>
+</g>
+<g data-kind="slice">
+<rect x="380" y="32" width="400" height="164" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="396" y="50" width="4" height="17" rx="2" fill="#0c7b70" stroke="#0c7b70"/>
+<text x="410" y="64" font-size="13" font-weight="700" fill="#0c7b70">RESOURCE SLICE</text>
+<text x="402" y="98" font-size="23" font-weight="650" fill="#183341">remote-gpus</text>
+<text x="402" y="126" font-size="14" font-weight="400" fill="#64757d">allNodes: true</text>
+<text x="402" y="150" font-size="14" font-weight="400" fill="#64757d">devices: [{name: gpu-0}]</text>
+<text x="402" y="174" font-size="14" font-weight="400" fill="#64757d">全局仍然只有 1 张卡</text>
+</g>
+<polyline points="276,119 380,119" fill="none" stroke="#0c7b70" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="380" cy="119" r="4" fill="#0c7b70"/>
+<polyline points="884,119 780,119" fill="none" stroke="#0c7b70" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="780" cy="119" r="4" fill="#0c7b70"/>
+<text x="363" y="231" font-size="16" font-weight="400" fill="#64757d">可访问性是多对多关系，库存不能按节点简单求和。</text>
+</svg>
