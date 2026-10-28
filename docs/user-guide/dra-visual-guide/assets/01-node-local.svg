@@ -4,14 +4,14 @@
 <style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
 <rect width="1160" height="580" rx="20" fill="#fafbf8"/>
 <rect width="1160" height="580" rx="20" fill="url(#grid)"/>
-<g data-kind="pod">
+<g data-kind="pod" data-name="trainer">
 <rect x="32" y="36" width="282" height="112" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="48" y="54" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
 <text x="62" y="68" font-size="13" font-weight="700" fill="#536574">POD · default</text>
 <text x="54" y="102" font-size="23" font-weight="650" fill="#183341">trainer</text>
 <text x="54" y="130" font-size="14" font-weight="400" fill="#64757d">resourceClaimName: train-gpu</text>
 </g>
-<g data-kind="claim">
+<g data-kind="claim" data-name="train-gpu">
 <rect x="32" y="218" width="282" height="190" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="48" y="236" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
 <text x="62" y="250" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM · default</text>
@@ -20,7 +20,7 @@
 <text x="54" y="336" font-size="14" font-weight="400" fill="#64757d">deviceClassName: gpu-any</text>
 <text x="54" y="360" font-size="14" font-weight="400" fill="#64757d">count: 1</text>
 </g>
-<g data-kind="cls">
+<g data-kind="cls" data-name="gpu-any">
 <rect x="390" y="36" width="378" height="112" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="406" y="54" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
 <text x="420" y="68" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>

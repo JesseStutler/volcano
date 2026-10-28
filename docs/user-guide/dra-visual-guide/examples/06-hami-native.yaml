@@ -1,0 +1,80 @@
+# 用户提交：集群需已安装 HAMi-DRA NVIDIA HAMi-Core 驱动和 DeviceClass，并启用 DRAConsumableCapacity。使用默认调度器；未验证任意 Volcano 版本。
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: hami-inference-a
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: hami-core-gpu.project-hami.io
+        allocationMode: ExactCount
+        count: 1
+        capacity:
+          requests:
+            cores: '50'
+            memory: 10Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hami-inference-a
+  namespace: default
+spec:
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: hami-inference-a
+  containers:
+  - name: app
+    image: nvidia/cuda:13.0.1-base-ubi9
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      claims:
+      - name: gpu
+        request: accelerator
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: hami-inference-b
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: hami-core-gpu.project-hami.io
+        allocationMode: ExactCount
+        count: 1
+        capacity:
+          requests:
+            cores: '50'
+            memory: 10Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hami-inference-b
+  namespace: default
+spec:
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: hami-inference-b
+  containers:
+  - name: app
+    image: nvidia/cuda:13.0.1-base-ubi9
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      claims:
+      - name: gpu
+        request: accelerator

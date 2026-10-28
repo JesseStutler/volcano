@@ -4,14 +4,14 @@
 <style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
 <rect width="1160" height="580" rx="20" fill="#fafbf8"/>
 <rect width="1160" height="580" rx="20" fill="url(#grid)"/>
-<g data-kind="cls">
+<g data-kind="cls" data-name="gpu-any">
 <rect x="32" y="30" width="526" height="120" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="48" y="48" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
 <text x="62" y="62" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>
 <text x="54" y="96" font-size="23" font-weight="650" fill="#183341">gpu-any</text>
 <text x="54" y="124" font-size="14" font-weight="400" fill="#64757d">driver == gpu.example.com → 匹配 4 张卡</text>
 </g>
-<g data-kind="cls">
+<g data-kind="cls" data-name="gpu-a100">
 <rect x="602" y="30" width="526" height="120" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="618" y="48" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
 <text x="632" y="62" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>
@@ -24,11 +24,11 @@
 <circle cx="850" cy="230" r="4" fill="#8054a6"/>
 <polyline points="760,150 760,204 300,204 300,230" fill="none" stroke="#b16b9b" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
 <circle cx="300" cy="230" r="4" fill="#b16b9b"/>
-<g data-kind="node">
+<g data-kind="node" data-name="node-a">
 <rect x="32" y="230" width="526" height="262" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
 <text x="56" y="266" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
 <text x="123" y="268" font-size="23" font-weight="650" fill="#183341">node-a</text>
-</g><g data-kind="slice">
+</g><g data-kind="slice" data-name="node-a-gpus">
 <rect x="50" y="286" width="490" height="188" rx="14" fill="#f0f7f3" stroke="#b5d6c5"/>
 <text x="68" y="315" font-size="16" font-weight="650" fill="#0c7b70">ResourceSlice · node-a-gpus</text>
 <text x="68" y="339" font-size="13" font-weight="400" fill="#64757d">pool: node-a</text>
@@ -55,11 +55,11 @@
 <text x="376" y="417" font-size="14" font-weight="400" fill="#64757d">A100</text>
 <text x="324" y="442" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
 </g>
-<g data-kind="node">
+<g data-kind="node" data-name="node-b">
 <rect x="602" y="230" width="526" height="262" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
 <text x="626" y="266" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
 <text x="693" y="268" font-size="23" font-weight="650" fill="#183341">node-b</text>
-</g><g data-kind="slice">
+</g><g data-kind="slice" data-name="node-b-gpus">
 <rect x="620" y="286" width="490" height="188" rx="14" fill="#f0f7f3" stroke="#b5d6c5"/>
 <text x="638" y="315" font-size="16" font-weight="650" fill="#0c7b70">ResourceSlice · node-b-gpus</text>
 <text x="638" y="339" font-size="13" font-weight="400" fill="#64757d">pool: node-b</text>

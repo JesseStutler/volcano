@@ -1,6 +1,6 @@
 # 教学示例：Kubernetes resource.k8s.io/v1，假想驱动 gpu.example.com。
 # Node 展示已有节点；ResourceSlice 通常由真实 DRA 驱动发布。
-# 手工创建这些对象不会产生 GPU 或安装驱动。三个示例独立阅读。
+# 手工创建这些对象不会产生 GPU 或安装驱动。各场景独立阅读，不要混合应用。
 apiVersion: v1
 kind: Node
 metadata:

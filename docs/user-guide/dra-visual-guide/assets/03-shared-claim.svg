@@ -4,21 +4,21 @@
 <style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
 <rect width="1160" height="580" rx="20" fill="#fafbf8"/>
 <rect width="1160" height="580" rx="20" fill="url(#grid)"/>
-<g data-kind="pod">
+<g data-kind="pod" data-name="trainer-a">
 <rect x="32" y="58" width="260" height="120" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="48" y="76" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
 <text x="62" y="90" font-size="13" font-weight="700" fill="#536574">POD · default</text>
 <text x="54" y="124" font-size="23" font-weight="650" fill="#183341">trainer-a</text>
 <text x="54" y="152" font-size="14" font-weight="400" fill="#64757d">第一个使用者</text>
 </g>
-<g data-kind="pod">
+<g data-kind="pod" data-name="trainer-b">
 <rect x="32" y="270" width="260" height="120" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="48" y="288" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
 <text x="62" y="302" font-size="13" font-weight="700" fill="#536574">POD · default</text>
 <text x="54" y="336" font-size="23" font-weight="650" fill="#183341">trainer-b</text>
 <text x="54" y="364" font-size="14" font-weight="400" fill="#64757d">复用已分配的 Claim</text>
 </g>
-<g data-kind="claim">
+<g data-kind="claim" data-name="shared-gpu">
 <rect x="384" y="164" width="330" height="210" rx="14" fill="white" stroke="#d9e1df"/>
 <rect x="400" y="182" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
 <text x="414" y="196" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM · default</text>

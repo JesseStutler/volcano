@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="通过七个场景理解 Kubernetes DRA：设备、Pool、容量共享与 HAMi vGPU。每页附关系图和可复制的 YAML。">
+  <title>一个 Pod，申请一张 GPU · DRA 图解</title>
+  <link rel="stylesheet" href="assets/guide.css">
+  <script src="assets/guide.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <aside class="sidebar">
+    <a class="brand" href="index.html"><span class="brand-icon" aria-hidden="true">▦</span><span>DRA 图解<small>设备 · 分配 · 共享</small></span></a>
+    <button class="menu-toggle" aria-expanded="false" aria-controls="scene-nav">选择场景 <span aria-hidden="true">＋</span></button>
+    <nav id="scene-nav" aria-label="场景导航"><a class="nav-home" href="index.html">场景目录</a><a href="01-node-local.html" class="current" aria-current="page"><span>01</span>先申请一张 GPU</a><a href="02-overlapping-classes.html"><span>02</span>Class 可以重叠</a><a href="03-shared-claim.html"><span>03</span>两个 Pod 共用 Claim</a><a href="04-pool-slices.html"><span>04</span>一个 Pool，多个 Slice</a><a href="05-consumable-capacity.html"><span>05</span>按显存和算力分配</a><a href="06-hami-native.html"><span>06</span>HAMi：两份 vGPU</a><a href="07-hami-webhook.html"><span>07</span>HAMi：兼容旧式 YAML</a></nav>
+    <div class="sidebar-bottom"><span class="version">Kubernetes 1.36</span><a href="index.html#deploy">部署到自己的服务器 ↗</a><a href="https://github.com/JesseStutler/volcano/tree/docs/dra-visual-guide/docs/user-guide/dra-visual-guide">源文件与 YAML ↗</a></div>
+  </aside>
+  <main id="main"><header class="page-heading"><span class="eyebrow">场景 01 / 从这里开始</span><h1>一个 Pod，申请一张 GPU</h1><p class="lead">node-a 上有两张 A100。现在启动一个训练任务，只需要其中一张。先看这五个对象各自写了什么，再看名字是怎么连起来的。</p><div class="downloads"><a href="examples/01-node-local.yaml" download>示例 YAML ↗</a><a href="observations/01-allocation.yaml" download>只读示意 ↗</a><a href="assets/01-node-local.svg" download>SVG ↗</a><a href="assets/01-node-local.png" download>PNG ↗</a></div></header><figure class="diagram"><div class="diagram-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 580" role="img" aria-labelledby="title desc">
+<title id="title">本地设备：从需求找到一张 GPU</title><desc id="desc">Pod trainer 引用 train-gpu Claim，Claim 引用 gpu-any Class；Class 匹配 ResourceSlice 中的设备。node-a-gpus 的 nodeName 为 node-a。假设分配 gpu-0，Claim status 记录 driver、pool、device。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="580" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="580" rx="20" fill="url(#grid)"/>
+<g data-kind="pod" data-name="trainer">
+<rect x="32" y="36" width="282" height="112" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="54" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
+<text x="62" y="68" font-size="13" font-weight="700" fill="#536574">POD · default</text>
+<text x="54" y="102" font-size="23" font-weight="650" fill="#183341">trainer</text>
+<text x="54" y="130" font-size="14" font-weight="400" fill="#64757d">resourceClaimName: train-gpu</text>
+</g>
+<g data-kind="claim" data-name="train-gpu">
+<rect x="32" y="218" width="282" height="190" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="48" y="236" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="62" y="250" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM · default</text>
+<text x="54" y="284" font-size="23" font-weight="650" fill="#183341">train-gpu</text>
+<text x="54" y="312" font-size="14" font-weight="400" fill="#64757d">request: accelerator</text>
+<text x="54" y="336" font-size="14" font-weight="400" fill="#64757d">deviceClassName: gpu-any</text>
+<text x="54" y="360" font-size="14" font-weight="400" fill="#64757d">count: 1</text>
+</g>
+<g data-kind="cls" data-name="gpu-any">
+<rect x="390" y="36" width="378" height="112" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="406" y="54" width="4" height="17" rx="2" fill="#8054a6" stroke="#8054a6"/>
+<text x="420" y="68" font-size="13" font-weight="700" fill="#8054a6">DEVICE CLASS · cluster</text>
+<text x="412" y="102" font-size="23" font-weight="650" fill="#183341">gpu-any</text>
+<text x="412" y="130" font-size="14" font-weight="400" fill="#64757d">CEL: driver == gpu.example.com</text>
+</g>
+<polyline points="172,148 172,218" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="172" cy="218" r="4" fill="#b66b28"/>
+<text x="186" y="189" font-size="13" font-weight="400" fill="#b66b28">按名字引用</text>
+<polyline points="314,270 350,270 350,94 390,94" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="390" cy="94" r="4" fill="#8054a6"/>
+<text x="330" y="192" font-size="12" font-weight="400" fill="#8054a6">引用</text>
+<g data-kind="node">
+<rect x="390" y="218" width="738" height="270" rx="14" fill="#eff4fa" stroke="#b6c9de"/>
+<text x="414" y="252" font-size="13" font-weight="700" fill="#3568a5">NODE</text>
+<text x="483" y="254" font-size="23" font-weight="650" fill="#183341">node-a</text>
+<text x="861" y="251" font-size="14" font-weight="400" fill="#3568a5">spec.nodeName: node-a</text>
+</g><g data-kind="slice">
+<rect x="412" y="274" width="694" height="192" rx="14" fill="#f0f7f3" stroke="#b5d6c5"/>
+<text x="434" y="301" font-size="16" font-weight="650" fill="#0c7b70">ResourceSlice · node-a-gpus</text>
+<text x="812" y="301" font-size="13" font-weight="400" fill="#64757d">pool: node-a / 1 slice</text>
+<rect x="434" y="326" width="312" height="104" rx="12" fill="#e7f3ec" stroke="#64a990"/>
+<rect x="452" y="350" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="446,355 452,355" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="452" cy="355" r="4" fill="#7dbaa3"/>
+<polyline points="446,366 452,366" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="452" cy="366" r="4" fill="#7dbaa3"/>
+<polyline points="446,377 452,377" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="452" cy="377" r="4" fill="#7dbaa3"/>
+<text x="504" y="363" font-size="21" font-weight="650" fill="#183341">gpu-0</text>
+<text x="504" y="389" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="452" y="414" font-size="13" font-weight="400" fill="#0c7b70">已分配 · 仍在库存中</text>
+<rect x="770" y="326" width="312" height="104" rx="12" fill="#ffffff" stroke="#cbd9d4"/>
+<rect x="788" y="350" width="36" height="38" rx="5" fill="#d4e9e0" stroke="#7dbaa3"/>
+<polyline points="782,355 788,355" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="788" cy="355" r="4" fill="#7dbaa3"/>
+<polyline points="782,366 788,366" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="788" cy="366" r="4" fill="#7dbaa3"/>
+<polyline points="782,377 788,377" fill="none" stroke="#7dbaa3" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="788" cy="377" r="4" fill="#7dbaa3"/>
+<text x="840" y="363" font-size="21" font-weight="650" fill="#183341">gpu-1</text>
+<text x="840" y="389" font-size="14" font-weight="400" fill="#64757d">A100</text>
+<text x="788" y="414" font-size="13" font-weight="400" fill="#0c7b70">可用设备</text>
+</g>
+<polyline points="579,148 579,180 1120,180 1120,312 590,312 590,326" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="590" cy="326" r="4" fill="#8054a6"/>
+<polyline points="926,312 926,326" fill="none" stroke="#8054a6" stroke-width="2" stroke-linejoin="round" stroke-dasharray="6 6"/>
+<circle cx="926" cy="326" r="4" fill="#8054a6"/>
+<text x="664" y="171" font-size="14" font-weight="400" fill="#8054a6">CEL 匹配设备，不是绑定节点</text>
+<text x="34" y="443" font-size="13" font-weight="400" fill="#64757d">实线：字段引用</text>
+<text x="34" y="470" font-size="13" font-weight="400" fill="#8054a6">虚线：选择条件匹配</text>
+<rect x="32" y="512" width="1096" height="46" rx="10" fill="#183341" stroke="#183341"/>
+<text x="52" y="541" font-size="14" font-weight="600" fill="#a8c5ba">分配结果</text>
+<text x="152" y="541" font-size="16" font-weight="400" fill="#ffffff" class="mono">status.allocation → (gpu.example.com, node-a, gpu-0)</text>
+</svg></div><figcaption>Pod 引用 Claim，Claim 选 Class，Class 的条件去匹配 Slice 里的设备。</figcaption></figure><section class="inspect" id="resources" aria-labelledby="inspect-title">
+      <div class="section-heading"><div><span class="eyebrow">对照 YAML</span><h2 id="inspect-title">选一个对象，看它具体怎么写</h2></div><span class="muted">图中的资源也可以点击</span></div>
+      <div class="inspector"><div class="objects" aria-label="本页资源"><button class="object-choice" data-index="0" data-kind="node" aria-pressed="true"><span>Node</span><strong>node-a</strong></button><button class="object-choice" data-index="1" data-kind="slice" aria-pressed="false"><span>ResourceSlice</span><strong>node-a-gpus</strong></button><button class="object-choice" data-index="2" data-kind="cls" aria-pressed="false"><span>DeviceClass</span><strong>gpu-any</strong></button><button class="object-choice" data-index="3" data-kind="claim" aria-pressed="false"><span>ResourceClaim</span><strong>train-gpu</strong></button><button class="object-choice" data-index="4" data-kind="pod" aria-pressed="false"><span>Pod</span><strong>trainer</strong></button><button class="object-choice" data-index="5" data-kind="claim" aria-pressed="false"><span>ResourceClaim</span><strong>train-gpu</strong><small>只读示意</small></button></div>
+      <div class="code-panel"><div class="code-title"><span id="object-title">Node / node-a</span><button id="copy-yaml" type="button">复制此对象</button></div>
+      <p id="object-note">这台机器提供本地设备。通常由 kubelet 注册；这里列出来是为了对照 Slice 的 nodeName。</p><pre tabindex="0"><code id="yaml-code"># 教学示例：Kubernetes resource.k8s.io/v1，假想驱动 gpu.example.com。
+# Node 展示已有节点；ResourceSlice 通常由真实 DRA 驱动发布。
+# 手工创建这些对象不会产生 GPU 或安装驱动。各场景独立阅读，不要混合应用。
+apiVersion: v1
+kind: Node
+metadata:
+  name: node-a
+</code></pre>
+      <div class="code-footer"><a id="source-file" href="examples/01-node-local.yaml" download>下载所在 YAML 文件</a><span id="copy-status" role="status" aria-live="polite"></span></div></div></div>
+      <script type="application/json" id="yaml-data">[{"kind": "Node", "name": "node-a", "yaml": "# 教学示例：Kubernetes resource.k8s.io/v1，假想驱动 gpu.example.com。\n# Node 展示已有节点；ResourceSlice 通常由真实 DRA 驱动发布。\n# 手工创建这些对象不会产生 GPU 或安装驱动。各场景独立阅读，不要混合应用。\napiVersion: v1\nkind: Node\nmetadata:\n  name: node-a\n", "file": "examples/01-node-local.yaml", "observation": false, "note": "这台机器提供本地设备。通常由 kubelet 注册；这里列出来是为了对照 Slice 的 nodeName。"}, {"kind": "ResourceSlice", "name": "node-a-gpus", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceSlice\nmetadata:\n  name: node-a-gpus\nspec:\n  driver: gpu.example.com\n  nodeName: node-a\n  pool:\n    name: node-a\n    generation: 1\n    resourceSliceCount: 1\n  devices:\n  - name: gpu-0\n    attributes:\n      model:\n        string: A100\n  - name: gpu-1\n    attributes:\n      model:\n        string: A100\n", "file": "examples/01-node-local.yaml", "observation": false, "note": "driver 发布的设备库存。先看 driver、pool 和 nodeName，再看 devices。Pool 名不是一个独立对象的引用。"}, {"kind": "DeviceClass", "name": "gpu-any", "yaml": "apiVersion: resource.k8s.io/v1\nkind: DeviceClass\nmetadata:\n  name: gpu-any\nspec:\n  selectors:\n  - cel:\n      expression: 'device.driver == \"gpu.example.com\"'\n", "file": "examples/01-node-local.yaml", "observation": false, "note": "管理员或驱动安装程序提供的选择规则。Claim 按名称引用它，CEL 再去匹配设备。"}, {"kind": "ResourceClaim", "name": "train-gpu", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceClaim\nmetadata:\n  name: train-gpu\n  namespace: default\nspec:\n  devices:\n    requests:\n    - name: accelerator\n      exactly:\n        deviceClassName: gpu-any\n        allocationMode: ExactCount\n        count: 1\n", "file": "examples/01-node-local.yaml", "observation": false, "note": "用户的设备需求。看 exactly 下的 Class、count；容量共享场景还要看 capacity.requests。"}, {"kind": "Pod", "name": "trainer", "yaml": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: trainer\n  namespace: default\nspec:\n  schedulerName: volcano\n  restartPolicy: Never\n  resourceClaims:\n  - name: gpu\n    resourceClaimName: train-gpu\n  containers:\n  - name: app\n    image: busybox:1.36\n    command: [\"sh\", \"-c\", \"sleep 3600\"]\n    resources:\n      claims:\n      - name: gpu\n        request: accelerator\n", "file": "examples/01-node-local.yaml", "observation": false, "note": "使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。"}, {"kind": "ResourceClaim", "name": "train-gpu", "yaml": "# 只读观察示例：这是调度成功后 ResourceClaim 的状态节选，不是 apply 输入。\n# 假设调度器选择 node-a / gpu-0；UID 以实际 Pod UID 为准。\napiVersion: resource.k8s.io/v1\nkind: ResourceClaim\nmetadata:\n  name: train-gpu\n  namespace: default\nstatus:\n  allocation:\n    devices:\n      results:\n      - request: accelerator\n        driver: gpu.example.com\n        pool: node-a\n        device: gpu-0\n    nodeSelector:\n      nodeSelectorTerms:\n      - matchFields:\n        - key: metadata.name\n          operator: In\n          values: [node-a]\n  reservedFor:\n  - resource: pods\n    name: trainer\n    uid: 00000000-0000-0000-0000-000000000001\n", "file": "observations/01-allocation.yaml", "observation": true, "note": "只读示意，用来理解发布或分配后的字段；不要把它当作创建输入。用户的设备需求。看 exactly 下的 Class、count；容量共享场景还要看 capacity.requests。"}]</script></section><section class="reading" aria-label="场景说明"><article><h2>谁负责创建？</h2><p>Node 通常由 kubelet 注册；DRA driver 把发现的设备写进 ResourceSlice；管理员准备 DeviceClass。用户提交 Claim 和 Pod，由调度器决定具体分给哪张卡。</p></article><article><h2>三个名字，别看串了</h2><p>Pod 里的 gpu 是本地别名，train-gpu 是 Claim 对象名，accelerator 是 Claim 里的请求名。先沿着 resourceClaimName 找 Claim，再沿着 deviceClassName 找 Class。</p></article><article><h2>分配完，卡去哪了？</h2><p>假设分到 gpu-0，它仍然留在 Slice 的设备列表里。Claim status 记录实际分配的 driver、pool、device。Slice 是库存，不能因为列表里还有这张卡，就判断它空闲。</p></article><article><h2>用户怎么找 Class？</h2><p>先运行 kubectl get deviceclasses，再用 kubectl get deviceclass gpu-any -o yaml 看规则。需要相应读取权限；通常平台也会提供可申请的 Class 清单。DeviceClass 没有 namespace，Claim 和 Pod 则必须在同一个 namespace。</p></article></section><section class="sources"><h2>继续查原文</h2><a href="https://v1-36.docs.kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/" target="_blank" rel="noopener">Kubernetes 1.36 · DRA ↗</a><a href="https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-slice-v1/" target="_blank" rel="noopener">ResourceSlice API ↗</a><a href="https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-claim-v1/" target="_blank" rel="noopener">ResourceClaim API ↗</a></section><nav class="page-turn" aria-label="相邻场景"><a href="index.html">← 场景目录</a><a href="02-overlapping-classes.html">Class 可以重叠 →</a></nav><footer>示例可离线阅读 · 图与 YAML 随仓库保存<br><span>HAMi 源码版本与 API 依据见各页原文链接</span></footer></main>
+</body>
+</html>

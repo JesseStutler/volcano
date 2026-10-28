@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="通过七个场景理解 Kubernetes DRA：设备、Pool、容量共享与 HAMi vGPU。每页附关系图和可复制的 YAML。">
+  <title>卡还在用，容量还没用完 · DRA 图解</title>
+  <link rel="stylesheet" href="assets/guide.css">
+  <script src="assets/guide.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <aside class="sidebar">
+    <a class="brand" href="index.html"><span class="brand-icon" aria-hidden="true">▦</span><span>DRA 图解<small>设备 · 分配 · 共享</small></span></a>
+    <button class="menu-toggle" aria-expanded="false" aria-controls="scene-nav">选择场景 <span aria-hidden="true">＋</span></button>
+    <nav id="scene-nav" aria-label="场景导航"><a class="nav-home" href="index.html">场景目录</a><a href="01-node-local.html"><span>01</span>先申请一张 GPU</a><a href="02-overlapping-classes.html"><span>02</span>Class 可以重叠</a><a href="03-shared-claim.html"><span>03</span>两个 Pod 共用 Claim</a><a href="04-pool-slices.html"><span>04</span>一个 Pool，多个 Slice</a><a href="05-consumable-capacity.html" class="current" aria-current="page"><span>05</span>按显存和算力分配</a><a href="06-hami-native.html"><span>06</span>HAMi：两份 vGPU</a><a href="07-hami-webhook.html"><span>07</span>HAMi：兼容旧式 YAML</a></nav>
+    <div class="sidebar-bottom"><span class="version">Kubernetes 1.36</span><a href="index.html#deploy">部署到自己的服务器 ↗</a><a href="https://github.com/JesseStutler/volcano/tree/docs/dra-visual-guide/docs/user-guide/dra-visual-guide">源文件与 YAML ↗</a></div>
+  </aside>
+  <main id="main"><header class="page-heading"><span class="eyebrow">场景 05 / Consumable capacity</span><h1>卡还在用，容量还没用完</h1><p class="lead">一张 40Gi GPU，算力额度按 100 计。两个推理服务各申请 30 份算力、12Gi 显存。它们使用两个独立 Claim，但可以被分到同一张卡。</p><div class="downloads"><a href="examples/05-consumable-capacity.yaml" download>示例 YAML ↗</a><a href="assets/05-consumable-capacity.svg" download>SVG ↗</a><a href="assets/05-consumable-capacity.png" download>PNG ↗</a></div></header><figure class="diagram"><div class="diagram-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 540" role="img" aria-labelledby="title desc">
+<title id="title">两个 Claim 分配同一设备的容量</title><desc id="desc">独立 Claim 各自消耗算力和显存，总量仍由 ResourceSlice 发布。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="540" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="540" rx="20" fill="url(#grid)"/>
+<g data-kind="claim" data-name="inference-a">
+<rect x="28" y="30" width="530" height="152" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="44" y="48" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="58" y="62" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM</text>
+<text x="50" y="96" font-size="23" font-weight="650" fill="#183341">inference-a</text>
+<text x="50" y="124" font-size="14" font-weight="400" fill="#64757d">count: 1    cores: 30    memory: 12Gi</text>
+<text x="50" y="148" font-size="14" font-weight="400" fill="#64757d">每个 Pod 使用自己的 Claim</text>
+</g>
+<polyline points="293,182 293,228" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="293" cy="228" r="4" fill="#b66b28"/>
+<g data-kind="claim" data-name="inference-b">
+<rect x="602" y="30" width="530" height="152" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="618" y="48" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="632" y="62" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM</text>
+<text x="624" y="96" font-size="23" font-weight="650" fill="#183341">inference-b</text>
+<text x="624" y="124" font-size="14" font-weight="400" fill="#64757d">count: 1    cores: 30    memory: 12Gi</text>
+<text x="624" y="148" font-size="14" font-weight="400" fill="#64757d">每个 Pod 使用自己的 Claim</text>
+</g>
+<polyline points="867,182 867,228" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="867" cy="228" r="4" fill="#b66b28"/>
+<g data-kind="slice">
+<rect x="28" y="228" width="1104" height="278" rx="14" fill="#eff7f1" stroke="#b5d6c5"/>
+<text x="52" y="267" font-size="24" font-weight="650" fill="#0c7b70">gpu-0  /  node-a</text>
+<text x="624" y="265" font-size="20" font-weight="400" fill="#0c7b70" class="mono">allowMultipleAllocations: true</text>
+<text x="52" y="310" font-size="17" font-weight="600" fill="#183341">算力：60 已分配 / 100 总量</text>
+<rect x="52" y="330" width="1056" height="38" rx="5" fill="#dce9df" stroke="#dce9df"/>
+<rect x="52" y="330" width="316.8" height="38" rx="4" fill="#157f73" stroke="#157f73"/>
+<rect x="368.8" y="330" width="316.8" height="38" rx="4" fill="#bc702e" stroke="#bc702e"/>
+<text x="66" y="356" font-size="16" font-weight="600" fill="white">A · 30</text>
+<text x="382.8" y="356" font-size="16" font-weight="600" fill="white">B · 30</text>
+<text x="699.6" y="356" font-size="16" font-weight="600" fill="#183341">剩余 40</text>
+<text x="52" y="402" font-size="17" font-weight="600" fill="#183341">显存：24Gi 已分配 / 40Gi 总量</text>
+<rect x="52" y="422" width="1056" height="38" rx="5" fill="#dce9df" stroke="#dce9df"/>
+<rect x="52" y="422" width="316.8" height="38" rx="4" fill="#157f73" stroke="#157f73"/>
+<rect x="368.8" y="422" width="316.8" height="38" rx="4" fill="#bc702e" stroke="#bc702e"/>
+<text x="66" y="448" font-size="16" font-weight="600" fill="white">A · 12Gi</text>
+<text x="382.8" y="448" font-size="16" font-weight="600" fill="white">B · 12Gi</text>
+<text x="699.6" y="448" font-size="16" font-weight="600" fill="#183341">剩余 16Gi</text>
+</g>
+</svg></div><figcaption>同一个 device 可以多次分配；每次分配都消耗它的容量。</figcaption></figure><section class="inspect" id="resources" aria-labelledby="inspect-title">
+      <div class="section-heading"><div><span class="eyebrow">对照 YAML</span><h2 id="inspect-title">选一个对象，看它具体怎么写</h2></div><span class="muted">图中的资源也可以点击</span></div>
+      <div class="inspector"><div class="objects" aria-label="本页资源"><button class="object-choice" data-index="0" data-kind="node" aria-pressed="true"><span>Node</span><strong>node-a</strong></button><button class="object-choice" data-index="1" data-kind="slice" aria-pressed="false"><span>ResourceSlice</span><strong>node-a-gpus</strong></button><button class="object-choice" data-index="2" data-kind="cls" aria-pressed="false"><span>DeviceClass</span><strong>gpu-any</strong></button><button class="object-choice" data-index="3" data-kind="claim" aria-pressed="false"><span>ResourceClaim</span><strong>inference-a</strong></button><button class="object-choice" data-index="4" data-kind="pod" aria-pressed="false"><span>Pod</span><strong>inference-a</strong></button><button class="object-choice" data-index="5" data-kind="claim" aria-pressed="false"><span>ResourceClaim</span><strong>inference-b</strong></button><button class="object-choice" data-index="6" data-kind="pod" aria-pressed="false"><span>Pod</span><strong>inference-b</strong></button></div>
+      <div class="code-panel"><div class="code-title"><span id="object-title">Node / node-a</span><button id="copy-yaml" type="button">复制此对象</button></div>
+      <p id="object-note">这台机器提供本地设备。通常由 kubelet 注册；这里列出来是为了对照 Slice 的 nodeName。</p><pre tabindex="0"><code id="yaml-code"># 教学驱动 gpu.example.com：cores 的单位在本例约定为百分比。需要支持 consumable capacity 的调度器和驱动。
+apiVersion: v1
+kind: Node
+metadata:
+  name: node-a
+</code></pre>
+      <div class="code-footer"><a id="source-file" href="examples/05-consumable-capacity.yaml" download>下载所在 YAML 文件</a><span id="copy-status" role="status" aria-live="polite"></span></div></div></div>
+      <script type="application/json" id="yaml-data">[{"kind": "Node", "name": "node-a", "yaml": "# 教学驱动 gpu.example.com：cores 的单位在本例约定为百分比。需要支持 consumable capacity 的调度器和驱动。\napiVersion: v1\nkind: Node\nmetadata:\n  name: node-a\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "这台机器提供本地设备。通常由 kubelet 注册；这里列出来是为了对照 Slice 的 nodeName。"}, {"kind": "ResourceSlice", "name": "node-a-gpus", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceSlice\nmetadata:\n  name: node-a-gpus\nspec:\n  driver: gpu.example.com\n  nodeName: node-a\n  pool:\n    name: node-a\n    generation: 1\n    resourceSliceCount: 1\n  devices:\n  - name: gpu-0\n    allowMultipleAllocations: true\n    capacity:\n      cores:\n        value: '100'\n        requestPolicy:\n          default: '100'\n      memory:\n        value: 40Gi\n        requestPolicy:\n          default: 40Gi\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "driver 发布的设备库存。先看 driver、pool 和 nodeName，再看 devices。Pool 名不是一个独立对象的引用。"}, {"kind": "DeviceClass", "name": "gpu-any", "yaml": "apiVersion: resource.k8s.io/v1\nkind: DeviceClass\nmetadata:\n  name: gpu-any\nspec:\n  selectors:\n  - cel:\n      expression: device.driver == \"gpu.example.com\"\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "管理员或驱动安装程序提供的选择规则。Claim 按名称引用它，CEL 再去匹配设备。"}, {"kind": "ResourceClaim", "name": "inference-a", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceClaim\nmetadata:\n  name: inference-a\n  namespace: default\nspec:\n  devices:\n    requests:\n    - name: accelerator\n      exactly:\n        deviceClassName: gpu-any\n        allocationMode: ExactCount\n        count: 1\n        capacity:\n          requests:\n            cores: '30'\n            memory: 12Gi\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "用户的设备需求。看 exactly 下的 Class、count；容量共享场景还要看 capacity.requests。"}, {"kind": "Pod", "name": "inference-a", "yaml": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: inference-a\n  namespace: default\nspec:\n  schedulerName: volcano\n  restartPolicy: Never\n  resourceClaims:\n  - name: gpu\n    resourceClaimName: inference-a\n  containers:\n  - name: app\n    image: busybox:1.36\n    command:\n    - sh\n    - -c\n    - sleep 3600\n    resources:\n      claims:\n      - name: gpu\n        request: accelerator\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。"}, {"kind": "ResourceClaim", "name": "inference-b", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceClaim\nmetadata:\n  name: inference-b\n  namespace: default\nspec:\n  devices:\n    requests:\n    - name: accelerator\n      exactly:\n        deviceClassName: gpu-any\n        allocationMode: ExactCount\n        count: 1\n        capacity:\n          requests:\n            cores: '30'\n            memory: 12Gi\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "用户的设备需求。看 exactly 下的 Class、count；容量共享场景还要看 capacity.requests。"}, {"kind": "Pod", "name": "inference-b", "yaml": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: inference-b\n  namespace: default\nspec:\n  schedulerName: volcano\n  restartPolicy: Never\n  resourceClaims:\n  - name: gpu\n    resourceClaimName: inference-b\n  containers:\n  - name: app\n    image: busybox:1.36\n    command:\n    - sh\n    - -c\n    - sleep 3600\n    resources:\n      claims:\n      - name: gpu\n        request: accelerator\n", "file": "examples/05-consumable-capacity.yaml", "observation": false, "note": "使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。"}]</script></section><section class="reading" aria-label="场景说明"><article><h2>三个字段分别管什么？</h2><p>allowMultipleAllocations: true 允许多次分配；capacity 声明设备的总容量和请求规则；Claim 的 capacity.requests 写这次每个设备要消耗多少。这里 cores 的单位由教学驱动约定为百分比，Kubernetes 不会自行规定这个名字的物理含义。</p></article><article><h2>分完两份，还剩多少？</h2><p>假设 A 和 B 都选中 gpu-0，已分配为 60 / 100 算力、24 / 40Gi 显存。剩余 40 算力、16Gi 显存。第三份请求必须两个维度都够；下面可以改数字试一试。</p></article><article><h2>Slice 的 value 会扣减吗？</h2><p>不会，Slice 仍写总量 100 和 40Gi。分配消耗记录在 Claim 的 allocation 中，调度器结合当前分配状态判断余量。它统计的是已经分出去的额度，不是 GPU 此刻的监控利用率。</p></article><article><h2>没写容量会怎样？</h2><p>本例的 requestPolicy.default 是整卡容量。省略某个维度，会按该维度默认值请求，可能直接占满。count: 2 表示选两张设备，capacity.requests 则针对每张设备，不是两张设备合计。</p></article><article><h2>运行条件</h2><p>以 Kubernetes 1.36 为基线，DRAConsumableCapacity 已 beta 且默认启用；1.34–1.35 需要显式启用。还需要真正支持这些字段的调度器、驱动和运行时。本页是假想驱动教学例，不是安装清单。</p></article></section><section class="calculator" aria-labelledby="capacity-title"><div><span class="eyebrow">改两个数，试一试</span><h2 id="capacity-title">第三个 Claim 能放进这张卡吗？</h2><p>A 和 B 已分配：60 算力 + 24Gi 显存。<br>固定剩余：40 算力 + 16Gi 显存。</p></div><div class="inputs"><label>这次要多少算力 <output id="cores-value">20</output><input id="cores" type="range" min="1" max="100" value="20"></label><label>这次要多少显存 <output id="memory-value">8Gi</output><input id="memory" type="range" min="1" max="40" value="8"></label><p id="capacity-result" role="status" aria-live="polite">可以分配。分配后剩余 20 算力、8Gi 显存。</p><small>只计算这张设备的两个容量维度；不是一次真实调度。</small></div></section><section class="sources"><h2>继续查原文</h2><a href="https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-slice-v1/" target="_blank" rel="noopener">ResourceSlice API ↗</a><a href="https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-claim-v1/" target="_blank" rel="noopener">ResourceClaim API ↗</a><a href="https://v1-36.docs.kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/" target="_blank" rel="noopener">Kubernetes 1.36 · feature gates ↗</a></section><nav class="page-turn" aria-label="相邻场景"><a href="04-pool-slices.html">← 一个 Pool，多个 Slice</a><a href="06-hami-native.html">HAMi：两份 vGPU →</a></nav><footer>示例可离线阅读 · 图与 YAML 随仓库保存<br><span>HAMi 源码版本与 API 依据见各页原文链接</span></footer></main>
+</body>
+</html>

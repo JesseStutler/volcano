@@ -1,0 +1,45 @@
+# 只读示意：根据 HAMi NVIDIA driver v0.1.1 和 HAMi-DRA chart 整理。假定实际显存24Gi；名称/属性简化。勿手工替代驱动发布。
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: node-a-hami-gpu-example
+spec:
+  driver: hami-core-gpu.project-hami.io
+  nodeName: node-a
+  pool:
+    name: node-a
+    generation: 1
+    resourceSliceCount: 1
+  devices:
+  - name: hami-gpu-0
+    attributes:
+      type:
+        string: hami-gpu
+    allowMultipleAllocations: true
+    capacity:
+      cores:
+        value: '100'
+        requestPolicy:
+          default: '100'
+          validRange:
+            min: '0'
+            max: '100'
+            step: '1'
+      memory:
+        value: 24Gi
+        requestPolicy:
+          default: 24Gi
+          validRange:
+            min: 1Mi
+            max: 24Gi
+            step: 1Mi
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: hami-core-gpu.project-hami.io
+spec:
+  selectors:
+  - cel:
+      expression: device.driver == "hami-core-gpu.project-hami.io" && device.attributes["hami-core-gpu.project-hami.io"].type
+        == "hami-gpu"

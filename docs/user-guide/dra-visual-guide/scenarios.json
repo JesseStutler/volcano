@@ -1,0 +1,302 @@
+{
+  "sources": {
+    "k8s": [
+      "Kubernetes 1.36 · DRA",
+      "https://v1-36.docs.kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/"
+    ],
+    "slice": [
+      "ResourceSlice API",
+      "https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-slice-v1/"
+    ],
+    "claim": [
+      "ResourceClaim API",
+      "https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-claim-v1/"
+    ],
+    "gates": [
+      "Kubernetes 1.36 · feature gates",
+      "https://v1-36.docs.kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/"
+    ],
+    "hami": [
+      "HAMi driver v0.1.1 · 容量发布与 CDI",
+      "https://github.com/Project-HAMi/k8s-dra-driver/blob/9475a1b344e7e5fb8310d47de398199101f8d0ba/cmd/hami-kubelet-plugin/hami_core.go"
+    ],
+    "class": [
+      "HAMi-DRA · DeviceClass 模板",
+      "https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/charts/hami-dra/templates/hami-dra-driver/deviceclass.yaml"
+    ],
+    "webhook": [
+      "HAMi-DRA · webhook 转换",
+      "https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/pkg/webhook/dra/mutating.go"
+    ],
+    "units": [
+      "HAMi-DRA · 显存单位转换",
+      "https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/pkg/config/dra_device.go"
+    ],
+    "install": [
+      "HAMi-DRA · 安装与运行条件",
+      "https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/README.md"
+    ],
+    "nvidia": [
+      "NVIDIA DRA · GPU 与 MIG 库存",
+      "https://dra-driver-nvidia-gpu.sigs.k8s.io/docs/concepts/gpu-allocation/"
+    ]
+  },
+  "scenes": [
+    {
+      "slug": "01-node-local",
+      "nav": "先申请一张 GPU",
+      "title": "一个 Pod，申请一张 GPU",
+      "tag": "从这里开始",
+      "intro": "node-a 上有两张 A100。现在启动一个训练任务，只需要其中一张。先看这五个对象各自写了什么，再看名字是怎么连起来的。",
+      "files": [
+        "examples/01-node-local.yaml",
+        "observations/01-allocation.yaml"
+      ],
+      "takeaway": "Pod 引用 Claim，Claim 选 Class，Class 的条件去匹配 Slice 里的设备。",
+      "notes": [
+        [
+          "谁负责创建？",
+          "Node 通常由 kubelet 注册；DRA driver 把发现的设备写进 ResourceSlice；管理员准备 DeviceClass。用户提交 Claim 和 Pod，由调度器决定具体分给哪张卡。"
+        ],
+        [
+          "三个名字，别看串了",
+          "Pod 里的 gpu 是本地别名，train-gpu 是 Claim 对象名，accelerator 是 Claim 里的请求名。先沿着 resourceClaimName 找 Claim，再沿着 deviceClassName 找 Class。"
+        ],
+        [
+          "分配完，卡去哪了？",
+          "假设分到 gpu-0，它仍然留在 Slice 的设备列表里。Claim status 记录实际分配的 driver、pool、device。Slice 是库存，不能因为列表里还有这张卡，就判断它空闲。"
+        ],
+        [
+          "用户怎么找 Class？",
+          "先运行 kubectl get deviceclasses，再用 kubectl get deviceclass gpu-any -o yaml 看规则。需要相应读取权限；通常平台也会提供可申请的 Class 清单。DeviceClass 没有 namespace，Claim 和 Pod 则必须在同一个 namespace。"
+        ]
+      ],
+      "sources": [
+        "k8s",
+        "slice",
+        "claim"
+      ]
+    },
+    {
+      "slug": "02-overlapping-classes",
+      "nav": "Class 可以重叠",
+      "title": "两种 Class，能选中同一张卡",
+      "tag": "设备匹配",
+      "intro": "node-a 有两张 A100，node-b 有两张 H100。管理员提供 gpu-any 和 gpu-a100：前者选任意 GPU，后者只选 A100。它们会同时匹配 node-a 的两张卡。",
+      "files": [
+        "examples/02-overlapping-classes.yaml"
+      ],
+      "takeaway": "Class 定义选择条件。给同一张卡再加一个匹配的 Class，不会多出一份库存。",
+      "notes": [
+        [
+          "4 + 2，为什么还是 4？",
+          "gpu-any 匹配四张卡，gpu-a100 匹配其中两张。两个集合重叠，所以集群物理 GPU 总数还是四张。按 Class 统计资源时，不能把它们直接加起来。"
+        ],
+        [
+          "Slice 没有绑定 Class",
+          "ResourceSlice 不写 deviceClassName。Class 用 CEL 检查设备的 driver 和 attributes；一个设备能匹配多个 Class，一个 Class 也能覆盖多个节点、多个 Pool。Class 还可以带驱动配置，这页只看匹配。"
+        ],
+        [
+          "规则由谁决定？",
+          "通常由管理员或安装驱动的 Helm chart 创建、更新 DeviceClass。修改 Class 改的是用户可选择的匹配条件；哪些设备被发现、发布，则由 driver 及其配置决定。不要把 Class 的存在本身当作租户授权。"
+        ],
+        [
+          "两边都叫 gpu-0，会撞吗？",
+          "不会。设备身份是 (driver, pool, device)。这里两个节点的 Pool 分别叫 node-a 和 node-b，所以它们是两张不同的卡。"
+        ]
+      ],
+      "sources": [
+        "k8s",
+        "slice"
+      ]
+    },
+    {
+      "slug": "03-shared-claim",
+      "nav": "两个 Pod 共用 Claim",
+      "title": "两个 Pod，引用同一份分配",
+      "tag": "复用 Claim",
+      "intro": "trainer-a 已经通过 shared-gpu 拿到 gpu-0。随后 trainer-b 也引用 shared-gpu。它复用已有分配，不会因为多一个 Pod 就再申请一张卡。",
+      "files": [
+        "examples/03-shared-claim.yaml"
+      ],
+      "takeaway": "两次引用，一个 Claim，一份 allocation。",
+      "notes": [
+        [
+          "为什么第二个 Pod 不再扣一张？",
+          "设备分给了 Claim。两个 Pod 引用的是同一个 Claim，因此在这个独占整卡例子里，已占用设备仍然只有 gpu-0 一张。node-a 还有另一张 gpu-1。"
+        ],
+        [
+          "两个 Pod 仍要能访问设备",
+          "本例的 gpu-0 只能在 node-a 使用，所以两个 Pod 都要满足这个节点约束。把 Claim 共享给另一个 Pod，不会改变设备的可访问范围。"
+        ],
+        [
+          "这和下一页的 vGPU 共享有什么不同？",
+          "这里复用一份 allocation，没有给每个 Pod 单独申请算力和显存额度。真正的容量共享会创建两个独立 Claim，让调度器分别记账。驱动是否支持多 Pod 共同使用同一份分配，还要看具体实现。"
+        ],
+        [
+          "本页只解释通用 DRA 关系",
+          "这个例子不代表 HAMi 已验证支持同一 Claim 的多 Pod 复用，也不保证时间片或显存隔离。HAMi 示例采用一个 Pod 对应一个独立 Claim。"
+        ]
+      ],
+      "sources": [
+        "k8s",
+        "claim"
+      ]
+    },
+    {
+      "slug": "04-pool-slices",
+      "nav": "一个 Pool，多个 Slice",
+      "title": "同一份库存，分两张表发布",
+      "tag": "Pool 与节点",
+      "intro": "还是 node-a 的两张卡。这次 driver 把 gpu-0 和 gpu-1 分别放进两个 ResourceSlice。设备没变，Pool 没变，只是发布库存的对象变成了两个。",
+      "files": [
+        "examples/04-pool-slices.yaml"
+      ],
+      "takeaway": "Pool 用 (driver, pool.name) 识别；resourceSliceCount 统计同一代有几份 Slice。",
+      "notes": [
+        [
+          "什么时候会拆？",
+          "最常见是设备条目太多，或 driver 按自己的库存结构拆分发布。Kubernetes 1.36 一份 Slice 最多放 128 个 device；使用 taints 或 consumesCounters 时上限降为 64。本例每份只有一张卡，是为了把关系画清楚，并非必须拆。"
+        ],
+        [
+          "为什么两个 Slice 要写同样的 generation？",
+          "generation 表示这组库存的版本。这里两个 Slice 都属于 node-a Pool 的第 1 代，且都声明 resourceSliceCount: 2。新一代发布不完整时，调度器不能把一半新库存和一半旧库存拼起来当作完整 Pool。"
+        ],
+        [
+          "MIG 还有一种拆法",
+          "启用动态 MIG 的 driver 可以把共享计数器与候选设备分别放进 Slice。Kubernetes 1.36 的 sharedCounters 和 devices 不能放在同一份 Slice。候选 MIG 配置也不能全当成能同时存在的物理 GPU。"
+        ],
+        [
+          "Pool 为什么常常叫 node name？",
+          "本地 GPU 驱动通常由每个节点上的实例维护本机库存，所以用节点名作为 Pool 名很自然。同一个 driver 管理多台节点，就会出现多个 Pool。Pool 名本身不决定可访问节点，真正的字段是 nodeName、nodeSelector 或 allNodes。"
+        ],
+        [
+          "放到 NVL72 怎么理解？",
+          "如果一个机架的 18 个计算托盘各自注册成一个 Kubernetes Node，且每个托盘有 4 张 GPU，本地 GPU driver 通常会发布 18 个 Pool，每个 Pool 4 张卡。NVLink 互联不会自动把它们变成一个 allNodes Pool；实际仍看驱动的发布方式。"
+        ]
+      ],
+      "sources": [
+        "slice",
+        "nvidia"
+      ]
+    },
+    {
+      "slug": "05-consumable-capacity",
+      "nav": "按显存和算力分配",
+      "title": "卡还在用，容量还没用完",
+      "tag": "Consumable capacity",
+      "intro": "一张 40Gi GPU，算力额度按 100 计。两个推理服务各申请 30 份算力、12Gi 显存。它们使用两个独立 Claim，但可以被分到同一张卡。",
+      "files": [
+        "examples/05-consumable-capacity.yaml"
+      ],
+      "takeaway": "同一个 device 可以多次分配；每次分配都消耗它的容量。",
+      "notes": [
+        [
+          "三个字段分别管什么？",
+          "allowMultipleAllocations: true 允许多次分配；capacity 声明设备的总容量和请求规则；Claim 的 capacity.requests 写这次每个设备要消耗多少。这里 cores 的单位由教学驱动约定为百分比，Kubernetes 不会自行规定这个名字的物理含义。"
+        ],
+        [
+          "分完两份，还剩多少？",
+          "假设 A 和 B 都选中 gpu-0，已分配为 60 / 100 算力、24 / 40Gi 显存。剩余 40 算力、16Gi 显存。第三份请求必须两个维度都够；下面可以改数字试一试。"
+        ],
+        [
+          "Slice 的 value 会扣减吗？",
+          "不会，Slice 仍写总量 100 和 40Gi。分配消耗记录在 Claim 的 allocation 中，调度器结合当前分配状态判断余量。它统计的是已经分出去的额度，不是 GPU 此刻的监控利用率。"
+        ],
+        [
+          "没写容量会怎样？",
+          "本例的 requestPolicy.default 是整卡容量。省略某个维度，会按该维度默认值请求，可能直接占满。count: 2 表示选两张设备，capacity.requests 则针对每张设备，不是两张设备合计。"
+        ],
+        [
+          "运行条件",
+          "以 Kubernetes 1.36 为基线，DRAConsumableCapacity 已 beta 且默认启用；1.34–1.35 需要显式启用。还需要真正支持这些字段的调度器、驱动和运行时。本页是假想驱动教学例，不是安装清单。"
+        ]
+      ],
+      "sources": [
+        "slice",
+        "claim",
+        "gates"
+      ]
+    },
+    {
+      "slug": "06-hami-native",
+      "nav": "HAMi：两份 vGPU",
+      "title": "用 HAMi，把一张卡分给两份推理",
+      "tag": "真实驱动示例",
+      "intro": "假设 node-a 上有一张 24Gi GPU，HAMi driver 将它发布为 hami-gpu-0。两个服务分别申请 50% 算力和 10Gi 显存，各用一个 Claim。",
+      "files": [
+        "observations/06-hami-inventory.yaml",
+        "examples/06-hami-native.yaml"
+      ],
+      "takeaway": "DRA 负责选择设备、分配容量；HAMi-core 在容器运行时执行资源限制。",
+      "notes": [
+        [
+          "先认这几个真实名字",
+          "driver 和默认 DeviceClass 都叫 hami-core-gpu.project-hami.io，device 形如 hami-gpu-0，Pool 通常用节点名。这里的库存示意根据 NVIDIA driver v0.1.1 整理，24Gi 是教学假设，实际显存由驱动探测。"
+        ],
+        [
+          "50 是什么？",
+          "cores: 50 表示算力百分比，不是 50 个 CUDA core，也不是固定独占一半 SM 或保证一半吞吐。memory: 10Gi 是显存容量。该版本发布 cores 和 memory 两个容量维度，没有 capacity.count。"
+        ],
+        [
+          "两个 Claim 能落在同一张卡吗？",
+          "可以，前提是调度时容量和其他约束都满足。图中假设两份都分到 hami-gpu-0：算力额度已经分完，显存还剩 4Gi。再来一个需要正数算力的 Claim，这张卡就满足不了，即使显存还有空余。"
+        ],
+        [
+          "限制是怎么进容器的？",
+          "调度器把消耗量写入 Claim allocation。节点上的 DRA driver 读取 consumedCapacity，通过 CDI 挂入 HAMi-core，并设置显存、算力限制。运行 CUDA 时由 HAMi-core 执行限制；这属于软件共享，与 MIG 的硬件分区不同。"
+        ],
+        [
+          "写 YAML 时别省掉一个维度",
+          "HAMi 的默认 cores 是 100，默认 memory 是全部显存。示例同时写两项，避免意外请求整卡。显存步长为 1Mi，算力步长为 1；请求规则可能向上取整，所以最终应看 allocation 的 consumedCapacity。"
+        ],
+        [
+          "如何拿去试？",
+          "先按 HAMi-DRA 官方安装说明配置 NVIDIA 驱动、DRA driver、CDI 和 feature gate，再使用本页的用户 YAML。示例走默认调度器；如果切到 Volcano，先确认目标版本支持 consumable capacity。这里做了 API 校验，没有在真实 GPU 上验证运行。"
+        ]
+      ],
+      "sources": [
+        "hami",
+        "class",
+        "install",
+        "gates"
+      ]
+    },
+    {
+      "slug": "07-hami-webhook",
+      "nav": "HAMi：兼容旧式 YAML",
+      "title": "还写 nvidia.com/gpu，也能转成 Claim",
+      "tag": "Admission 转换",
+      "intro": "已有应用习惯在 Pod limits 中写 GPU 数量、显存和算力。HAMi-DRA 的 webhook 可以把这类请求转成 DRA Claim，再给 Pod 补上引用。",
+      "files": [
+        "examples/07-hami-webhook.yaml",
+        "observations/07-hami-webhook-result.yaml"
+      ],
+      "takeaway": "旧字段是提交入口，调度时仍然使用 ResourceClaim。",
+      "notes": [
+        [
+          "最容易写错的是显存单位",
+          "nvidia.com/gpumem: 10240 的单位是 MiB，转换后才是 memory: 10Gi。这里不要直接把 gpumem 写成 10Gi。nvidia.com/gpu: 1 对应 exactly.count: 1，gpucores: 50 对应 capacity.requests.cores: 50。"
+        ],
+        [
+          "webhook 改了哪些地方？",
+          "默认模式会创建 ResourceClaim，给 Pod 增加 spec.resourceClaims 和容器的 resources.claims，并移除已经转换的扩展资源字段。右侧结果示意简化了生成名称和别名，重点看字段对应关系；不是集群抓取结果。"
+        ],
+        [
+          "这不需要用户手写第二份 Claim",
+          "用户提交的是转换前的 Pod。转换后的对象由 webhook 管理，不要再把示意结果 apply 一次。当前 chart 也支持 ResourceClaimTemplate 模式，本页只展示默认的直接 Claim 模式。"
+        ],
+        [
+          "什么时候选这个入口？",
+          "迁移已有应用、不想立刻改提交模板时比较方便。新应用直接写原生 Claim，字段含义更清楚。两种入口最终仍依赖 DRA 分配与 HAMi-core 限制；安装 webhook 还要按官方说明配置证书等依赖。"
+        ]
+      ],
+      "sources": [
+        "webhook",
+        "units",
+        "class",
+        "install"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="通过七个场景理解 Kubernetes DRA：设备、Pool、容量共享与 HAMi vGPU。每页附关系图和可复制的 YAML。">
+  <title>还写 nvidia.com/gpu，也能转成 Claim · DRA 图解</title>
+  <link rel="stylesheet" href="assets/guide.css">
+  <script src="assets/guide.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <aside class="sidebar">
+    <a class="brand" href="index.html"><span class="brand-icon" aria-hidden="true">▦</span><span>DRA 图解<small>设备 · 分配 · 共享</small></span></a>
+    <button class="menu-toggle" aria-expanded="false" aria-controls="scene-nav">选择场景 <span aria-hidden="true">＋</span></button>
+    <nav id="scene-nav" aria-label="场景导航"><a class="nav-home" href="index.html">场景目录</a><a href="01-node-local.html"><span>01</span>先申请一张 GPU</a><a href="02-overlapping-classes.html"><span>02</span>Class 可以重叠</a><a href="03-shared-claim.html"><span>03</span>两个 Pod 共用 Claim</a><a href="04-pool-slices.html"><span>04</span>一个 Pool，多个 Slice</a><a href="05-consumable-capacity.html"><span>05</span>按显存和算力分配</a><a href="06-hami-native.html"><span>06</span>HAMi：两份 vGPU</a><a href="07-hami-webhook.html" class="current" aria-current="page"><span>07</span>HAMi：兼容旧式 YAML</a></nav>
+    <div class="sidebar-bottom"><span class="version">Kubernetes 1.36</span><a href="index.html#deploy">部署到自己的服务器 ↗</a><a href="https://github.com/JesseStutler/volcano/tree/docs/dra-visual-guide/docs/user-guide/dra-visual-guide">源文件与 YAML ↗</a></div>
+  </aside>
+  <main id="main"><header class="page-heading"><span class="eyebrow">场景 07 / Admission 转换</span><h1>还写 nvidia.com/gpu，也能转成 Claim</h1><p class="lead">已有应用习惯在 Pod limits 中写 GPU 数量、显存和算力。HAMi-DRA 的 webhook 可以把这类请求转成 DRA Claim，再给 Pod 补上引用。</p><div class="downloads"><a href="examples/07-hami-webhook.yaml" download>示例 YAML ↗</a><a href="observations/07-hami-webhook-result.yaml" download>只读示意 ↗</a><a href="assets/07-hami-webhook.svg" download>SVG ↗</a><a href="assets/07-hami-webhook.png" download>PNG ↗</a></div></header><figure class="diagram"><div class="diagram-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 450" role="img" aria-labelledby="title desc">
+<title id="title">HAMi webhook 字段对应</title><desc id="desc">Pod limits 转为 ResourceClaim capacity 并补充 Pod claim 引用。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="450" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="450" rx="20" fill="url(#grid)"/>
+<g data-kind="pod" data-name="inference-compatible">
+<rect x="28" y="32" width="500" height="268" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="44" y="50" width="4" height="17" rx="2" fill="#536574" stroke="#536574"/>
+<text x="58" y="64" font-size="13" font-weight="700" fill="#536574">POD · 用户提交</text>
+<text x="50" y="98" font-size="23" font-weight="650" fill="#183341">inference-compatible</text>
+<text x="50" y="126" font-size="14" font-weight="400" fill="#64757d">resources.limits:</text>
+<text x="50" y="150" font-size="14" font-weight="400" fill="#64757d">nvidia.com/gpu: 1</text>
+<text x="50" y="174" font-size="14" font-weight="400" fill="#64757d">nvidia.com/gpucores: 50</text>
+<text x="50" y="198" font-size="14" font-weight="400" fill="#64757d">nvidia.com/gpumem: 10240</text>
+</g>
+<g data-kind="claim" data-name="生成的 Claim">
+<rect x="632" y="32" width="500" height="268" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="648" y="50" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="662" y="64" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM · webhook 创建</text>
+<text x="654" y="98" font-size="23" font-weight="650" fill="#183341">生成的 Claim</text>
+<text x="654" y="126" font-size="14" font-weight="400" fill="#64757d">exactly:</text>
+<text x="654" y="150" font-size="14" font-weight="400" fill="#64757d">count: 1</text>
+<text x="654" y="174" font-size="14" font-weight="400" fill="#64757d">capacity.requests.cores: 50</text>
+<text x="654" y="198" font-size="14" font-weight="400" fill="#64757d">capacity.requests.memory: 10Gi</text>
+</g>
+<polyline points="528,174 632,174" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="632" cy="174" r="4" fill="#b66b28"/>
+<polyline points="528,198 632,198" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="632" cy="198" r="4" fill="#b66b28"/>
+<polyline points="528,222 632,222" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="632" cy="222" r="4" fill="#b66b28"/>
+<text x="546" y="155" font-size="16" font-weight="650" fill="#b66b28">转换</text>
+<rect x="28" y="332" width="1104" height="82" rx="14" fill="#183341" stroke="#183341"/>
+<text x="52" y="365" font-size="22" font-weight="600" fill="white">Pod 同时补上 Claim 引用，移除已转换的 GPU limits。</text>
+<text x="52" y="393" font-size="16" font-weight="400" fill="#bed5ca">10240 MiB = 10 GiB  ·  这里的 Claim 名称只是示意，实际由 webhook 生成。</text>
+</svg></div><figcaption>旧字段是提交入口，调度时仍然使用 ResourceClaim。</figcaption></figure><section class="inspect" id="resources" aria-labelledby="inspect-title">
+      <div class="section-heading"><div><span class="eyebrow">对照 YAML</span><h2 id="inspect-title">选一个对象，看它具体怎么写</h2></div><span class="muted">图中的资源也可以点击</span></div>
+      <div class="inspector"><div class="objects" aria-label="本页资源"><button class="object-choice" data-index="0" data-kind="pod" aria-pressed="true"><span>Pod</span><strong>inference-compatible</strong></button><button class="object-choice" data-index="1" data-kind="claim" aria-pressed="false"><span>ResourceClaim</span><strong>generated-claim-example</strong><small>只读示意</small></button><button class="object-choice" data-index="2" data-kind="pod" aria-pressed="false"><span>Pod</span><strong>inference-compatible</strong><small>只读示意</small></button></div>
+      <div class="code-panel"><div class="code-title"><span id="object-title">Pod / inference-compatible</span><button id="copy-yaml" type="button">复制此对象</button></div>
+      <p id="object-note">使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。</p><pre tabindex="0"><code id="yaml-code"># 用户提交：需 HAMi-DRA admission webhook。gpumem 单位为 MiB，10240 MiB = 10 GiB。
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inference-compatible
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+  - name: app
+    image: nvidia/cuda:13.0.1-base-ubi9
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+        nvidia.com/gpucores: 50
+        nvidia.com/gpumem: 10240
+</code></pre>
+      <div class="code-footer"><a id="source-file" href="examples/07-hami-webhook.yaml" download>下载所在 YAML 文件</a><span id="copy-status" role="status" aria-live="polite"></span></div></div></div>
+      <script type="application/json" id="yaml-data">[{"kind": "Pod", "name": "inference-compatible", "yaml": "# 用户提交：需 HAMi-DRA admission webhook。gpumem 单位为 MiB，10240 MiB = 10 GiB。\napiVersion: v1\nkind: Pod\nmetadata:\n  name: inference-compatible\n  namespace: default\nspec:\n  restartPolicy: Never\n  containers:\n  - name: app\n    image: nvidia/cuda:13.0.1-base-ubi9\n    command:\n    - sh\n    - -c\n    - sleep 3600\n    resources:\n      limits:\n        nvidia.com/gpu: 1\n        nvidia.com/gpucores: 50\n        nvidia.com/gpumem: 10240\n", "file": "examples/07-hami-webhook.yaml", "observation": false, "note": "使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。"}, {"kind": "ResourceClaim", "name": "generated-claim-example", "yaml": "# 只读字段映射示意：对象名/请求别名简化，不是 webhook 原样抓取。真实名字由 webhook 生成；此处展示默认 ResourceClaim 模式。\napiVersion: resource.k8s.io/v1\nkind: ResourceClaim\nmetadata:\n  name: generated-claim-example\n  namespace: default\nspec:\n  devices:\n    requests:\n    - name: accelerator\n      exactly:\n        deviceClassName: hami-core-gpu.project-hami.io\n        allocationMode: ExactCount\n        count: 1\n        capacity:\n          requests:\n            cores: '50'\n            memory: 10Gi\n", "file": "observations/07-hami-webhook-result.yaml", "observation": true, "note": "只读示意，用来理解发布或分配后的字段；不要把它当作创建输入。用户的设备需求。看 exactly 下的 Class、count；容量共享场景还要看 capacity.requests。"}, {"kind": "Pod", "name": "inference-compatible", "yaml": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: inference-compatible\n  namespace: default\nspec:\n  restartPolicy: Never\n  resourceClaims:\n  - name: gpu\n    resourceClaimName: generated-claim-example\n  containers:\n  - name: app\n    image: nvidia/cuda:13.0.1-base-ubi9\n    command:\n    - sh\n    - -c\n    - sleep 3600\n    resources:\n      claims:\n      - name: gpu\n        request: accelerator\n", "file": "observations/07-hami-webhook-result.yaml", "observation": true, "note": "只读示意，用来理解发布或分配后的字段；不要把它当作创建输入。使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。"}]</script></section><section class="reading" aria-label="场景说明"><article><h2>最容易写错的是显存单位</h2><p>nvidia.com/gpumem: 10240 的单位是 MiB，转换后才是 memory: 10Gi。这里不要直接把 gpumem 写成 10Gi。nvidia.com/gpu: 1 对应 exactly.count: 1，gpucores: 50 对应 capacity.requests.cores: 50。</p></article><article><h2>webhook 改了哪些地方？</h2><p>默认模式会创建 ResourceClaim，给 Pod 增加 spec.resourceClaims 和容器的 resources.claims，并移除已经转换的扩展资源字段。右侧结果示意简化了生成名称和别名，重点看字段对应关系；不是集群抓取结果。</p></article><article><h2>这不需要用户手写第二份 Claim</h2><p>用户提交的是转换前的 Pod。转换后的对象由 webhook 管理，不要再把示意结果 apply 一次。当前 chart 也支持 ResourceClaimTemplate 模式，本页只展示默认的直接 Claim 模式。</p></article><article><h2>什么时候选这个入口？</h2><p>迁移已有应用、不想立刻改提交模板时比较方便。新应用直接写原生 Claim，字段含义更清楚。两种入口最终仍依赖 DRA 分配与 HAMi-core 限制；安装 webhook 还要按官方说明配置证书等依赖。</p></article></section><section class="sources"><h2>继续查原文</h2><a href="https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/pkg/webhook/dra/mutating.go" target="_blank" rel="noopener">HAMi-DRA · webhook 转换 ↗</a><a href="https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/pkg/config/dra_device.go" target="_blank" rel="noopener">HAMi-DRA · 显存单位转换 ↗</a><a href="https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/charts/hami-dra/templates/hami-dra-driver/deviceclass.yaml" target="_blank" rel="noopener">HAMi-DRA · DeviceClass 模板 ↗</a><a href="https://github.com/Project-HAMi/HAMi-DRA/blob/420a4031762301ca1a3335e34875780b6de94fb5/README.md" target="_blank" rel="noopener">HAMi-DRA · 安装与运行条件 ↗</a></section><nav class="page-turn" aria-label="相邻场景"><a href="06-hami-native.html">← HAMi：两份 vGPU</a><a href="index.html">返回目录 →</a></nav><footer>示例可离线阅读 · 图与 YAML 随仓库保存<br><span>HAMi 源码版本与 API 依据见各页原文链接</span></footer></main>
+</body>
+</html>

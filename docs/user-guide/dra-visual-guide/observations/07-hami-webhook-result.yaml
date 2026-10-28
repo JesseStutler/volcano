@@ -1,0 +1,40 @@
+# 只读字段映射示意：对象名/请求别名简化，不是 webhook 原样抓取。真实名字由 webhook 生成；此处展示默认 ResourceClaim 模式。
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: generated-claim-example
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: hami-core-gpu.project-hami.io
+        allocationMode: ExactCount
+        count: 1
+        capacity:
+          requests:
+            cores: '50'
+            memory: 10Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inference-compatible
+  namespace: default
+spec:
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: generated-claim-example
+  containers:
+  - name: app
+    image: nvidia/cuda:13.0.1-base-ubi9
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      claims:
+      - name: gpu
+        request: accelerator

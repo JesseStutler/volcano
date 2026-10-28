@@ -1,0 +1,120 @@
+# 教学驱动 gpu.example.com：cores 的单位在本例约定为百分比。需要支持 consumable capacity 的调度器和驱动。
+apiVersion: v1
+kind: Node
+metadata:
+  name: node-a
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: node-a-gpus
+spec:
+  driver: gpu.example.com
+  nodeName: node-a
+  pool:
+    name: node-a
+    generation: 1
+    resourceSliceCount: 1
+  devices:
+  - name: gpu-0
+    allowMultipleAllocations: true
+    capacity:
+      cores:
+        value: '100'
+        requestPolicy:
+          default: '100'
+      memory:
+        value: 40Gi
+        requestPolicy:
+          default: 40Gi
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: gpu-any
+spec:
+  selectors:
+  - cel:
+      expression: device.driver == "gpu.example.com"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: inference-a
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: gpu-any
+        allocationMode: ExactCount
+        count: 1
+        capacity:
+          requests:
+            cores: '30'
+            memory: 12Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inference-a
+  namespace: default
+spec:
+  schedulerName: volcano
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: inference-a
+  containers:
+  - name: app
+    image: busybox:1.36
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      claims:
+      - name: gpu
+        request: accelerator
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: inference-b
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: gpu-any
+        allocationMode: ExactCount
+        count: 1
+        capacity:
+          requests:
+            cores: '30'
+            memory: 12Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inference-b
+  namespace: default
+spec:
+  schedulerName: volcano
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: inference-b
+  containers:
+  - name: app
+    image: busybox:1.36
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      claims:
+      - name: gpu
+        request: accelerator

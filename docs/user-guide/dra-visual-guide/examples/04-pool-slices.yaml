@@ -1,0 +1,85 @@
+# 独立教学场景：同一 pool 的两份库存。为方便阅读，每份只列一张卡；并非只能放一张。
+apiVersion: v1
+kind: Node
+metadata:
+  name: node-a
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: node-a-gpus-1
+spec:
+  driver: gpu.example.com
+  nodeName: node-a
+  pool:
+    name: node-a
+    generation: 1
+    resourceSliceCount: 2
+  devices:
+  - name: gpu-0
+    attributes:
+      model:
+        string: A100
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata:
+  name: node-a-gpus-2
+spec:
+  driver: gpu.example.com
+  nodeName: node-a
+  pool:
+    name: node-a
+    generation: 1
+    resourceSliceCount: 2
+  devices:
+  - name: gpu-1
+    attributes:
+      model:
+        string: A100
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: gpu-any
+spec:
+  selectors:
+  - cel:
+      expression: device.driver == "gpu.example.com"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: train-gpu
+  namespace: default
+spec:
+  devices:
+    requests:
+    - name: accelerator
+      exactly:
+        deviceClassName: gpu-any
+        allocationMode: ExactCount
+        count: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: trainer
+  namespace: default
+spec:
+  schedulerName: volcano
+  restartPolicy: Never
+  resourceClaims:
+  - name: gpu
+    resourceClaimName: train-gpu
+  containers:
+  - name: app
+    image: busybox:1.36
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      claims:
+      - name: gpu
+        request: accelerator

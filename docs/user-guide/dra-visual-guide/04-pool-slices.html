@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="通过七个场景理解 Kubernetes DRA：设备、Pool、容量共享与 HAMi vGPU。每页附关系图和可复制的 YAML。">
+  <title>同一份库存，分两张表发布 · DRA 图解</title>
+  <link rel="stylesheet" href="assets/guide.css">
+  <script src="assets/guide.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到正文</a>
+  <aside class="sidebar">
+    <a class="brand" href="index.html"><span class="brand-icon" aria-hidden="true">▦</span><span>DRA 图解<small>设备 · 分配 · 共享</small></span></a>
+    <button class="menu-toggle" aria-expanded="false" aria-controls="scene-nav">选择场景 <span aria-hidden="true">＋</span></button>
+    <nav id="scene-nav" aria-label="场景导航"><a class="nav-home" href="index.html">场景目录</a><a href="01-node-local.html"><span>01</span>先申请一张 GPU</a><a href="02-overlapping-classes.html"><span>02</span>Class 可以重叠</a><a href="03-shared-claim.html"><span>03</span>两个 Pod 共用 Claim</a><a href="04-pool-slices.html" class="current" aria-current="page"><span>04</span>一个 Pool，多个 Slice</a><a href="05-consumable-capacity.html"><span>05</span>按显存和算力分配</a><a href="06-hami-native.html"><span>06</span>HAMi：两份 vGPU</a><a href="07-hami-webhook.html"><span>07</span>HAMi：兼容旧式 YAML</a></nav>
+    <div class="sidebar-bottom"><span class="version">Kubernetes 1.36</span><a href="index.html#deploy">部署到自己的服务器 ↗</a><a href="https://github.com/JesseStutler/volcano/tree/docs/dra-visual-guide/docs/user-guide/dra-visual-guide">源文件与 YAML ↗</a></div>
+  </aside>
+  <main id="main"><header class="page-heading"><span class="eyebrow">场景 04 / Pool 与节点</span><h1>同一份库存，分两张表发布</h1><p class="lead">还是 node-a 的两张卡。这次 driver 把 gpu-0 和 gpu-1 分别放进两个 ResourceSlice。设备没变，Pool 没变，只是发布库存的对象变成了两个。</p><div class="downloads"><a href="examples/04-pool-slices.yaml" download>示例 YAML ↗</a><a href="assets/04-pool-slices.svg" download>SVG ↗</a><a href="assets/04-pool-slices.png" download>PNG ↗</a></div></header><figure class="diagram"><div class="diagram-scroll"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 500" role="img" aria-labelledby="title desc">
+<title id="title">一个 Pool，两个 ResourceSlice</title><desc id="desc">同一 driver 和 pool，两个 Slice 都是第1代；各含一个唯一设备。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="500" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="500" rx="20" fill="url(#grid)"/>
+<rect x="28" y="28" width="1104" height="366" rx="14" fill="#edf3f9" stroke="#b6c9de"/>
+<text x="52" y="66" font-size="24" font-weight="650" fill="#3568a5">NODE  node-a</text>
+<rect x="52" y="92" width="1056" height="276" rx="14" fill="#eaf3ed" stroke="#a7cdb8"/>
+<text x="76" y="128" font-size="23" font-weight="650" fill="#0c7b70">POOL  (gpu.example.com, node-a)</text>
+<text x="76" y="155" font-size="16" font-weight="400" fill="#64757d">generation: 1   ·   resourceSliceCount: 2</text>
+<g data-kind="slice" data-name="node-a-gpus-1">
+<rect x="76" y="180" width="502" height="158" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="92" y="198" width="4" height="17" rx="2" fill="#0c7b70" stroke="#0c7b70"/>
+<text x="106" y="212" font-size="13" font-weight="700" fill="#0c7b70">RESOURCE SLICE</text>
+<text x="98" y="246" font-size="23" font-weight="650" fill="#183341">node-a-gpus-1</text>
+<text x="98" y="274" font-size="14" font-weight="400" fill="#64757d">devices: [gpu-0]</text>
+<text x="98" y="298" font-size="14" font-weight="400" fill="#64757d">同一代库存的一部分</text>
+</g>
+<g data-kind="slice" data-name="node-a-gpus-2">
+<rect x="602" y="180" width="502" height="158" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="618" y="198" width="4" height="17" rx="2" fill="#0c7b70" stroke="#0c7b70"/>
+<text x="632" y="212" font-size="13" font-weight="700" fill="#0c7b70">RESOURCE SLICE</text>
+<text x="624" y="246" font-size="23" font-weight="650" fill="#183341">node-a-gpus-2</text>
+<text x="624" y="274" font-size="14" font-weight="400" fill="#64757d">devices: [gpu-1]</text>
+<text x="624" y="298" font-size="14" font-weight="400" fill="#64757d">同一代库存的一部分</text>
+</g>
+<text x="52" y="444" font-size="24" font-weight="650" fill="#183341">两张卡，两个 Slice，一个 Pool，一个 Node。</text>
+</svg></div><figcaption>Pool 用 (driver, pool.name) 识别；resourceSliceCount 统计同一代有几份 Slice。</figcaption></figure><section class="inspect" id="resources" aria-labelledby="inspect-title">
+      <div class="section-heading"><div><span class="eyebrow">对照 YAML</span><h2 id="inspect-title">选一个对象，看它具体怎么写</h2></div><span class="muted">图中的资源也可以点击</span></div>
+      <div class="inspector"><div class="objects" aria-label="本页资源"><button class="object-choice" data-index="0" data-kind="node" aria-pressed="true"><span>Node</span><strong>node-a</strong></button><button class="object-choice" data-index="1" data-kind="slice" aria-pressed="false"><span>ResourceSlice</span><strong>node-a-gpus-1</strong></button><button class="object-choice" data-index="2" data-kind="slice" aria-pressed="false"><span>ResourceSlice</span><strong>node-a-gpus-2</strong></button><button class="object-choice" data-index="3" data-kind="cls" aria-pressed="false"><span>DeviceClass</span><strong>gpu-any</strong></button><button class="object-choice" data-index="4" data-kind="claim" aria-pressed="false"><span>ResourceClaim</span><strong>train-gpu</strong></button><button class="object-choice" data-index="5" data-kind="pod" aria-pressed="false"><span>Pod</span><strong>trainer</strong></button></div>
+      <div class="code-panel"><div class="code-title"><span id="object-title">Node / node-a</span><button id="copy-yaml" type="button">复制此对象</button></div>
+      <p id="object-note">这台机器提供本地设备。通常由 kubelet 注册；这里列出来是为了对照 Slice 的 nodeName。</p><pre tabindex="0"><code id="yaml-code"># 独立教学场景：同一 pool 的两份库存。为方便阅读，每份只列一张卡；并非只能放一张。
+apiVersion: v1
+kind: Node
+metadata:
+  name: node-a
+</code></pre>
+      <div class="code-footer"><a id="source-file" href="examples/04-pool-slices.yaml" download>下载所在 YAML 文件</a><span id="copy-status" role="status" aria-live="polite"></span></div></div></div>
+      <script type="application/json" id="yaml-data">[{"kind": "Node", "name": "node-a", "yaml": "# 独立教学场景：同一 pool 的两份库存。为方便阅读，每份只列一张卡；并非只能放一张。\napiVersion: v1\nkind: Node\nmetadata:\n  name: node-a\n", "file": "examples/04-pool-slices.yaml", "observation": false, "note": "这台机器提供本地设备。通常由 kubelet 注册；这里列出来是为了对照 Slice 的 nodeName。"}, {"kind": "ResourceSlice", "name": "node-a-gpus-1", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceSlice\nmetadata:\n  name: node-a-gpus-1\nspec:\n  driver: gpu.example.com\n  nodeName: node-a\n  pool:\n    name: node-a\n    generation: 1\n    resourceSliceCount: 2\n  devices:\n  - name: gpu-0\n    attributes:\n      model:\n        string: A100\n", "file": "examples/04-pool-slices.yaml", "observation": false, "note": "driver 发布的设备库存。先看 driver、pool 和 nodeName，再看 devices。Pool 名不是一个独立对象的引用。"}, {"kind": "ResourceSlice", "name": "node-a-gpus-2", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceSlice\nmetadata:\n  name: node-a-gpus-2\nspec:\n  driver: gpu.example.com\n  nodeName: node-a\n  pool:\n    name: node-a\n    generation: 1\n    resourceSliceCount: 2\n  devices:\n  - name: gpu-1\n    attributes:\n      model:\n        string: A100\n", "file": "examples/04-pool-slices.yaml", "observation": false, "note": "driver 发布的设备库存。先看 driver、pool 和 nodeName，再看 devices。Pool 名不是一个独立对象的引用。"}, {"kind": "DeviceClass", "name": "gpu-any", "yaml": "apiVersion: resource.k8s.io/v1\nkind: DeviceClass\nmetadata:\n  name: gpu-any\nspec:\n  selectors:\n  - cel:\n      expression: device.driver == \"gpu.example.com\"\n", "file": "examples/04-pool-slices.yaml", "observation": false, "note": "管理员或驱动安装程序提供的选择规则。Claim 按名称引用它，CEL 再去匹配设备。"}, {"kind": "ResourceClaim", "name": "train-gpu", "yaml": "apiVersion: resource.k8s.io/v1\nkind: ResourceClaim\nmetadata:\n  name: train-gpu\n  namespace: default\nspec:\n  devices:\n    requests:\n    - name: accelerator\n      exactly:\n        deviceClassName: gpu-any\n        allocationMode: ExactCount\n        count: 1\n", "file": "examples/04-pool-slices.yaml", "observation": false, "note": "用户的设备需求。看 exactly 下的 Class、count；容量共享场景还要看 capacity.requests。"}, {"kind": "Pod", "name": "trainer", "yaml": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: trainer\n  namespace: default\nspec:\n  schedulerName: volcano\n  restartPolicy: Never\n  resourceClaims:\n  - name: gpu\n    resourceClaimName: train-gpu\n  containers:\n  - name: app\n    image: busybox:1.36\n    command:\n    - sh\n    - -c\n    - sleep 3600\n    resources:\n      claims:\n      - name: gpu\n        request: accelerator\n", "file": "examples/04-pool-slices.yaml", "observation": false, "note": "使用者。spec.resourceClaims 关联 Claim，容器的 resources.claims 通过本地别名选择它。"}]</script></section><section class="reading" aria-label="场景说明"><article><h2>什么时候会拆？</h2><p>最常见是设备条目太多，或 driver 按自己的库存结构拆分发布。Kubernetes 1.36 一份 Slice 最多放 128 个 device；使用 taints 或 consumesCounters 时上限降为 64。本例每份只有一张卡，是为了把关系画清楚，并非必须拆。</p></article><article><h2>为什么两个 Slice 要写同样的 generation？</h2><p>generation 表示这组库存的版本。这里两个 Slice 都属于 node-a Pool 的第 1 代，且都声明 resourceSliceCount: 2。新一代发布不完整时，调度器不能把一半新库存和一半旧库存拼起来当作完整 Pool。</p></article><article><h2>MIG 还有一种拆法</h2><p>启用动态 MIG 的 driver 可以把共享计数器与候选设备分别放进 Slice。Kubernetes 1.36 的 sharedCounters 和 devices 不能放在同一份 Slice。候选 MIG 配置也不能全当成能同时存在的物理 GPU。</p></article><article><h2>Pool 为什么常常叫 node name？</h2><p>本地 GPU 驱动通常由每个节点上的实例维护本机库存，所以用节点名作为 Pool 名很自然。同一个 driver 管理多台节点，就会出现多个 Pool。Pool 名本身不决定可访问节点，真正的字段是 nodeName、nodeSelector 或 allNodes。</p></article><article><h2>放到 NVL72 怎么理解？</h2><p>如果一个机架的 18 个计算托盘各自注册成一个 Kubernetes Node，且每个托盘有 4 张 GPU，本地 GPU driver 通常会发布 18 个 Pool，每个 Pool 4 张卡。NVLink 互联不会自动把它们变成一个 allNodes Pool；实际仍看驱动的发布方式。</p></article></section><section class="sources"><h2>继续查原文</h2><a href="https://v1-36.docs.kubernetes.io/docs/reference/kubernetes-api/resource/resource-slice-v1/" target="_blank" rel="noopener">ResourceSlice API ↗</a><a href="https://dra-driver-nvidia-gpu.sigs.k8s.io/docs/concepts/gpu-allocation/" target="_blank" rel="noopener">NVIDIA DRA · GPU 与 MIG 库存 ↗</a></section><nav class="page-turn" aria-label="相邻场景"><a href="03-shared-claim.html">← 两个 Pod 共用 Claim</a><a href="05-consumable-capacity.html">按显存和算力分配 →</a></nav><footer>示例可离线阅读 · 图与 YAML 随仓库保存<br><span>HAMi 源码版本与 API 依据见各页原文链接</span></footer></main>
+</body>
+</html>

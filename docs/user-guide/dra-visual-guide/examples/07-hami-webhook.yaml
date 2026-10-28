@@ -1,0 +1,20 @@
+# 用户提交：需 HAMi-DRA admission webhook。gpumem 单位为 MiB，10240 MiB = 10 GiB。
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inference-compatible
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+  - name: app
+    image: nvidia/cuda:13.0.1-base-ubi9
+    command:
+    - sh
+    - -c
+    - sleep 3600
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+        nvidia.com/gpucores: 50
+        nvidia.com/gpumem: 10240

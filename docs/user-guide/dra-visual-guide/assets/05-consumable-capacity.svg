@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 540" role="img" aria-labelledby="title desc">
+<title id="title">两个 Claim 分配同一设备的容量</title><desc id="desc">独立 Claim 各自消耗算力和显存，总量仍由 ResourceSlice 发布。</desc>
+<defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.7" fill="#d8e2dc"/></pattern></defs>
+<style>text{font-family:"Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif} .mono{font-family:"DejaVu Sans Mono",monospace}</style>
+<rect width="1160" height="540" rx="20" fill="#fafbf8"/>
+<rect width="1160" height="540" rx="20" fill="url(#grid)"/>
+<g data-kind="claim" data-name="inference-a">
+<rect x="28" y="30" width="530" height="152" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="44" y="48" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="58" y="62" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM</text>
+<text x="50" y="96" font-size="23" font-weight="650" fill="#183341">inference-a</text>
+<text x="50" y="124" font-size="14" font-weight="400" fill="#64757d">count: 1    cores: 30    memory: 12Gi</text>
+<text x="50" y="148" font-size="14" font-weight="400" fill="#64757d">每个 Pod 使用自己的 Claim</text>
+</g>
+<polyline points="293,182 293,228" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="293" cy="228" r="4" fill="#b66b28"/>
+<g data-kind="claim" data-name="inference-b">
+<rect x="602" y="30" width="530" height="152" rx="14" fill="white" stroke="#d9e1df"/>
+<rect x="618" y="48" width="4" height="17" rx="2" fill="#b66b28" stroke="#b66b28"/>
+<text x="632" y="62" font-size="13" font-weight="700" fill="#b66b28">RESOURCE CLAIM</text>
+<text x="624" y="96" font-size="23" font-weight="650" fill="#183341">inference-b</text>
+<text x="624" y="124" font-size="14" font-weight="400" fill="#64757d">count: 1    cores: 30    memory: 12Gi</text>
+<text x="624" y="148" font-size="14" font-weight="400" fill="#64757d">每个 Pod 使用自己的 Claim</text>
+</g>
+<polyline points="867,182 867,228" fill="none" stroke="#b66b28" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="867" cy="228" r="4" fill="#b66b28"/>
+<g data-kind="slice">
+<rect x="28" y="228" width="1104" height="278" rx="14" fill="#eff7f1" stroke="#b5d6c5"/>
+<text x="52" y="267" font-size="24" font-weight="650" fill="#0c7b70">gpu-0  /  node-a</text>
+<text x="624" y="265" font-size="20" font-weight="400" fill="#0c7b70" class="mono">allowMultipleAllocations: true</text>
+<text x="52" y="310" font-size="17" font-weight="600" fill="#183341">算力：60 已分配 / 100 总量</text>
+<rect x="52" y="330" width="1056" height="38" rx="5" fill="#dce9df" stroke="#dce9df"/>
+<rect x="52" y="330" width="316.8" height="38" rx="4" fill="#157f73" stroke="#157f73"/>
+<rect x="368.8" y="330" width="316.8" height="38" rx="4" fill="#bc702e" stroke="#bc702e"/>
+<text x="66" y="356" font-size="16" font-weight="600" fill="white">A · 30</text>
+<text x="382.8" y="356" font-size="16" font-weight="600" fill="white">B · 30</text>
+<text x="699.6" y="356" font-size="16" font-weight="600" fill="#183341">剩余 40</text>
+<text x="52" y="402" font-size="17" font-weight="600" fill="#183341">显存：24Gi 已分配 / 40Gi 总量</text>
+<rect x="52" y="422" width="1056" height="38" rx="5" fill="#dce9df" stroke="#dce9df"/>
+<rect x="52" y="422" width="316.8" height="38" rx="4" fill="#157f73" stroke="#157f73"/>
+<rect x="368.8" y="422" width="316.8" height="38" rx="4" fill="#bc702e" stroke="#bc702e"/>
+<text x="66" y="448" font-size="16" font-weight="600" fill="white">A · 12Gi</text>
+<text x="382.8" y="448" font-size="16" font-weight="600" fill="white">B · 12Gi</text>
+<text x="699.6" y="448" font-size="16" font-weight="600" fill="#183341">剩余 16Gi</text>
+</g>
+</svg>

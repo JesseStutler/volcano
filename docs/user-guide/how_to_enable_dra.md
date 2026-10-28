@@ -4,7 +4,7 @@ This document describes the steps required to enable Dynamic Resource Allocation
 
 For an illustrated introduction to the DRA object relationships, see the
 [DRA visual guide (Chinese)](dra-visual-guide/README.md), including SVG/PNG diagrams,
-an offline HTML viewer, and example YAML manifests.
+an offline multi-page website, example YAML manifests, and HAMi vGPU sharing scenarios.
 
 ## Prerequisites
 Before proceeding with the configuration steps, ensure your cluster meets the following prerequisites:
