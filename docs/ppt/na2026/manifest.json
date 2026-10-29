@@ -1,0 +1,126 @@
+{
+  "deck": "Volcano_KubeCon_NA_2026.pptx",
+  "slides": [
+    {
+      "page": 1,
+      "title": "Volcano for the Agentic AI Era:",
+      "chapter": "01  UNIFIED SCHEDULING",
+      "svg": "svg/cover-background.svg",
+      "png": "png/cover-background.png"
+    },
+    {
+      "page": 2,
+      "title": "Different Workloads, Shared Infrastructure",
+      "chapter": "01  UNIFIED SCHEDULING",
+      "svg": "svg/02-workloads.svg",
+      "png": "png/02-workloads.png"
+    },
+    {
+      "page": 3,
+      "title": "A Coordinated Scheduling Framework",
+      "chapter": "01  UNIFIED SCHEDULING",
+      "svg": "svg/03-unified-framework.svg",
+      "png": "png/03-unified-framework.png"
+    },
+    {
+      "page": 4,
+      "title": "NodeShard: Coordinating Node Access",
+      "chapter": "01  UNIFIED SCHEDULING",
+      "svg": "svg/04-nodeshard-handoff.svg",
+      "png": "png/04-nodeshard-handoff.png"
+    },
+    {
+      "page": 5,
+      "title": "Available Nodes Are Only the Beginning",
+      "chapter": "01  UNIFIED SCHEDULING",
+      "svg": "svg/05-complete-groups.svg",
+      "png": "png/05-complete-groups.png"
+    },
+    {
+      "page": 6,
+      "title": "PodGroup and SubGroup: Complete Replicas",
+      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
+      "svg": "svg/06-podgroup-subgroup.svg",
+      "png": "png/06-podgroup-subgroup.png"
+    },
+    {
+      "page": 7,
+      "title": "HyperNode: Expressing Topology Domains",
+      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
+      "svg": "svg/07-hypernode-hierarchy.svg",
+      "png": "png/07-hypernode-hierarchy.png"
+    },
+    {
+      "page": 8,
+      "title": "Place Groups at Different Topology Levels",
+      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
+      "svg": "svg/08-multilevel-topology.svg",
+      "png": "png/08-multilevel-topology.png"
+    },
+    {
+      "page": 9,
+      "title": "Keep Each Instance Together, Place Instances Apart",
+      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
+      "svg": "svg/09-podgroup-anti-affinity.svg",
+      "png": "png/09-podgroup-anti-affinity.png"
+    },
+    {
+      "page": 10,
+      "title": "Controllers Bring Workload Structure to Scheduling",
+      "chapter": "03  ECOSYSTEM",
+      "svg": "svg/10-ecosystem-matrix.svg",
+      "png": "png/10-ecosystem-matrix.png"
+    },
+    {
+      "page": 11,
+      "title": "KubeRay: A Replica Can Span Multiple Pods",
+      "chapter": "03  ECOSYSTEM",
+      "svg": "svg/11-kuberay-replicas.svg",
+      "png": "png/11-kuberay-replicas.png"
+    },
+    {
+      "page": 12,
+      "title": "Extending the Ecosystem and Placement Model",
+      "chapter": "03  ECOSYSTEM",
+      "svg": "svg/12-ecosystem-next.svg",
+      "png": "png/12-ecosystem-next.png"
+    },
+    {
+      "page": 13,
+      "title": "A Repeatable Scheduling Benchmark Framework",
+      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
+      "svg": "svg/13-benchmark-framework.svg",
+      "png": "png/13-benchmark-framework.png"
+    },
+    {
+      "page": 14,
+      "title": "Benchmark Progress and Ongoing Validation",
+      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
+      "svg": "svg/14-benchmark-progress.svg",
+      "png": "png/14-benchmark-progress.png"
+    },
+    {
+      "page": 15,
+      "title": "From Measurements to Reliable Comparisons",
+      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
+      "svg": "svg/15-benchmark-measurement.svg",
+      "png": "png/15-benchmark-measurement.png"
+    },
+    {
+      "page": 16,
+      "title": "Framework, Workloads, Ecosystem, Evidence",
+      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
+      "svg": "svg/16-takeaways.svg",
+      "png": "png/16-takeaways.png"
+    },
+    {
+      "page": 17,
+      "title": "Questions & Discussion",
+      "chapter": "DISCUSSION",
+      "svg": "svg/17-questions.svg",
+      "png": "png/17-questions.png"
+    }
+  ],
+  "style_reference": "docs/images/volcano-new-architecture.svg",
+  "benchmark": "Framework and ongoing validation; no invented results."
+}
