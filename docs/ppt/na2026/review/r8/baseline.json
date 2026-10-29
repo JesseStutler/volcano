@@ -1,0 +1,10 @@
+{
+  "baseline_commit": "8f1d0bd11307742344a5df8badca73f4be8f9dd7",
+  "baseline_version": "r5",
+  "technical_figure_text_words": {
+    "r5": 947,
+    "r8": 854
+  },
+  "editing_rule": "Keep r5 paragraphs and coordinates. Delete only named peripheral comments; shorten selected captions and sentence-case section labels.",
+  "community_pages": "retained from r6"
+}

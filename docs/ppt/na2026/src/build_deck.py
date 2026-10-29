@@ -18,7 +18,7 @@ ROOT=Path(__file__).resolve().parents[1]; PPT=ROOT.parent; REPO=PPT.parents[1]
 ASSETS=ROOT/'assets'; SVG=ROOT/'svg'; PNG=ROOT/'png'
 REUSE_SVG='--reuse-svg' in sys.argv
 for d in [ASSETS,SVG,PNG]:d.mkdir(exist_ok=True)
-C={'ink':'#222222','muted':'#555555','line':'#656565','light':'#cccccc','pale':'#fafafa','blue':'#176889','prefill':'#e3edf4','decode':'#eeeeee','green':'#5b753e','mint':'#e8eedf','purple':'#555555','lav':'#eeeeee','orange':'#555555','accent':'#e64030','amber':'#555555','sand':'#fafafa','white':'#ffffff'}
+C={'ink':'#17283b','muted':'#414f60','line':'#52677f','light':'#a6b5c6','pale':'#f2f5f9','blue':'#164f89','prefill':'#dce9f8','decode':'#dce5ee','green':'#146653','mint':'#deeee8','purple':'#62448d','lav':'#eae3f3','orange':'#c14421','amber':'#8b621c','sand':'#fff5e2','white':'#ffffff'}
 FONT='/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
 BOLD='/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'
 MONO='/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf'
@@ -135,9 +135,9 @@ def rawtext(a,x,y,t,size=26,c='ink',bold=False,mono=False):
  a.front.append(f'<text x="{x}" y="{y}" xml:space="preserve" font-family="{"Liberation Mono" if mono else "Liberation Sans"}" font-size="{size}" font-weight="{700 if bold else 400}" fill="{col(c)}">{escape(t)}</text>')
 
 def code(a,x,y,w,h,label,body,size=25,highlights=(),filename=None):
- a.rect(x,y,w,h,'#fafafa','light',1)
+ a.rect(x,y,w,h,'#f5f7fa','line',3)
  a.rect(x,y,w,47,'white',None,0)
- a.path([(x,y+47),(x+w,y+47)],False,'light')
+ a.path([(x,y+47),(x+w,y+47)],False,'blue')
  a.text(x+20,y+32,label,21,'blue',True,width=w-40)
  lh=size*1.19
  for i,line in enumerate(body.strip('\n').splitlines()):
@@ -145,8 +145,8 @@ def code(a,x,y,w,h,label,body,size=25,highlights=(),filename=None):
   if ImageFont.truetype(MONO,size*2).getlength(line)/2>w-36:raise ValueError(f'Code line too wide: {a.name}: {line}')
   if yy>y+h-7:raise ValueError(f'Code overflows {a.name}: {label}')
   if any(k in line for k in highlights):
-   a.rect(x+3,yy-size+2,w-6,lh,'#ececec',None,0)
-   a.rect(x+3,yy-size+2,3,lh,'ink',None,0)
+   a.rect(x+3,yy-size+2,w-6,lh,'#dce9f8',None,0)
+   a.rect(x+3,yy-size+2,5,lh,'blue',None,0)
   rawtext(a,x+20,yy,line,size,'blue' if any(k in line for k in highlights) else 'ink',False,True)
  if filename:
   examples[filename]=body.strip()+'\n';(ROOT/'examples'/filename).write_text(body.strip()+'\n')
@@ -165,7 +165,7 @@ def note(a,x,y,num,head,body,w=400):
  a.text(x+45,y+43,body,25,'muted',width=w-45)
 
 # Four divider slides are composed with native PowerPoint text below.
-dividers={3:(1,'Unified scheduling','Different paths. Shared infrastructure.','How do schedulers coordinate node access?'),7:(2,'Multi-level gang\n& network topology','From available nodes to runnable workloads.','What must run together, and where should it fit?'),12:(3,'Ecosystem','Workload controllers carry scheduling intent.','How do roles and replicas reach the scheduler?'),17:(4,'Benchmark','Measure behavior across workload shapes.','What can we reproduce, compare, and improve?')}
+dividers={3:(1,'Unified scheduling','Different paths. Shared infrastructure.','How do schedulers coordinate node access?'),7:(2,'Multi-level gang\n& network topology','From available nodes to runnable workloads.','What must run together, and where should it fit?'),12:(3,'Ecosystem','Workload controllers carry scheduling intent.','How do roles and replicas reach the scheduler?'),17:(4,'Benchmark\nframework & progress','Measure behavior across workload shapes.','What can we reproduce, compare, and improve?')}
 
 # 04: composition in approved_revision.py.
 a=art(4,'workload-demands','Different Workloads, Shared Infrastructure','Training, inference, and agent applications put different demands on the same cluster.',1,2)
@@ -223,7 +223,7 @@ a.text(0,553,'The same hierarchy is available through the standalone HyperNode c
 
 # 10: reuse the actual network drawing, with the two topology levels in YAML.
 a=art(10,'multilevel-placement','Place Groups at Different Topology Levels','An eight-Pod instance spans a larger domain; Prefill and Decode use different locality constraints.',2,8,'EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.')
-original(a,'china-17-multilevel-topology.png',0,0,900,500)
+original(a,'china-17-multilevel-topology.png',0,25,900,510)
 code(a,940,0,540,531,'PodGroup.spec · key fields','''minMember: 8
 networkTopology:
   mode: hard
@@ -288,8 +288,12 @@ from polish_figures import polish
 polish(arts, art, code, rawtext, C, ASSETS)
 from approved_revision import revise
 revise(arts, art, code, rawtext, original, C, ASSETS)
-from simplify_deck import simplify
-removed_notes=simplify(arts, art, titles, C, ASSETS)
+from light_edit import light_edit
+removed_notes=light_edit(arts)
+subtitles={n:re.sub(r";\s+([A-Za-z])",lambda m:". "+m.group(1).upper(),s) for n,s in subtitles.items()}
+from community_slides import add_community_slides
+add_community_slides(arts, art, titles, ASSETS)
+subtitles[22]=""
 order=[1,2,3,4,5,6,7,8,9,10,11,16,12,14,15,23,13,17,18,19,20,21,24,22]
 page_for={source_id:page for page,source_id in enumerate(order,1)}
 for n,a in arts.items():
@@ -323,27 +327,31 @@ for page,n in enumerate(order,1):
  if n==1:
   titles[n]='Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents'
   ptext(sl,.62,1.35,11.55,1.52,'Volcano for the\nAgentic AI Era:',43,True)
-  ptext(sl,.66,3.10,10.80,1.30,'Unified Scheduling Across Training,\nInference, and Agents',31,False,'ink')
+  ptext(sl,.66,3.10,10.80,1.30,'Unified Scheduling Across Training,\nInference, and Agents',31,False,'blue')
   ptext(sl,.68,5.02,11.6,.45,'Ricardo Aravena  ·  Rainie Li',25,True)
   ptext(sl,.68,5.69,11.8,.65,'KubeCon + CloudNativeCon North America 2026\nSalt Lake City · November 9–12',18,False,'muted')
   notes='0:20。标题保持不变。Agentic AI 作为基础设施背景，不把每次 agent 调用等同于一个 Pod。讲者姓名以用户指示为准。'
  elif n==2:
   titles[n]='Speakers'
   ptext(sl,.50,.95,12,.65,'Speakers',33,True)
-  for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)','nunchux.ai · CNCF TOC'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Apache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
+  for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)\nCloud native and AI infrastructure','nunchux.ai · CNCF TOC'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
    sl.shapes.add_picture(str(ASSETS/photo),Inches(x),Inches(2.00),width=Inches(1.75),height=Inches(1.75))
    ptext(sl,x,4.02,5.4,.5,person,30,True)
-   ptext(sl,x,4.68,5.3,.43,role,22,False,'ink')
+   ptext(sl,x,4.68,5.3,.43,role,22,False,'blue')
    ptext(sl,x,5.27,5.3,.85,detail,20,False,'muted')
+   ptext(sl,x,6.35,5.3,.30,link,15,False,'blue')
   notes='0:40。Ricardo：NA 2026 官方会议资料列为 Nunchux AI 的 AI Infrastructure Lead；CNCF TOC 页面列为 TOC Alternate (GB)，不是 Governing Board 成员，不写 Founder 或 CEO。2026-10-29 核查。照片来自 Linux Foundation 公开讲者页。\nhttps://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/program/schedule/?id=1289640\nhttps://www.cncf.io/people/technical-oversight-committee/\nhttps://events.linuxfoundation.org/archive/2026/open-source-summit-north-america/program/program-committee/\nhttps://events.linuxfoundation.org/spinnaker-live/program/featured-speakers/\nhttps://yunikorn.apache.org/community/people/\nhttps://www.linkedin.com/in/rainie-li-71b2b146'
  elif n in dividers:
   c,title,bridge,question=dividers[n];titles[n]=title.replace('\n',' ');chapters[n]=c
-  ptext(sl,.65,1.55,2,.70,f'{c:02d}',32,False,'accent')
-  ptext(sl,.65,2.55,11.8,2.0,title,44,True)
+  ptext(sl,.65,1.42,2,.70,f'{c:02d}',38,True,'blue')
+  ptext(sl,.65,2.28,8.6,1.65,title,41,True)
+  ptext(sl,.68,4.42,10.9,.60,bridge,24,False,'blue')
+  for i,t in enumerate(agenda,1):ptext(sl,9.30,1.7+(i-1)*.76,3.45,.68,f'{i:02d}  {t}',15,i==c,'blue' if i==c else 'muted')
   notes={3:'0:10。从统一调度框架切入，后面落到工作负载、生态和验证。',7:'0:15。转场：拿到可用节点之后，还要保留完整副本以及它们的通信局部性。',12:'0:10。转场：这些分组和拓扑语义，最终要由用户真正使用的 controller 传进来。',17:'0:10。转场：接入的控制器和约束越多，就越需要可重复的 benchmark。'}[n]
  else:
-  ptext(sl,.50,.82,12.30,.70,titles[n],33 if len(titles[n])<52 else 30,True)
-  sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(1.85),width=Inches(12.333333),height=Inches(4.666667))
+  ptext(sl,.50,.88,12.30,.70,titles[n],31 if len(titles[n])<52 else 28.5,True)
+  ptext(sl,.52,1.57,12.25,.47,subtitles[n],17,False,'muted')
+  sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.12),width=Inches(12.333333),height=Inches(4.666667))
   talks={
    4:'1:20。训练图展示两个 PP stage，每个 stage 两个 TP ranks，需要完整子组及通信局部性。推理展示 P/D 分离，不同角色及副本的 gang 与 topology 约束。Agent 路径先命中预热池并复用 ready runtime；池子耗尽时由 runtime/pool controller 请求容量，经快速 Pod 调度补池。请求突发图是需求示意，没有测量值。池管理不是 Volcano 自带能力，也不是每次调用创建 Pod。',
    5:'1:30。复用 China 架构图，从左右两条路径讲到中间 NodeShard。worker/Binder 的冲突检查是局部机制；不宣称并行一定带来性能提升。',
@@ -361,13 +369,12 @@ for page,n in enumerate(order,1):
    20:'1:20。选择代表性场景，寻找每种 scheduler 的适用边界，不只找有利 Volcano 的配置。第一类改变 arrival rate、预留容量，观察突发的尾延迟和积压恢复；只测试 pool 容量请求的调度，不用 KWOK 宣称完整 agent runtime 延迟。第二类改变 SubGroup 大小和可用资源碎片，观察完整 gangs 和 binding throughput。第三类组合 topology tier limits、可用域、gang/anti-affinity，检查 placement correctness 与完成延迟。KWOK 可以验证调度行为；NCCL/KV 带宽及实际模型吞吐需要真实硬件另测。本页是 ongoing/planned test matrix，没有 benchmark 数字。',
    21:'1:00。收尾强调下一步：SubGroup affinity/anti-affinity 的语义与实现；RBG/Kubeflow/LWS multi-group 的社区工作；多调度器横向对照、代表性场景及 topology-aware gang 测试。',
    23:'0:50。根据 Grove main 的实际 Volcano backend：一个 PodGang 生成一个 Volcano PodGroup；PodGang.spec.podGroups 中每一项生成 SubGroup policy，name 和 PodClique label 选中组，subGroupSize=max(minReplicas,1)，minSubGroups=1。图示两个组分别 2 和 4 Pods，总 minMember=6。当前 main 明确拒绝 PodCliqueSet / PodClique / PodCliqueScalingGroup 上的 topologyConstraint。区分已合入的 adapter 与发布版本支持；不要只依据 #516 初始 PR 描述判断后续 main。\nhttps://github.com/NVIDIA/grove/blob/main/operator/internal/scheduler/volcano/backend.go',
-   24:'0:20。复用 China 2026 第 25 页的 32 个社区用户 logo，保持来源，不把用户称为商业伙伴，也不沿用未经本轮核实的 60+ 数字。',
+   24:'0:20。复用 China 第 25 页的 32 个社区用户 logo，保留素材来源，不新增商业伙伴关系或用户数量声明。',
    22:'5:00。问答。优先收集工作负载如何分组、需要哪些拓扑关系，以及可重复的测试场景。'
   }
   notes=talks[n]
-  if subtitles.get(n):notes+='\n讲解提示：'+subtitles[n]
-  if removed_notes.get(n):notes+='\n移入备注的解释：\n'+'\n'.join(removed_notes[n])
-  if n==22:notes+='\n复用 China 第 25 页二维码。已解码：Website https://volcano.sh；GitHub https://github.com/volcano-sh/volcano；Slack https://cloud-native.slack.com/archives/C011GJDQS0N。Slack 需要对应工作区账号。'
+  if removed_notes.get(n):notes+='\n移入备注的外围说明：\n'+'\n'.join(removed_notes[n])
+  if n==22:notes+='\n二维码复用 China 第 25 页，分别指向 https://volcano.sh、https://github.com/volcano-sh/volcano、https://cloud-native.slack.com/archives/C011GJDQS0N。'
   if n in oldnotes:
    links=references.get(str(oldnotes[n]),[])
    notes+='\n\n技术来源：\n'+'\n'.join(links)
@@ -379,12 +386,12 @@ for page,n in enumerate(order,1):
   if n==16:notes+='\n本页为未来方向，不能当作已交付 API。示意同一 PodGroup 内将协作组放近、将副本分开；具体 selector 与亲和关系设计仍需社区讨论。'
   if n==20:notes+='\n口径：scheduledAt−createdAt；binding throughput 为成功 bindings / 首尾成功 bind 时间差。对照时保留原始事件、重复次数与环境配置。命令与完整指标定义见 benchmark/README.md。'
   notes+='\nVisual: na2026/svg/'+arts[n].name+'.svg。PNG 固定几何；复用的旧图原本为位图，新增 YAML 和注释为 SVG 文本。'
- ptext(sl,.52,7.13,11.5,.22,'KubeCon + CloudNativeCon North America 2026',9,False,'muted')
- ptext(sl,12.05,7.09,.75,.28,str(page),11,False,'muted',PP_ALIGN.RIGHT)
+ ptext(sl,.52,7.13,11.5,.22,'Volcano  |  KubeCon + CloudNativeCon North America 2026',9,False,'muted')
+ ptext(sl,12.05,7.09,.75,.28,f'{page:02d} / {len(order)}',11,False,'muted',PP_ALIGN.RIGHT)
  sl.notes_slide.notes_text_frame.text=notes
  manifest.append({'page':page,'source_id':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'previous_draft_notes_page':oldnotes.get(n)})
 prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026 — revised technical presentation'
 prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print(f'{len(order)} slides; r7 diagram explanations; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; r8 light edit of r5; eight YAML excerpts and chapter dividers.')

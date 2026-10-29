@@ -31,7 +31,7 @@
     {
       "page": 4,
       "source_id": 4,
-      "title": "Different workloads, shared infrastructure",
+      "title": "Different Workloads, Shared Infrastructure",
       "chapter": 1,
       "svg": "svg/04-workload-demands.svg",
       "source": "",
@@ -40,7 +40,7 @@
     {
       "page": 5,
       "source_id": 5,
-      "title": "Unified scheduling",
+      "title": "A Coordinated Scheduling Framework",
       "chapter": 1,
       "svg": "svg/05-unified-architecture.svg",
       "source": "China 2026 slide 7; same architecture family as EU 2026.",
@@ -49,7 +49,7 @@
     {
       "page": 6,
       "source_id": 6,
-      "title": "NodeShard coordination",
+      "title": "NodeShard: Desired Nodes and Current Use",
       "chapter": 1,
       "svg": "svg/06-nodeshard.svg",
       "source": "China 2026 slide 9; docs/design/agent-scheduler.md; shard API types.",
@@ -67,7 +67,7 @@
     {
       "page": 8,
       "source_id": 8,
-      "title": "PodGroup and SubGroup",
+      "title": "PodGroup and SubGroup: Preserve Workload Structure",
       "chapter": 2,
       "svg": "svg/08-group-structure.svg",
       "source": "China 2026 slide 14. Figure reused unchanged.",
@@ -76,7 +76,7 @@
     {
       "page": 9,
       "source_id": 9,
-      "title": "HyperNode",
+      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
       "chapter": 2,
       "svg": "svg/09-hypernode-api.svg",
       "source": "China 2026 slide 16 (physical fabric); benchmark/scripts/create-hypernodes.sh.",
@@ -85,7 +85,7 @@
     {
       "page": 10,
       "source_id": 10,
-      "title": "Place groups at different topology levels",
+      "title": "Place Groups at Different Topology Levels",
       "chapter": 2,
       "svg": "svg/10-multilevel-placement.svg",
       "source": "EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.",
@@ -94,7 +94,7 @@
     {
       "page": 11,
       "source_id": 11,
-      "title": "PodGroup anti-affinity",
+      "title": "Keep Each Instance Together, Place Instances Apart",
       "chapter": 2,
       "svg": "svg/11-instance-isolation.svg",
       "source": "docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.",
@@ -103,7 +103,7 @@
     {
       "page": 12,
       "source_id": 16,
-      "title": "SubGroup affinity and anti-affinity",
+      "title": "Next: Relationships Between SubGroups",
       "chapter": 2,
       "svg": "svg/12-subgroup-next.svg",
       "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
@@ -121,7 +121,7 @@
     {
       "page": 14,
       "source_id": 14,
-      "title": "Kthena",
+      "title": "Kthena: From Serving Roles to Scheduling Groups",
       "chapter": 3,
       "svg": "svg/14-kthena-mapping.svg",
       "source": "China 2026 slide 22; Kthena ModelServing gang scheduling guide.",
@@ -130,7 +130,7 @@
     {
       "page": 15,
       "source_id": 15,
-      "title": "KubeRay",
+      "title": "KubeRay: A Replica Can Span Multiple Pods",
       "chapter": 3,
       "svg": "svg/15-ray-replicas.svg",
       "source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.",
@@ -139,7 +139,7 @@
     {
       "page": 16,
       "source_id": 23,
-      "title": "Grove",
+      "title": "Grove: Carry PodGang Structure into Volcano",
       "chapter": 3,
       "svg": "svg/16-grove-mapping.svg",
       "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected.",
@@ -148,7 +148,7 @@
     {
       "page": 17,
       "source_id": 13,
-      "title": "Next integrations",
+      "title": "Next: RBG, Kubeflow, and LWS",
       "chapter": 3,
       "svg": "svg/17-ecosystem.svg",
       "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
@@ -157,7 +157,7 @@
     {
       "page": 18,
       "source_id": 17,
-      "title": "Benchmark",
+      "title": "Benchmark framework & progress",
       "chapter": 4,
       "svg": null,
       "source": "Native PowerPoint text",
@@ -166,7 +166,7 @@
     {
       "page": 19,
       "source_id": 18,
-      "title": "Benchmark framework",
+      "title": "A Repeatable Scheduling Benchmark Framework",
       "chapter": 4,
       "svg": "svg/19-benchmark-architecture.svg",
       "source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.",
@@ -175,7 +175,7 @@
     {
       "page": 20,
       "source_id": 19,
-      "title": "Comparing schedulers",
+      "title": "Compare Schedulers on the Same Workload",
       "chapter": 4,
       "svg": "svg/20-benchmark-progress.svg",
       "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
@@ -184,7 +184,7 @@
     {
       "page": 21,
       "source_id": 20,
-      "title": "Benchmark scenarios",
+      "title": "Which Scenarios Fit Which Scheduler?",
       "chapter": 4,
       "svg": "svg/21-benchmark-measurement.svg",
       "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
@@ -193,7 +193,7 @@
     {
       "page": 22,
       "source_id": 21,
-      "title": "What’s next",
+      "title": "What We Will Work On Next",
       "chapter": 4,
       "svg": "svg/22-takeaways.svg",
       "source": "",

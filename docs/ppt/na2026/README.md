@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-24 页，当前为 r7。沿用 r6 的配色和版式，补回图旁的一两句解释。[重点页预览](review/r7/README.md)。
+24 页，当前为 r8。直接以 r5 为底稿轻量删减，保留正文解释和原版式。[与 r5 对照](review/r8/README.md)。
 
 ## 这次实际复用的图
 
@@ -27,8 +27,9 @@
 - `src/build_deck.py`：配色、YAML、存量图版面和 PPT 生成。
 - `src/polish_figures.py`：KubeRay、benchmark 框架与收尾页。
 - `src/approved_revision.py`：workload、共享拓扑、Grove、社区计划和横向测试图。
-- `src/simplify_deck.py`：文字精简、标题调整、社区用户页和二维码页。
-- `src/diagram_context.py`：r7 的图旁解释。
+- `src/light_edit.py`：按明确清单删除 r5 的外围评论，保留解释段落和位置。
+- `src/community_slides.py`：沿用社区用户 logo 和二维码页。
+- `src/simplify_deck.py`、`src/diagram_context.py`：历史 r6/r7 处理，不参与当前生成。
 - `integration-status.json`：本轮核查的生态状态及固定版本来源。
 - `src/render_preview.py`：生成 PDF 缩略图。
 - `src/validate_deck.py`：检查文字边界、连线避让、箭头几何、YAML 及 PPT 页数 / 备注。
