@@ -1,62 +1,42 @@
-# Volcano KubeCon NA 2026：演讲草稿
+# Volcano KubeCon NA 2026：演讲大纲
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-2026-10-29 更新。标题与摘要保持不变，正文 25 分钟，问答 5 分钟。对应 [正式视觉版 PPT](Volcano_KubeCon_NA_2026.pptx)；[带制作提示的草稿](Volcano_KubeCon_NA_2026_draft.pptx)保留供对照。
+Ricardo Aravena · Rainie Li。约 24–25 分钟正文，5 分钟问答。[PPT](Volcano_KubeCon_NA_2026.pptx) · [PDF](Volcano_KubeCon_NA_2026.pdf)
 
-## 四部分主线
-
-1. **统一调度**：复用双路径与 NodeShard 材料，讲不同调度路径如何协调使用集群。
-2. **多级 Gang 与网络拓扑**：从 PodGroup / SubGroup 的完整副本，讲到组内放置和组间分离。
-3. **Ecosystem**：哪些社区已经采用、采用到什么程度，哪些集成还在扩展。
-4. **Benchmark 框架与进展**：怎么测、已有基础、正在验证的结果，以及还需要继续做的测试。
-
-连接这四部分的逻辑是：框架协调资源，工作负载表达需求，生态控制器传递这些需求，benchmark 验证调度表现。后续方向放在各部分结尾，不再单列一章 roadmap。
-
-两个转场：
-
-> 有了可用节点，还不等于工作负载能够运行。接下来要解决完整副本和拓扑放置。
-
-> 接入的 workload 和 controller 越多，就越需要可重复的测试，弄清规模、延迟和调度开销如何变化。
+主线不变：先讲不同调度路径如何协调资源，再讲完整分组与拓扑放置，接着看生态控制器如何传递这些需求，最后用 benchmark 验证调度表现。Agentic AI 是背景，不把每次 agent 调用都等同于创建 Pod，也不预设双路径一定更快。
 
 ## 逐页安排
 
-| 页 | 内容 | 时间 | 素材 |
-|---|---|---:|---|
-| **第一章** | **统一调度** | **6:00** | |
-| 1 | 原标题与讲者，交代四部分内容 | 0:30 | 封面 |
-| 2 | Different Workloads, Shared Infrastructure：Agent 应用、推理与训练的基础设施需求 | 1:00 | 生命周期图精简 |
-| 3 | A Coordinated Scheduling Framework：双路径，简述 worker / Binder | 1:30 | China 7–8 / EU 9 |
-| 4 | NodeShard: Coordinating Node Access：节点候选范围如何协调 | 2:00 | China 9 / EU 10–11 |
-| 5 | Available Nodes Are Only the Beginning：从资源范围转到工作负载需求 | 1:00 | 转场图 |
-| **第二章** | **Multi-Level Gang + Network Topology** | **8:30** | |
-| 6 | PodGroup / SubGroup：用 Kthena P/D 案例解释完整副本 | 2:30 | China 14、22 |
-| 7 | HyperNode：拓扑域、层级与约束 | 2:00 | China 16 |
-| 8 | Multi-Level Placement：实例位于较大域，副本位于较小域 | 2:00 | China 17 |
-| 9 | PodGroup Anti-Affinity：组内聚拢、实例间分离；顺带讲 required / preferred | 2:00 | China 15，更新状态 |
-| **第三章** | **Ecosystem** | **4:30** | |
-| 10 | 能力表：Kthena、KubeRay、Grove 已有接入与推进中的部分 | 2:00 | 新增能力表 |
-| 11 | KubeRay：两个完整的双 Pod 副本，不等于任意四个 Pods | 1:00 | 具体案例 |
-| 12 | 扩展方向：standalone HyperNode 已交付；Kubeflow / LWS 深化；SubGroup 关系提案 | 1:30 | 合并原 roadmap 页 |
-| **第四章** | **Benchmark Framework & Progress** | **6:00** | |
-| 13 | 框架：环境 → workload profiles → audit / metrics → reports | 1:30 | 仓库 benchmark/ |
-| 14 | 进展：已有场景与指标采集；仍在推进的测试和优化验证 | 1:30 | 已有能力 / 测试中两栏 |
-| 15 | 测量口径与比较方法；选定代表性结果后可原位替换 | 1:30 | 正式版已移除结果占位 |
-| 16 | 回顾四部分，邀请贡献 workload profile、测试反馈和生态集成 | 1:30 | 收尾 |
-| 17 | Q&A | 5:00 | |
+| 页 | 内容 | 讲法 / 素材 |
+|---|---|---|
+| 1 | 封面 | 原标题，两位讲者 |
+| 2 | Speaker profiles | 照片与简短介绍，正式职务可再调整 |
+| 3 | 第一章：统一调度 | 不同路径如何共享集群 |
+| 4 | Workload demands | 训练、推理、agent 应用的需求 |
+| 5 | Unified architecture | 沿用 China 架构图，讲双路径与协同 |
+| 6 | NodeShard | 沿用控制器图，对照 desired / in-use YAML |
+| 7 | 第二章：多级 Gang 与网络拓扑 | 有节点，还要有完整副本和局部性 |
+| 8 | PodGroup / SubGroup | 沿用训练与 serving 分组图 |
+| 9 | HyperNode | 物理网络与父、叶节点 YAML 对照 |
+| 10 | 多级拓扑放置 | 沿用 EU / China 网络图，对照不同层级约束 |
+| 11 | PodGroup anti-affinity | 实例内聚拢，实例间分离；展示关键 YAML |
+| 12 | 第三章：Ecosystem | 控制器怎样传递角色与副本身份 |
+| 13 | 接入关系 | Kthena、KubeRay、Grove、Kubeflow、LWS；区分已有与推进中 |
+| 14 | Kthena | 沿用 China 映射图与 gangPolicy / roles YAML |
+| 15 | KubeRay | 两个完整的双 Pod 副本；replica label 对照 SubGroup policy |
+| 16 | 后续分组关系 | 同一 PodGroup 内的 SubGroup affinity / anti-affinity，标为 Proposed |
+| 17 | 第四章：Benchmark | 更多 workload，需要可重复的比较 |
+| 18 | 框架 | 场景输入、API 与调度器、audit / metrics、报告 |
+| 19 | 进展与验证 | 已有入口和采集能力；继续扩展场景、比较优化、重复测试 |
+| 20 | 测量口径 | 延迟分布、吞吐窗口与对照条件；后续可换成一项实际结果 |
+| 21 | 收尾 | 回扣四部分，邀请集成与测试反馈 |
+| 22 | Q&A | 5 分钟 |
 
-## Benchmark 这一章怎么讲
+## 准备重点
 
-仓库已有 Kind/KWOK 与已有集群入口、Gang / Pod 场景、拓扑配置、audit-exporter、Prometheus/Grafana 和报告收集。这些是框架进展，可以先讲清楚，不必等到所有性能测试完成。
+前三章以旧图复用和 API 对照为主，避免引入新故事。PodGroup anti-affinity 是当前能力，SubGroup 关系是后续方向；生态接入深度不同，不能把 gang 接入等同于完整 topology 支持。
 
-结果页只选一个有上下文的例子：一条曲线、一项优化前后对比，或一个 profiling 发现。注明版本、环境、规模、指标口径和重复次数；尚未稳定的结果标为 **Under validation**。具体展示哪项结果仍待选定；正式视觉版先讲测量口径和比较方法，不填猜测数字。
+Benchmark 先讲已有框架与正在推进的测试。结果只选一个有版本、环境、规模和重复次数的例子；尚未选定前保留测量口径页，不填猜测数字。KWOK 说明调度行为，不证明 GPU 或模型吞吐。
 
-KWOK 结果用于说明调度行为与开销，不证明真实 GPU 通信或模型吞吐。benchmark 也不必承担“证明双路径一定更快”的任务；可以坦诚讲已经测到了什么、接下来还在验证什么。
-
-## 制作与准备
-
-正式视觉版使用 Volcano 水印、白底和蓝灰图形，制作提示已移入讲者备注。图以 SVG 保存、PNG 嵌入，便于后续调整并保持箭头固定；Proposed 表示未来能力。拿到官方模板后再套版。
-
-先把前三章的旧图与新增生态状态整理好，同时选定 benchmark 的代表性案例。只沿用正在推进的测试，不为凑一页结果另起大规模实验。最后留两次计时排练，核对版本和 PR 状态。
-
-生态状态沿用 2026-10-28 的核查，演讲前再确认。详细来源见[研究记录](Volcano_KubeCon_NA_2026_group_topology_outline.zh-CN.md)；benchmark 依据见[框架文档](https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md)与[指标收集脚本](https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/collect-report.sh)。
+当前保留 Volcano 背景，拿到官方模板后再套版。旧图本身是 PNG，直接复用；新增图、YAML 和注释保存 SVG，再导出固定 PNG。讲者介绍依据公开资料，待讲者偏好补充。最后留两次计时排练，并复核生态 PR 状态。

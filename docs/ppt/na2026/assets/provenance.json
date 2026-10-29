@@ -1,0 +1,72 @@
+[
+  {
+    "file": "assets/reused/china-07-unified-architecture.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx",
+    "slide": 7,
+    "format": "Original embedded PNG; not a newly drawn vector",
+    "size": [
+      3129,
+      2166
+    ]
+  },
+  {
+    "file": "assets/reused/china-09-dynamic-node-sharding.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx",
+    "slide": 9,
+    "format": "Original embedded PNG; not a newly drawn vector",
+    "size": [
+      1078,
+      1203
+    ]
+  },
+  {
+    "file": "assets/reused/china-14-podgroup-subgroup.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx",
+    "slide": 14,
+    "format": "Original embedded PNG; not a newly drawn vector",
+    "size": [
+      1920,
+      880
+    ]
+  },
+  {
+    "file": "assets/reused/china-16-hypernode.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx",
+    "slide": 16,
+    "format": "Original embedded PNG; not a newly drawn vector",
+    "size": [
+      1624,
+      572
+    ]
+  },
+  {
+    "file": "assets/reused/china-17-multilevel-topology.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx",
+    "slide": 17,
+    "format": "Original embedded PNG; not a newly drawn vector",
+    "size": [
+      2500,
+      1506
+    ]
+  },
+  {
+    "file": "assets/reused/china-22-kthena-gang.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx",
+    "slide": 22,
+    "format": "Original embedded PNG; not a newly drawn vector",
+    "size": [
+      1920,
+      1080
+    ]
+  },
+  {
+    "file": "assets/ricardo.jpeg",
+    "source": "https://events.linuxfoundation.org/wp-content/uploads/2020/03/Ricardo-Aravena-310x310.jpeg",
+    "format": "Public conference headshot"
+  },
+  {
+    "file": "assets/rainie.jpeg",
+    "source": "https://events.linuxfoundation.org/wp-content/uploads/2020/05/Rainie-Li-310x310.jpeg",
+    "format": "Public conference headshot"
+  }
+]

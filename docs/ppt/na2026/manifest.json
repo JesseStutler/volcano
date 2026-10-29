@@ -3,124 +3,181 @@
   "slides": [
     {
       "page": 1,
-      "title": "Volcano for the Agentic AI Era:",
-      "chapter": "01  UNIFIED SCHEDULING",
-      "svg": "svg/cover-background.svg",
-      "png": "png/cover-background.png"
+      "title": "Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents",
+      "chapter": 0,
+      "svg": null,
+      "source": "Native PowerPoint text",
+      "previous_draft_notes_page": null
     },
     {
       "page": 2,
-      "title": "Different Workloads, Shared Infrastructure",
-      "chapter": "01  UNIFIED SCHEDULING",
-      "svg": "svg/02-workloads.svg",
-      "png": "png/02-workloads.png"
+      "title": "Speakers",
+      "chapter": 0,
+      "svg": null,
+      "source": "Native PowerPoint text",
+      "previous_draft_notes_page": null
     },
     {
       "page": 3,
-      "title": "A Coordinated Scheduling Framework",
-      "chapter": "01  UNIFIED SCHEDULING",
-      "svg": "svg/03-unified-framework.svg",
-      "png": "png/03-unified-framework.png"
+      "title": "Unified scheduling",
+      "chapter": 1,
+      "svg": null,
+      "source": "Native PowerPoint text",
+      "previous_draft_notes_page": null
     },
     {
       "page": 4,
-      "title": "NodeShard: Coordinating Node Access",
-      "chapter": "01  UNIFIED SCHEDULING",
-      "svg": "svg/04-nodeshard-handoff.svg",
-      "png": "png/04-nodeshard-handoff.png"
+      "title": "Different Workloads, Shared Infrastructure",
+      "chapter": 1,
+      "svg": "svg/04-workload-demands.svg",
+      "source": "",
+      "previous_draft_notes_page": 2
     },
     {
       "page": 5,
-      "title": "Available Nodes Are Only the Beginning",
-      "chapter": "01  UNIFIED SCHEDULING",
-      "svg": "svg/05-complete-groups.svg",
-      "png": "png/05-complete-groups.png"
+      "title": "A Coordinated Scheduling Framework",
+      "chapter": 1,
+      "svg": "svg/05-unified-architecture.svg",
+      "source": "China 2026 slide 7; same architecture family as EU 2026.",
+      "previous_draft_notes_page": 3
     },
     {
       "page": 6,
-      "title": "PodGroup and SubGroup: Complete Replicas",
-      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
-      "svg": "svg/06-podgroup-subgroup.svg",
-      "png": "png/06-podgroup-subgroup.png"
+      "title": "NodeShard: Desired Nodes and Current Use",
+      "chapter": 1,
+      "svg": "svg/06-nodeshard.svg",
+      "source": "China 2026 slide 9; docs/design/agent-scheduler.md; shard API types.",
+      "previous_draft_notes_page": 4
     },
     {
       "page": 7,
-      "title": "HyperNode: Expressing Topology Domains",
-      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
-      "svg": "svg/07-hypernode-hierarchy.svg",
-      "png": "png/07-hypernode-hierarchy.png"
+      "title": "Multi-level gang & network topology",
+      "chapter": 2,
+      "svg": null,
+      "source": "Native PowerPoint text",
+      "previous_draft_notes_page": null
     },
     {
       "page": 8,
-      "title": "Place Groups at Different Topology Levels",
-      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
-      "svg": "svg/08-multilevel-topology.svg",
-      "png": "png/08-multilevel-topology.png"
+      "title": "PodGroup and SubGroup: Preserve Workload Structure",
+      "chapter": 2,
+      "svg": "svg/08-group-structure.svg",
+      "source": "China 2026 slide 14. Figure reused unchanged.",
+      "previous_draft_notes_page": 6
     },
     {
       "page": 9,
-      "title": "Keep Each Instance Together, Place Instances Apart",
-      "chapter": "02  MULTI-LEVEL GANG & NETWORK TOPOLOGY",
-      "svg": "svg/09-podgroup-anti-affinity.svg",
-      "png": "png/09-podgroup-anti-affinity.png"
+      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
+      "chapter": 2,
+      "svg": "svg/09-hypernode-api.svg",
+      "source": "China 2026 slide 16 (physical fabric); benchmark/scripts/create-hypernodes.sh.",
+      "previous_draft_notes_page": 7
     },
     {
       "page": 10,
-      "title": "Controllers Bring Workload Structure to Scheduling",
-      "chapter": "03  ECOSYSTEM",
-      "svg": "svg/10-ecosystem-matrix.svg",
-      "png": "png/10-ecosystem-matrix.png"
+      "title": "Place Groups at Different Topology Levels",
+      "chapter": 2,
+      "svg": "svg/10-multilevel-placement.svg",
+      "source": "EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.",
+      "previous_draft_notes_page": 8
     },
     {
       "page": 11,
-      "title": "KubeRay: A Replica Can Span Multiple Pods",
-      "chapter": "03  ECOSYSTEM",
-      "svg": "svg/11-kuberay-replicas.svg",
-      "png": "png/11-kuberay-replicas.png"
+      "title": "Keep Each Instance Together, Place Instances Apart",
+      "chapter": 2,
+      "svg": "svg/11-instance-isolation.svg",
+      "source": "docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.",
+      "previous_draft_notes_page": 9
     },
     {
       "page": 12,
-      "title": "Extending the Ecosystem and Placement Model",
-      "chapter": "03  ECOSYSTEM",
-      "svg": "svg/12-ecosystem-next.svg",
-      "png": "png/12-ecosystem-next.png"
+      "title": "Ecosystem",
+      "chapter": 3,
+      "svg": null,
+      "source": "Native PowerPoint text",
+      "previous_draft_notes_page": null
     },
     {
       "page": 13,
-      "title": "A Repeatable Scheduling Benchmark Framework",
-      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
-      "svg": "svg/13-benchmark-framework.svg",
-      "png": "png/13-benchmark-framework.png"
+      "title": "Controllers Bring Workload Structure to Scheduling",
+      "chapter": 3,
+      "svg": "svg/13-ecosystem.svg",
+      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; Kubeflow Trainer Volcano plugin; LWS #498.",
+      "previous_draft_notes_page": 10
     },
     {
       "page": 14,
-      "title": "Benchmark Progress and Ongoing Validation",
-      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
-      "svg": "svg/14-benchmark-progress.svg",
-      "png": "png/14-benchmark-progress.png"
+      "title": "Kthena: From Serving Roles to Scheduling Groups",
+      "chapter": 3,
+      "svg": "svg/14-kthena-mapping.svg",
+      "source": "China 2026 slide 22; Kthena ModelServing gang scheduling guide.",
+      "previous_draft_notes_page": 6
     },
     {
       "page": 15,
-      "title": "From Measurements to Reliable Comparisons",
-      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
-      "svg": "svg/15-benchmark-measurement.svg",
-      "png": "png/15-benchmark-measurement.png"
+      "title": "KubeRay: A Replica Can Span Multiple Pods",
+      "chapter": 3,
+      "svg": "svg/15-ray-replicas.svg",
+      "source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.",
+      "previous_draft_notes_page": 11
     },
     {
       "page": 16,
-      "title": "Framework, Workloads, Ecosystem, Evidence",
-      "chapter": "04  BENCHMARK FRAMEWORK & PROGRESS",
-      "svg": "svg/16-takeaways.svg",
-      "png": "png/16-takeaways.png"
+      "title": "Next: Relationships Between SubGroups",
+      "chapter": 3,
+      "svg": "svg/16-subgroup-next.svg",
+      "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
+      "previous_draft_notes_page": 12
     },
     {
       "page": 17,
+      "title": "Benchmark framework & progress",
+      "chapter": 4,
+      "svg": null,
+      "source": "Native PowerPoint text",
+      "previous_draft_notes_page": null
+    },
+    {
+      "page": 18,
+      "title": "A Repeatable Scheduling Benchmark Framework",
+      "chapter": 4,
+      "svg": "svg/18-benchmark-architecture.svg",
+      "source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.",
+      "previous_draft_notes_page": 13
+    },
+    {
+      "page": 19,
+      "title": "Benchmark Progress and Ongoing Validation",
+      "chapter": 4,
+      "svg": "svg/19-benchmark-progress.svg",
+      "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
+      "previous_draft_notes_page": 14
+    },
+    {
+      "page": 20,
+      "title": "From Measurements to Reliable Comparisons",
+      "chapter": 4,
+      "svg": "svg/20-benchmark-measurement.svg",
+      "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
+      "previous_draft_notes_page": 15
+    },
+    {
+      "page": 21,
+      "title": "Framework, Workloads, Ecosystem, Evidence",
+      "chapter": 4,
+      "svg": "svg/21-takeaways.svg",
+      "source": "",
+      "previous_draft_notes_page": 16
+    },
+    {
+      "page": 22,
       "title": "Questions & Discussion",
-      "chapter": "DISCUSSION",
-      "svg": "svg/17-questions.svg",
-      "png": "png/17-questions.png"
+      "chapter": 0,
+      "svg": "svg/22-questions.svg",
+      "source": "",
+      "previous_draft_notes_page": 17
     }
   ],
-  "style_reference": "docs/images/volcano-new-architecture.svg",
+  "examples_are_excerpts": true,
   "benchmark": "Framework and ongoing validation; no invented results."
 }

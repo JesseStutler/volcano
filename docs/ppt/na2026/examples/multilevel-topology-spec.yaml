@@ -1,0 +1,15 @@
+minMember: 8
+networkTopology:
+  mode: hard
+  highestTierAllowed: 3
+subGroupPolicy:
+- name: prefill
+  subGroupSize: 4
+  networkTopology:
+    mode: hard
+    highestTierAllowed: 1
+- name: decode
+  subGroupSize: 4
+  networkTopology:
+    mode: hard
+    highestTierAllowed: 2

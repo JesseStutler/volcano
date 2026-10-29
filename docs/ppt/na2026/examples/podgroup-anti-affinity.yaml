@@ -1,0 +1,12 @@
+metadata:
+  labels: {app: model-a}
+spec:
+  networkTopology:
+    mode: hard
+    highestTierName: supernode
+  topologyAffinity:
+    podGroupAntiAffinity:
+      required:
+      - podGroupSelector:
+          matchLabels: {app: model-a}
+        topologyTierName: supernode

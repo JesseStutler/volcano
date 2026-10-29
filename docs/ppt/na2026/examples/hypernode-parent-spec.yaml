@@ -1,0 +1,7 @@
+tier: 2
+tierName: spine
+members:
+- type: HyperNode
+  selector:
+    exactMatch:
+      name: rack-a

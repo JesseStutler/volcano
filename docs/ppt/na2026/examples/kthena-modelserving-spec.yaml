@@ -1,0 +1,14 @@
+schedulerName: volcano
+replicas: 1
+template:
+  gangPolicy:
+    minRoleReplicas:
+      prefill: 1
+      decode: 3
+  roles:
+  - name: prefill
+    replicas: 1
+    workerReplicas: 1
+  - name: decode
+    replicas: 3
+    workerReplicas: 1

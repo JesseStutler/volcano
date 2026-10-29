@@ -1,0 +1,8 @@
+tier: 1
+tierName: rack
+members:
+- type: Node
+  selector:
+    labelMatch:
+      matchLabels:
+        rack: rack-a
