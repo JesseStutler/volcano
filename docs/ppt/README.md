@@ -6,7 +6,7 @@
 
 ## 视觉修订版 · 2026-10-29
 
-22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。本轮按多级拓扑原图的画法调整 workload、实例分离和 SubGroup 关系：用交换机、节点、通信路径与分组边界讲清含义。YAML 全部展开，拓扑约束改用 `highestTierName`；生态页补上 RBG、Kubeflow 和 LWS multi-group 的后续工作。
+22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。本轮重点修订第 4、11、16、18、20、21 页：统一交换机端点与对称分叉，缩短绕行连线；重排 benchmark 架构、测量定义与后续工作页。YAML 保持展开格式，拓扑约束使用 `highestTierName`，生态页保留 RBG、Kubeflow 和 LWS multi-group 的后续方向。
 
 - [PDF 预览](Volcano_KubeCon_NA_2026.pdf)
 - [下载 PowerPoint](Volcano_KubeCon_NA_2026.pptx?raw=true)

@@ -76,7 +76,7 @@ class Art:
   p=Path(path);mime='image/svg+xml' if p.suffix=='.svg' else ('image/jpeg' if p.suffix in ['.jpg','.jpeg'] else 'image/png');uri='data:'+mime+';base64,'+base64.b64encode(p.read_bytes()).decode()
   self.front.append(f'<g opacity="{opacity}"><image x="{x}" y="{y}" width="{w}" height="{h}" preserveAspectRatio="xMidYMid meet" href="{uri}"/></g>')
  def save(self):
-  markers=''.join(f'<marker id="arrow-{color.lstrip(chr(35))}" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="{color}"/></marker>' for color in set(C.values()))
+  markers=''.join(f'<marker id="arrow-{color.lstrip(chr(35))}" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="{color}"/></marker>' for color in sorted(set(C.values())))
   content=f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{self.h}" viewBox="0 0 {self.w} {self.h}"><title>{escape(self.name)}</title><defs>{markers}</defs>'+''.join(self.bg+self.edges+self.front)+'</svg>'
   p=SVG/(self.name+'.svg')
   if REUSE_SVG and p.exists():content=p.read_text()
@@ -267,10 +267,10 @@ a=art(18,'benchmark-architecture','A Repeatable Scheduling Benchmark Framework',
 a=art(19,'benchmark-progress','Benchmark Progress and Ongoing Validation','The harness is available; testing and optimization continue across workload scenarios.',4,14,'benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.')
 
 # 20: composition in polish_figures.py.
-a=art(20,'benchmark-measurement','From Measurements to Reliable Comparisons','Keep scheduling latency distinct from application readiness.',4,15,'benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.')
+a=art(20,'benchmark-measurement','Benchmark Metrics: Latency and Throughput','Separate scheduling delay, runtime readiness, and successful binding throughput.',4,15,'benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.')
 
 # 21–22: typographic close in polish_figures.py.
-a=art(21,'takeaways','Framework, Workloads, Ecosystem, Evidence','Four connected pieces of the scheduling story.',4,16)
+a=art(21,'takeaways','What We Will Work On Next','Next steps in group placement, controller integration, and benchmarking.',4,16)
 a=art(22,'questions','Questions & Discussion','Workload shapes, integration feedback, and reproducible observations are welcome.',0,17)
 from polish_figures import polish
 polish(arts, art, code, rawtext, C, ASSETS)
@@ -340,7 +340,7 @@ for n in range(1,23):
    18:'1:30。沿数据路径解释 benchmark：场景输入→API/调度器→audit-exporter 与 Prometheus→报告。KWOK 只验证调度行为，不代表真实 GPU 执行吞吐。',
    19:'1:20。已有框架、场景和观察能力是本章可以确定展示的进展。继续验证规模、约束和优化，不为了演讲单独制造漂亮结果。命令仅展示框架用法，本次没有运行集群测试。',
    20:'1:20。讲清 created→scheduled 的统计口径、吞吐窗口和对照条件。仍待选定一项代表性结果，可以后续原位替换本页。',
-   21:'1:10。回扣四部分：路径协同、分组与拓扑、控制器映射、持续验证。邀请社区贡献具体 workload 与复现方式。',
+   21:'1:10。按后续工作收尾：SubGroup 关系；RBG、Kubeflow 与 LWS multi-group 集成；扩展规模、分组与拓扑约束场景的重复测试。每项都明确需要验证的行为，不承诺未经验证的性能提升。',
    22:'5:00。问答。优先收集工作负载如何分组、需要哪些拓扑关系，以及可重复的测试场景。'
   }
   notes=talks[n]

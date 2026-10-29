@@ -155,7 +155,7 @@
     },
     {
       "page": 20,
-      "title": "From Measurements to Reliable Comparisons",
+      "title": "Benchmark Metrics: Latency and Throughput",
       "chapter": 4,
       "svg": "svg/20-benchmark-measurement.svg",
       "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
@@ -163,7 +163,7 @@
     },
     {
       "page": 21,
-      "title": "Framework, Workloads, Ecosystem, Evidence",
+      "title": "What We Will Work On Next",
       "chapter": 4,
       "svg": "svg/21-takeaways.svg",
       "source": "",

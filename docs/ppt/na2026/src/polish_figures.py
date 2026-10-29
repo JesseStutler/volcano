@@ -58,15 +58,23 @@ def polish(arts, art, code, raw, C, assets):
 
     # Physical symbols follow the EU/China multi-level topology figure.
     # A switch is hardware; a dashed contour is a scheduling group.
-    def switch(a,x,y,label,w=104):
-        top=26; depth=19; height=27
-        points=[(x,y+top),(x+depth,y),(x+w,y),(x+w-depth,y+top)]
-        a.front.append('<polygon points="'+' '.join(f'{px},{py}' for px,py in points)+'" fill="#08749d" stroke="white" stroke-width="2.5"/>')
-        a.front.append(f'<path d="M{x},{y+top} h{w-depth} v{height} h-{w-depth} Z M{x+w-depth},{y+top} l{depth},-{top} v{height} l-{depth},{top} Z" fill="#075e87" stroke="white" stroke-width="2.5"/>')
-        # Two opposed port-direction marks, explicitly anchored to the top face.
-        a.front.append(f'<path d="M{x+31},{y+9} h40 l-6,-3 m6,3 l-8,3 M{x+64},{y+19} h-40 l6,3 m-6,-3 l8,-3" fill="none" stroke="white" stroke-width="2"/>')
-        if label:a.text(x+w/2,y-9,label,23,'ink',True,width=w+90,anchor='middle')
-        return (x+w/2,y),(x+(w-depth)/2,y+top+height)
+    def switch(a,cx,y,label):
+        # The front panel and both connection ports share one centerline.
+        left=cx-44; right=cx+44; depth=16; top=22; h=50
+        a.front.append(f'<path d="M{left},{y+top} L{left+depth},{y} H{right+depth} L{right},{y+top} Z" fill="#08749d" stroke="white" stroke-width="2"/>')
+        a.front.append(f'<path d="M{left},{y+top} H{right} V{y+h} H{left} Z M{right},{y+top} l{depth},-{top} v28 l-{depth},{top} Z" fill="#075e87" stroke="white" stroke-width="2"/>')
+        a.front.append(f'<path d="M{cx-18},{y+7} h42 l-6,-3 m6,3 l-8,3 M{cx+23},{y+16} h-42 l6,3 m-6,-3 l8,-3" fill="none" stroke="white" stroke-width="2"/>')
+        if label:a.text(cx,y-12,label,23,'ink',True,width=230,anchor='middle')
+        return (cx,y),(cx,y+h)
+
+    def fanout(a,source,targets,bus_y,c='line',arrow=False):
+        # Draw a shared trunk once, then a symmetric bus and exact endpoint stems.
+        xs=[x for x,y in targets]
+        assert len({y for x,y in targets}) == 1
+        assert abs(source[0]-(min(xs)+max(xs))/2) < 0.001
+        wire(a,[source,(source[0],bus_y)],c,False)
+        wire(a,[(min(xs),bus_y),(max(xs),bus_y)],c,False)
+        for target in targets:wire(a,[(target[0],bus_y),target],c,arrow)
 
     def rack(a,x,y,w,title,roles,color='blue',h=157):
         # Explicit node chassis and named Pod rows; no implied GPU count.
@@ -80,7 +88,7 @@ def polish(arts, art, code, raw, C, assets):
             a.text(x+w/2,yy+25,label,21,color,True,width=w-24,anchor='middle')
             if rh>=70:
                 a.text(x+w/2,yy+55,'Pod',19,'muted',width=w-24,anchor='middle')
-        return (x+w/2,y-4)
+        return (x+w/2,y)
 
     def scope(a,x,y,w,h,label,color='blue',fill='white'):
         a.rect(x,y,w,h,fill,color,22,layer='bg',dash=True)
@@ -89,57 +97,59 @@ def polish(arts, art, code, raw, C, assets):
     def service(a,x,y,w,label,sub=None,color='blue',h=66):
         # A named runtime component, not a Kubernetes Pod symbol.
         a.rect(x,y,w,h,'white',color,8)
-        a.text(x+w/2,y+(29 if sub else 40),label,25,'ink',True,width=w-20,anchor='middle')
-        if sub:a.text(x+w/2,y+54,sub,21,'muted',width=w-20,anchor='middle')
+        a.text(x+w/2,y+(h/2-6 if sub else h/2+8),label,25,'ink',True,width=w-20,anchor='middle')
+        if sub:a.text(x+w/2,y+h/2+21,sub,21,'muted',width=w-20,anchor='middle')
 
-    # 04: asymmetric composition. Distributed compute, a request graph, and
-    # disaggregated serving have different shapes because they behave differently.
+    # 04: distinct workload structures, with short routes and aligned ports.
     a=renew(4)
     a.text(0,28,'TRAINING & RL',24,'blue',True)
     a.text(0,64,'Complete compute groups; collective communication',24,'muted',width=510)
     scope(a,0,112,515,370,'One training gang','blue')
-    st,sb=switch(a,206,190,'Collective fabric')
-    # Two nodes / four ranks form a real compute group; a labeled bus shows all-reduce.
+    st,sb=switch(a,253,190,'Collective fabric')
+    ports=[]
     for x,title,roles in [(35,'GPU node A',['rank 0','rank 1']),(294,'GPU node B',['rank 2','rank 3'])]:
-        rp=rack(a,x,299,177,title,roles,h=158)
-        wire(a,[sb,(sb[0],271),(rp[0],271),rp],arrow=False)
-    a.text(256,286,'all-reduce',21,'blue',True,width=150,anchor='middle')
+        ports.append(rack(a,x,304,177,title,roles,h=153))
+    fanout(a,sb,ports,272)
+    a.text(253,296,'all-reduce',21,'blue',True,width=150,anchor='middle')
     a.text(610,28,'AGENT APPLICATION',24,'orange',True)
     a.text(610,64,'Variable fan-out; latency-sensitive runtime calls',24,'muted',width=850)
-    service(a,617,105,190,'Planner',color='orange',h=70)
-    service(a,927,105,205,'Retrieval', 'tool service',color='orange',h=70)
-    service(a,1235,105,230,'Sandbox','runtime session',color='orange',h=70)
-    wire(a,[(807,139),(924,139)],'orange')
-    wire(a,[(712,105),(712,88),(1350,88),(1350,102)],'orange')
-    a.text(846,122,'tool',20,'orange',width=70)
-    # Model calls branch downward from the planner, rather than becoming Pods.
-    wire(a,[(710,175),(710,194),(572,194),(572,377),(614,377)],'orange')
-    a.text(726,220,'model calls',21,'orange',True,width=180)
-    a.text(935,219,'Requests reuse services and runtimes.',23,'muted',width=530)
-    a.text(610,277,'INFERENCE',24,'green',True)
-    a.text(610,310,'Long-lived roles; local KV transfer; complete replicas',24,'muted',width=865)
-    service(a,617,341,190,'Router',color='green',h=73)
-    scope(a,888,339,577,143,'Serving instance','green')
-    service(a,908,390,200,'Prefill','prompt compute',color='green',h=70)
-    service(a,1243,390,200,'Decode','token generation',color='blue',h=70)
-    wire(a,[(807,377),(859,377),(859,425),(905,425)],'green')
-    wire(a,[(1108,425),(1240,425)],'green')
-    a.text(1175,409,'KV',21,'green',True,width=90,anchor='middle')
-    a.text(1175,456,'transfer',20,'muted',width=110,anchor='middle')
-    foot(a,'Shared Kubernetes capacity · compute groups, serving replicas, and runtime demand are different scheduling concerns.')
+    service(a,620,110,210,'Planner',color='orange',h=80)
+    service(a,1050,115,415,'Retrieval','tool service',color='orange',h=70)
+    service(a,1050,215,415,'Sandbox','runtime session',color='orange',h=70)
+    wire(a,[(830,150),(970,150)],'orange',False)
+    wire(a,[(970,150),(1050,150)],'orange')
+    wire(a,[(970,150),(970,250),(1050,250)],'orange')
+    a.text(854,134,'tool calls',21,'orange',width=170)
+    # A straight vertical model-call path connects an agent runtime to serving.
+    wire(a,[(725,190),(725,395)],'orange')
+    a.text(746,309,'model calls',22,'orange',True,width=180)
+    a.text(960,329,'INFERENCE',24,'green',True)
+    a.text(960,360,'Long-lived replicas; local KV transfer',23,'muted',width=520)
+    service(a,620,395,210,'Router',color='green',h=80)
+    scope(a,940,380,540,108,'','green')
+    service(a,960,400,200,'Prefill','prompt compute',color='green',h=70)
+    service(a,1260,400,200,'Decode','token generation',color='blue',h=70)
+    wire(a,[(830,435),(960,435)],'green')
+    wire(a,[(1160,435),(1260,435)],'green')
+    a.text(1210,421,'KV',21,'green',True,width=80,anchor='middle')
+    foot(a,'Shared cluster capacity: training needs complete groups; inference needs locality; agents add variable demand.')
 
-    # 11: network hierarchy and concrete placement, with no abstract apart-arrow.
+    # 11: equal domain widths, centered switches, one shared trunk and level bus.
     a=renew(11)
-    ct,cb=switch(a,295,35,'Shared fabric')
+    ct,cb=switch(a,345,35,'Shared fabric')
     a.text(435,31,'P: Prefill · D: Decode',23,'muted',width=265)
+    uplinks=[]
     for x,domain,instance,color in [(0,'Supernode A','instance-a','blue'),(365,'Supernode B','instance-b','green')]:
-        scope(a,x,155,325,327,domain,color)
-        st,sb=switch(a,x+110,212,'')
-        wire(a,[cb,(cb[0],107),(x+270,107),(x+270,200),(st[0],200),st],arrow=False)
-        for xx,title,roles in [(x+18,'Node 0',['P0','P1']),(x+175,'Node 1',['D0','D1'])]:
-            rp=rack(a,xx,304,128,title,roles,color,h=122)
-            wire(a,[sb,(sb[0],283),(rp[0],283),rp],arrow=False)
-        a.text(x+163,463,instance+' · PodGroup',22,color,True,width=305,anchor='middle')
+        scope(a,x,155,325,327,'',color)
+        a.text(x+16,187,domain,22,color,True,width=145)
+        st,sb=switch(a,x+162.5,212,'')
+        uplinks.append(st)
+        ports=[]
+        for xx,title,roles in [(x+20,'Node 0',['P0','P1']),(x+177,'Node 1',['D0','D1'])]:
+            ports.append(rack(a,xx,314,128,title,roles,color,h=122))
+        fanout(a,sb,ports,288)
+        a.text(x+162.5,466,instance+' · PodGroup',22,color,True,width=305,anchor='middle')
+    fanout(a,cb,uplinks,113)
     code(a,740,0,740,482,'PodGroup · same rule on each instance','''metadata:
   labels:
     app: model-a
@@ -210,64 +220,59 @@ spec:
     a.text(770,470,'Two replicas × two hosts = four worker Pods',25,'muted',width=690)
     foot(a,'Grouping view, not a topology guarantee. Gang support is merged; replica topology is still in progress.')
 
-    # 16: same physical vocabulary as slide 10; two separate proposed intents.
+    # 16: one topology shared by roles, versus two independent topology domains.
     a=renew(16)
     a.text(0,29,'PROPOSED · SubGroup relationships within one PodGroup',23,'purple',True,width=1450)
     a.text(0,84,'Affinity: cooperating groups',30,'ink',True,width=700)
     a.text(780,84,'Anti-affinity: independent replicas',30,'ink',True,width=700)
     wire(a,[(740,65),(740,482)],arrow=False,c='light')
-    # Shared-domain affinity: a common switch above distinct role subgroups.
     scope(a,0,122,700,356,'Supernode A','purple')
-    st,sb=switch(a,295,183,'')
+    st,sb=switch(a,350,183,'')
+    ports=[]
     for x,label,roles,color in [(22,'Prefill SubGroup',['P0','P1'],'blue'),(378,'Decode SubGroup',['D0','D1'],'green')]:
         scope(a,x,285,300,180,'',color)
-        rp=rack(a,x+57,305,180,'GPU node',roles,color,h=122)
+        ports.append(rack(a,x+60,305,180,'GPU node',roles,color,h=122))
         a.text(x+150,452,label,23,color,True,width=290,anchor='middle')
-        wire(a,[sb,(sb[0],261),(rp[0],261),rp],arrow=False)
-    # Replica separation: two distinct rack-level HyperNode domains.
+    fanout(a,sb,ports,259)
     for x,label,r in [(780,'Rack A','Replica 0'),(1145,'Rack B','Replica 1')]:
         scope(a,x,122,335,356,label,'purple')
-        st,sb=switch(a,x+111,183,'')
+        st,sb=switch(a,x+167.5,183,'')
         scope(a,x+18,285,299,180,'','blue')
-        rp=rack(a,x+75,305,180,'GPU node',['Pod 0','Pod 1'],'blue',h=122)
-        a.text(x+168,452,r+' · SubGroup',23,'blue',True,width=290,anchor='middle')
-        wire(a,[sb,(sb[0],267),(rp[0],267),rp],arrow=False)
+        rp=rack(a,x+77.5,305,180,'GPU node',['Pod 0','Pod 1'],'blue',h=122)
+        a.text(x+167.5,452,r+' · SubGroup',23,'blue',True,width=290,anchor='middle')
+        wire(a,[sb,rp],arrow=False)
     foot(a,'Place cooperating SubGroups together; spread replicas across domains. These relationships remain proposed.')
 
-    # 18: an instrumented cluster, with execution and observation kept on separate lanes.
+    # 18: component centers share rows; vertical arrows land on exact face ports.
     a=renew(18)
     a.text(0,29,'SCENARIO',22,'muted',True)
-    a.text(442,29,'CLUSTER UNDER TEST',22,'muted',True)
-    a.text(1135,29,'OBSERVATION',22,'muted',True)
-    # Input document: enough real configuration to explain what the harness changes.
-    frame(a,0,60,330,415,'benchmark/','ink')
-    icon(a,20,124,60,'job');a.text(94,162,'Gang / Pod profiles',25,'ink',True,width=215)
-    raw(a,20,230,'JOBS',25,'blue',True,True);raw(a,20,272,'REPLICAS',25,'blue',True,True);raw(a,20,314,'MIN_AVAILABLE',25,'blue',True,True)
-    wire(a,[(20,346),(307,346)],arrow=False,c='light')
-    a.text(20,389,'Version + resources',24,'muted',width=290)
-    a.text(20,432,'Optional topology',24,'muted',width=290)
-    # Cluster boundary and real scheduler / API landmarks.
-    a.rect(430,60,605,415,'pale','line',4,layer='bg')
-    a.rect(462,90,540,94,'white','line',3)
-    icon(a,480,111,52,'api');a.text(551,128,'Kubernetes API',28,'ink',True,width=420)
-    a.text(551,163,'Pods · PodGroups · HyperNodes',22,'muted',width=420)
-    a.rect(462,286,540,92,'white','blue',3)
-    a.image(481,308,78,44,assets/'volcano-icon.svg');a.text(584,341,'Volcano scheduler',29,'ink',True,width=390)
-    a.text(462,433,'Kind + KWOK  /  existing cluster',25,'ink',True,width=540)
-    # Opposite directions use separate vertical lanes and never share labels.
-    wire(a,[(330,137),(459,137)]);a.text(346,119,'create',21,'muted',width=85)
-    wire(a,[(585,185),(585,282)],'blue');a.text(482,243,'watch',22,'blue',True,width=100)
-    wire(a,[(887,283),(887,187)],'blue');a.text(907,243,'bind',22,'blue',True,width=90)
-    # Observation: audit event feed, metric collection, and the report artifact.
-    for y,title,sub in [(90,'Audit log','create / bind events'),(286,'Prometheus','audit-exporter + metrics'),(415,'Report / Grafana','P50 / P90 / P99 · throughput')]:
-        h=94 if y<415 else 60
-        a.rect(1130,y,350,h,'white','line',3)
-        a.text(1148,y+33,title,27,'ink',True,width=315)
-        if y<415:a.text(1148,y+70,sub,22,'muted',width=315)
-    wire(a,[(1003,137),(1127,137)])
-    wire(a,[(1400,185),(1400,282)],'green');a.text(1150,242,'audit-exporter',22,'green',True,width=245)
-    wire(a,[(1003,332),(1127,332)],'green');a.text(1039,315,'metrics',20,'green',True,width=85)
-    wire(a,[(1400,381),(1400,411)],'green')
+    a.text(430,29,'CLUSTER UNDER TEST',22,'muted',True)
+    a.text(1130,29,'OBSERVATION',22,'muted',True)
+    service(a,0,105,300,'Scenario runner','Gang / Pod generation',h=90)
+    a.text(0,252,'Workload parameters',25,'ink',True,width=320)
+    for yy,t in [(299,'JOBS'),(341,'REPLICAS'),(383,'MIN_AVAILABLE')]:raw(a,0,yy,t,25,'blue',True,True)
+    a.text(0,452,'Version + resources + topology',23,'muted',width=325)
+    a.rect(390,65,690,415,'pale','line',4,layer='bg')
+    a.rect(430,105,610,90,'white','line',3)
+    icon(a,448,124,52,'api');a.text(520,141,'Kubernetes API',28,'ink',True,width=490)
+    a.text(520,176,'Pods · PodGroups · HyperNodes',23,'muted',width=490)
+    a.rect(430,325,610,90,'white','blue',3)
+    a.image(450,347,76,44,assets/'volcano-icon.svg');a.text(548,378,'Volcano scheduler',29,'ink',True,width=470)
+    a.text(430,458,'Kind + KWOK / existing cluster',25,'ink',True,width=610)
+    wire(a,[(300,150),(430,150)])
+    a.text(318,132,'create',21,'muted',width=85)
+    wire(a,[(610,195),(610,325)],'blue')
+    a.text(504,270,'watch',23,'blue',True,width=90)
+    wire(a,[(860,325),(860,195)],'blue')
+    a.text(878,270,'bind',23,'blue',True,width=90)
+    service(a,1130,105,350,'Audit log','create / bind events',h=90)
+    service(a,1130,325,350,'Prometheus','audit + scheduler metrics',h=90)
+    service(a,1130,445,350,'Report / Grafana',h=55)
+    wire(a,[(1040,150),(1130,150)])
+    wire(a,[(1305,195),(1305,325)],'green')
+    a.text(1130,270,'audit-exporter',22,'green',True,width=170)
+    wire(a,[(1040,370),(1130,370)],'green')
+    wire(a,[(1305,415),(1305,445)],'green')
     foot(a,'The harness controls the scenario and records observations; KWOK does not execute GPU work.')
 
     # 19: actual commands plus experiment controls, not a second architecture diagram.
@@ -288,45 +293,63 @@ make test-gang-env \\
         if y<363:wire(a,[(840,y+107),(1480,y+107)],arrow=False,c='light')
     foot(a,'Available: scenario setup, Gang / Pod workloads, topology, metrics, and report collection.')
 
-    # 20: event timelines explain the metric, without inventing a performance curve.
+    # 20: vertical event sequences, explicit intervals, and the actual formulas.
+    # No invented result curve or decorative sampling dots.
     a=renew(20)
-    a.text(0,29,'MEASUREMENT DEFINITIONS · schematic, not benchmark results',22,'muted',True,width=1470)
-    # Latency event line.
-    a.text(0,104,'Per-Pod latency',31,'ink',True,width=330)
-    a.text(0,150,'Created → scheduled',25,'blue',True,width=330)
-    wire(a,[(405,150),(1445,150)],'line')
-    for x,label,color in [(440,'created','blue'),(1000,'scheduled','blue'),(1370,'ready','muted')]:
-        a.front.append(f'<circle cx="{x}" cy="150" r="8" fill="{C[color]}"/>')
-        a.text(x,111,label,25,color,True,200,'middle')
-    wire(a,[(440,167),(440,208),(1000,208),(1000,167)],'blue',False)
-    a.text(720,248,'scheduling latency',28,'blue',True,530,'middle')
-    a.text(1190,208,'runtime / application',22,'muted',False,360,'middle')
-    # Throughput line uses first/last successful bind events, matching collect-report.sh.
-    wire(a,[(0,285),(1480,285)],arrow=False,c='light')
-    a.text(0,359,'Scheduling throughput',29,'ink',True,width=370)
-    a.text(0,405,'Successful binds / window',24,'green',True,width=365)
-    wire(a,[(405,385),(1445,385)],'line')
-    for x in [440,605,690,810,1085,1370]:
-        wire(a,[(x,370),(x,400)],'green',False)
-        a.front.append(f'<circle cx="{x}" cy="385" r="5" fill="{C["green"]}"/>')
-    a.text(440,345,'first bind',24,'green',True,220,'middle')
-    a.text(1370,345,'last bind',24,'green',True,220,'middle')
-    wire(a,[(440,414),(440,444),(1370,444),(1370,414)],'green',False)
-    a.text(905,484,'successful binding-event window',25,'green',True,900,'middle')
-    foot(a,'Compare latency distributions and throughput with the same version, workload, resources, and window.')
+    a.text(0,31,'Scheduling latency',31,'ink',True,width=700)
+    a.text(0,77,'One Pod · creation to scheduling',24,'muted',width=700)
+    a.text(800,31,'Scheduling throughput',31,'ink',True,width=680)
+    a.text(800,77,'Successful pods/binding events',24,'muted',width=680)
+    a.text(800,112,'ResponseComplete · HTTP 2xx',23,'green',True,width=680)
+    wire(a,[(740,0),(740,480)],arrow=False,c='light')
+    # Time advances downward. Interval endpoints are also event endpoints.
+    wire(a,[(60,155),(60,475)],'line')
+    wire(a,[(60,155),(60,300)],'blue',False)
+    for yy,label,color in [(155,'created','blue'),(300,'scheduled','blue'),(440,'ready','muted')]:
+        a.rect(54,yy-6,12,12,color,None,0)
+        a.text(95,yy+8,label,27,color,True,width=255)
+    a.text(95,381,'runtime / application',23,'muted',width=280)
+    # A precise interval bar, separate from the time axis and the event labels.
+    wire(a,[(365,155),(365,300)],'blue',False)
+    wire(a,[(352,155),(378,155)],'blue',False)
+    wire(a,[(352,300),(378,300)],'blue',False)
+    a.text(405,215,'Latency',27,'blue',True,width=300)
+    raw(a,405,259,'scheduledAt',25,'ink',False,True)
+    raw(a,405,295,'− createdAt',25,'ink',False,True)
+    a.text(405,364,'Report P50 / P90 / P99',23,'muted',width=310)
+    # The window is from first to last successful binding in the selected data.
+    wire(a,[(830,155),(830,440)],'green',False)
+    wire(a,[(817,155),(843,155)],'green',False)
+    wire(a,[(817,440),(843,440)],'green',False)
+    a.text(866,163,'First successful bind',26,'green',True,width=590)
+    a.text(866,448,'Last successful bind',26,'green',True,width=590)
+    raw(a,955,280,'N / Δt',43,'green',True,True)
+    a.text(955,328,'N = successful bindings',24,'ink',width=500)
+    a.text(955,368,'Δt = last bind − first bind',24,'ink',width=500)
+    foot(a,'Definitions only; no result values shown. Compare runs with the same version, workload, and resources.')
 
-    # 21: confident typography rather than another box-and-arrow drawing.
+    # 21: concrete maintainer priorities and the evidence each one needs.
     a=renew(21)
-    rows=[('01','Coordinate the paths','NodeShard + scheduler coordination','blue'),
-          ('02','Preserve workload structure','Complete groups + topology + separation','green'),
-          ('03','Carry intent through controllers','Roles and replica identity reach scheduling','blue'),
-          ('04','Measure and keep improving','Repeatable scenarios + comparable observations','purple')]
-    for i,(num,title,detail,color) in enumerate(rows):
-        y=i*127
-        a.text(0,y+53,num,40,color,True,width=90)
-        a.text(115,y+53,title,35,'ink',True,width=1320)
-        a.text(115,y+98,detail,28,'muted',width=1320)
-        if i<3:wire(a,[(115,y+119),(1480,y+119)],arrow=False,c='light')
+    for x,title,w in [(0,'WORKSTREAM',325),(360,'NEXT STEP',500),(935,'WHAT TO VALIDATE',545)]:
+        a.text(x,30,title,22,'muted',True,width=w)
+    wire(a,[(0,56),(1480,56)],arrow=False,c='line')
+    rows=[
+      (98,'Group placement','SubGroup affinity / anti-affinity',
+       'Extend the existing gang and topology model.',
+       'Cooperating groups stay local; replicas use separate domains.'),
+      (238,'Community integration','RBG · Kubeflow · LWS multi-group',
+       'Carry roles and replica identity into scheduling.',
+       'Controllers preserve complete groups and map placement constraints.'),
+      (378,'Benchmark validation','Repeat runs across workload shapes',
+       'Vary scale, grouping, and topology.',
+       'Retain latency distributions, binding throughput, and raw events.')]
+    for y,title,step,detail,evidence in rows:
+        a.text(0,y,title,29,'ink',True,width=320)
+        a.text(360,y,step,26,'blue',True,width=540)
+        a.text(360,y+45,detail,24,'muted',width=520)
+        a.text(935,y,evidence,26,'ink',width=535)
+        if y<378:wire(a,[(0,y+105),(1480,y+105)],arrow=False,c='light')
+    foot(a,'Bring a controller mapping, a placement requirement, or a reproducible workload to the community.')
     # Discussion page is a typographic close, not a diagram.
     a=renew(22)
     a.text(0,103,'What must run together?',48,'ink',True,width=1460)
