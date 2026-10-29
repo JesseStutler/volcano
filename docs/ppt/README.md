@@ -6,12 +6,13 @@
 
 ## 视觉修订版 · 2026-10-29
 
-22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。本轮重点修订第 4、11、16、18、20、21 页：统一交换机端点与对称分叉，缩短绕行连线；重排 benchmark 架构、测量定义与后续工作页。YAML 保持展开格式，拓扑约束使用 `highestTierName`，生态页保留 RBG、Kubeflow 和 LWS multi-group 的后续方向。
+22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。r4 将第 11 页改为上方放置图、下方两段 YAML；第 16 页重排亲和与分离关系。自画图采用正视图与对称箭头，SVG 和固定 PNG 同步更新。
 
-- [PDF 预览](Volcano_KubeCon_NA_2026.pdf)
-- [下载 PowerPoint](Volcano_KubeCon_NA_2026.pptx?raw=true)
+- [r4 PDF 预览](Volcano_KubeCon_NA_2026_r4.pdf)
+- [r4 PowerPoint](Volcano_KubeCon_NA_2026_r4.pptx?raw=true)
 - [整套缩略图](Volcano_KubeCon_NA_2026_preview.png)
-- [重点页前后对照与参考](na2026/visual-review.md)
+- [r4 六页大图](na2026/review/r4/README.md)
+- [第 11、16 页前后对照](na2026/visual-review.md)
 - [逐页大纲](Volcano_KubeCon_NA_2026_draft_outline.zh-CN.md)
 - [素材来源与制作说明](na2026/)
 - [下载图与源文件包](Volcano_KubeCon_NA_2026_sources.zip?raw=true)

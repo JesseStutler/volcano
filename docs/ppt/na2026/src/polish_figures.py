@@ -58,15 +58,6 @@ def polish(arts, art, code, raw, C, assets):
 
     # Physical symbols follow the EU/China multi-level topology figure.
     # A switch is hardware; a dashed contour is a scheduling group.
-    def switch(a,cx,y,label):
-        # The front panel and both connection ports share one centerline.
-        left=cx-44; right=cx+44; depth=16; top=22; h=50
-        a.front.append(f'<path d="M{left},{y+top} L{left+depth},{y} H{right+depth} L{right},{y+top} Z" fill="#08749d" stroke="white" stroke-width="2"/>')
-        a.front.append(f'<path d="M{left},{y+top} H{right} V{y+h} H{left} Z M{right},{y+top} l{depth},-{top} v28 l-{depth},{top} Z" fill="#075e87" stroke="white" stroke-width="2"/>')
-        a.front.append(f'<path d="M{cx-18},{y+7} h42 l-6,-3 m6,3 l-8,3 M{cx+23},{y+16} h-42 l6,3 m-6,-3 l8,-3" fill="none" stroke="white" stroke-width="2"/>')
-        if label:a.text(cx,y-12,label,23,'ink',True,width=230,anchor='middle')
-        return (cx,y),(cx,y+h)
-
     def fanout(a,source,targets,bus_y,c='line',arrow=False):
         # Draw a shared trunk once, then a symmetric bus and exact endpoint stems.
         xs=[x for x,y in targets]
@@ -79,7 +70,6 @@ def polish(arts, art, code, raw, C, assets):
     def rack(a,x,y,w,title,roles,color='blue',h=157):
         # Explicit node chassis and named Pod rows; no implied GPU count.
         a.rect(x,y,w,h,'#f5f7fa','line',1)
-        a.front.append(f'<path d="M{x+w},{y} l9,-7 v{h} l-9,7" fill="#dce5ee" stroke="{C["line"]}" stroke-width="1.4"/>')
         a.text(x+w/2,y+26,title,21,'ink',True,width=w-8,anchor='middle')
         rh=(h-48)/len(roles)
         for i,label in enumerate(roles):
@@ -100,12 +90,32 @@ def polish(arts, art, code, raw, C, assets):
         a.text(x+w/2,y+(h/2-6 if sub else h/2+8),label,25,'ink',True,width=w-20,anchor='middle')
         if sub:a.text(x+w/2,y+h/2+21,sub,21,'muted',width=w-20,anchor='middle')
 
+    def flat_switch(a,cx,y,w=100):
+        # Front elevation: no perspective face or hand-drawn asymmetric arrow.
+        x=cx-w/2
+        a.rect(x,y,w,44,'#08749d',None,2)
+        for x1,x2,yy in [(x+17,x+w-17,y+14),(x+w-17,x+17,y+30)]:
+            direction=1 if x2>x1 else -1
+            a.front.append(f'<path d="M{x1},{yy} H{x2} M{x2-direction*8},{yy-4} L{x2},{yy} L{x2-direction*8},{yy+4}" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>')
+        return (cx,y+44)
+
+    def host(a,x,y,w,label,pods,color='blue',h=86):
+        a.rect(x,y,w,h,'white','line',2)
+        a.text(x+12,y+25,label,20,'muted',True,width=w-24)
+        pw=(w-30)/len(pods)
+        for i,t in enumerate(pods):
+            xx=x+10+i*(pw+10)
+            a.rect(xx,y+37,pw,35,'prefill' if color=='blue' else 'mint',color,3)
+            a.text(xx+pw/2,y+61,t,21,color,True,width=pw-6,anchor='middle')
+        return x+w/2,y
+
     # 04: distinct workload structures, with short routes and aligned ports.
     a=renew(4)
     a.text(0,28,'TRAINING & RL',24,'blue',True)
     a.text(0,64,'Complete compute groups; collective communication',24,'muted',width=510)
     scope(a,0,112,515,370,'One training gang','blue')
-    st,sb=switch(a,253,190,'Collective fabric')
+    sb=flat_switch(a,253,190)
+    a.text(253,173,'Collective fabric',23,'ink',True,width=250,anchor='middle')
     ports=[]
     for x,title,roles in [(35,'GPU node A',['rank 0','rank 1']),(294,'GPU node B',['rank 2','rank 3'])]:
         ports.append(rack(a,x,304,177,title,roles,h=153))
@@ -134,23 +144,35 @@ def polish(arts, art, code, raw, C, assets):
     a.text(1210,421,'KV',21,'green',True,width=80,anchor='middle')
     foot(a,'Shared cluster capacity: training needs complete groups; inference needs locality; agents add variable demand.')
 
-    # 11: equal domain widths, centered switches, one shared trunk and level bus.
+    # 11: two real placement domains above two independent API explanations.
+    # Topology is conveyed by undirected cables; membership by dashed contours.
     a=renew(11)
-    ct,cb=switch(a,345,35,'Shared fabric')
-    a.text(435,31,'P: Prefill · D: Decode',23,'muted',width=265)
-    uplinks=[]
-    for x,domain,instance,color in [(0,'Supernode A','instance-a','blue'),(365,'Supernode B','instance-b','green')]:
-        scope(a,x,155,325,327,'',color)
-        a.text(x+16,187,domain,22,color,True,width=145)
-        st,sb=switch(a,x+162.5,212,'')
-        uplinks.append(st)
+    for x,domain,instance,color in [(0,'Supernode A','instance-a','blue'),(780,'Supernode B','instance-b','green')]:
+        a.text(x,26,domain,27,'ink',True,width=700)
+        a.rect(x,44,700,215,'white','line',6,layer='bg')
+        a.text(x+223,87,instance+' · PodGroup',26,color,True,width=460)
+        raw(a,x+223,120,'app: model-a',23,'muted',False,True)
+        a.rect(x+212,149,468,96,'white',color,10,layer='bg',dash=True)
+        end=flat_switch(a,x+85,88)
+        a.text(x+85,181,'Network',22,'ink',True,width=170,anchor='middle')
         ports=[]
-        for xx,title,roles in [(x+20,'Node 0',['P0','P1']),(x+177,'Node 1',['D0','D1'])]:
-            ports.append(rack(a,xx,314,128,title,roles,color,h=122))
-        fanout(a,sb,ports,288)
-        a.text(x+162.5,466,instance+' · PodGroup',22,color,True,width=305,anchor='middle')
-    fanout(a,cb,uplinks,113)
-    code(a,740,0,740,482,'PodGroup · same rule on each instance','''metadata:
+        for xx,node,roles in [(x+226,'Node 0',['P0','P1']),(x+464,'Node 1',['D0','D1'])]:
+            ports.append(host(a,xx,154,202,node,roles,color,h=86))
+        # One level bus, and two vertical drops. Draw each segment only once.
+        wire(a,[end,(end[0],140),(ports[-1][0],140)],arrow=False)
+        for port in ports:wire(a,[(port[0],140),port],arrow=False)
+    code(a,0,290,660,270,'LOCALITY · spec.networkTopology','''mode: hard
+highestTierName: supernode''',30,('highestTierName',))
+    a.text(20,452,'One complete instance inside one domain.',27,'blue',True,width=615)
+    a.text(20,503,'P = Prefill · D = Decode',25,'muted',width=610)
+    code(a,700,290,780,270,'SEPARATION · spec.topologyAffinity','''podGroupAntiAffinity:
+  required:
+  - podGroupSelector:
+      matchLabels:
+        app: model-a
+    topologyTierName: supernode''',26,('podGroupAntiAffinity','topologyTierName'))
+    # Keep a single coherent API excerpt in the downloadable examples.
+    (assets.parent/'examples'/'podgroup-anti-affinity.yaml').write_text('''metadata:
   labels:
     app: model-a
 spec:
@@ -163,8 +185,8 @@ spec:
       - podGroupSelector:
           matchLabels:
             app: model-a
-        topologyTierName: supernode''',24,('highestTierName','podGroupAntiAffinity','topologyTierName'),filename='podgroup-anti-affinity.yaml')
-    foot(a,'Locality keeps each instance within one domain; anti-affinity places matching PodGroups in different domains.')
+        topologyTierName: supernode
+''')
 
     # 13: community-specific next steps; no generic hub or placeholder grouping art.
     a=renew(13)
@@ -220,28 +242,35 @@ spec:
     a.text(770,470,'Two replicas × two hosts = four worker Pods',25,'muted',width=690)
     foot(a,'Grouping view, not a topology guarantee. Gang support is merged; replica topology is still in progress.')
 
-    # 16: one topology shared by roles, versus two independent topology domains.
+    # 16: compare the actual placement rules, without decorative topology arrows.
+    # The physical domain outlines and SubGroup outlines use different line styles.
     a=renew(16)
-    a.text(0,29,'PROPOSED · SubGroup relationships within one PodGroup',23,'purple',True,width=1450)
-    a.text(0,84,'Affinity: cooperating groups',30,'ink',True,width=700)
-    a.text(780,84,'Anti-affinity: independent replicas',30,'ink',True,width=700)
-    wire(a,[(740,65),(740,482)],arrow=False,c='light')
-    scope(a,0,122,700,356,'Supernode A','purple')
-    st,sb=switch(a,350,183,'')
-    ports=[]
-    for x,label,roles,color in [(22,'Prefill SubGroup',['P0','P1'],'blue'),(378,'Decode SubGroup',['D0','D1'],'green')]:
-        scope(a,x,285,300,180,'',color)
-        ports.append(rack(a,x+60,305,180,'GPU node',roles,color,h=122))
-        a.text(x+150,452,label,23,color,True,width=290,anchor='middle')
-    fanout(a,sb,ports,259)
-    for x,label,r in [(780,'Rack A','Replica 0'),(1145,'Rack B','Replica 1')]:
-        scope(a,x,122,335,356,label,'purple')
-        st,sb=switch(a,x+167.5,183,'')
-        scope(a,x+18,285,299,180,'','blue')
-        rp=rack(a,x+77.5,305,180,'GPU node',['Pod 0','Pod 1'],'blue',h=122)
-        a.text(x+167.5,452,r+' · SubGroup',23,'blue',True,width=290,anchor='middle')
-        wire(a,[sb,rp],arrow=False)
-    foot(a,'Place cooperating SubGroups together; spread replicas across domains. These relationships remain proposed.')
+    a.text(0,27,'PROPOSED · relationships between SubGroups inside one PodGroup',23,'purple',True,width=1480)
+    # Affinity row: two collaborating subgroups share one topology domain.
+    a.text(0,100,'Affinity',32,'ink',True,width=300)
+    a.text(0,145,'Prefill + Decode',26,'blue',True,width=325)
+    a.text(0,185,'Keep cooperating groups local.',24,'muted',width=310)
+    a.rect(370,60,1110,189,'white','line',5,layer='bg')
+    a.text(390,95,'Supernode A',25,'ink',True,width=300)
+    for x,label,roles,color in [(395,'Prefill SubGroup',['P0','P1'],'blue'),(940,'Decode SubGroup',['D0','D1'],'green')]:
+        a.rect(x,119,510,109,'white',color,9,layer='bg',dash=True)
+        a.text(x+15,148,label,23,color,True,width=470)
+        for i,t in enumerate(roles):
+            a.rect(x+15+i*247,167,232,43,'prefill' if color=='blue' else 'mint',color,3)
+            a.text(x+131+i*247,196,t+' · Pod',23,color,True,width=210,anchor='middle')
+    # Anti-affinity row: the same role replicas have independent domain boundaries.
+    a.text(0,335,'Anti-affinity',32,'ink',True,width=320)
+    a.text(0,380,'Independent replicas',26,'blue',True,width=330)
+    a.text(0,420,'Use different topology domains.',24,'muted',width=315)
+    for x,domain,replica in [(370,'Rack A','Replica 0'),(940,'Rack B','Replica 1')]:
+        a.rect(x,295,540,189,'white','line',5,layer='bg')
+        a.text(x+20,330,domain,25,'ink',True,width=490)
+        a.rect(x+20,354,500,109,'white','blue',9,layer='bg',dash=True)
+        a.text(x+35,383,replica+' · SubGroup',23,'blue',True,width=470)
+        for i,t in enumerate(['Pod 0','Pod 1']):
+            a.rect(x+35+i*237,402,222,43,'prefill','blue',3)
+            a.text(x+146+i*237,431,t,23,'blue',True,width=210,anchor='middle')
+    foot(a,'Solid outline: topology domain. Dashed outline: SubGroup. Relationship APIs remain under discussion.')
 
     # 18: component centers share rows; vertical arrows land on exact face ports.
     a=renew(18)

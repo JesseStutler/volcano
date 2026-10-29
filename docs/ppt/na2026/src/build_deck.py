@@ -55,9 +55,21 @@ class Art:
  def anchor(self,id,side):
   x,y,w,h=self.nodes[id];return {'top':(x+w/2,y),'bottom':(x+w/2,y+h),'left':(x,y+h/2),'right':(x+w,y+h/2)}[side]
  def path(self,points,arrow=True,c='line',dash=False):
-  self.routes.append({'points':points,'arrow':arrow,'color':col(c)})
+  route={'points':points,'arrow':arrow,'color':col(c)}
+  self.routes.append(route)
   d='M'+' L'.join(f'{x},{y}' for x,y in points)
-  self.edges.append(f'<path d="{d}" fill="none" stroke="{col(c)}" stroke-width="3" stroke-linejoin="round"'+(f' marker-end="url(#arrow-{col(c).lstrip(chr(35))})"' if arrow else '')+(' stroke-dasharray="7 5"' if dash else '')+'/>')
+  self.edges.append(f'<path d="{d}" fill="none" stroke="{col(c)}" stroke-width="2.5" stroke-linejoin="round"'+(' stroke-dasharray="7 5"' if dash else '')+'/>')
+  if arrow:
+   # Explicit symmetric chevron, with the same tip coordinate as the shaft.
+   # No marker scaling/rotation is delegated to the SVG or PPT renderer.
+   x,y=points[-1];px,py=points[-2];dx=x-px;dy=y-py
+   length=(dx*dx+dy*dy)**.5
+   assert length>=12, (self.name,points)
+   ux,uy=dx/length,dy/length
+   left=(x-10*ux-5*uy,y-10*uy+5*ux)
+   right=(x-10*ux+5*uy,y-10*uy-5*ux)
+   route['head']=[left,(x,y),right]
+   self.edges.append(f'<path d="M{left[0]},{left[1]} L{x},{y} L{right[0]},{right[1]}" fill="none" stroke="{col(c)}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>')
  def connect(self,a,aside,b,bside,via=None,arrow=True,dash=False):
   p=self.anchor(a,aside);q=self.anchor(b,bside)
   # Leave a small gap at the target border; arrow tip points at the target.

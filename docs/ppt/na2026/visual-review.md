@@ -1,40 +1,12 @@
-# 重点六页修订
+# r4 · 构图与连线修订
 
-本轮重点调整第 **4、11、16、18、20、21** 页的构图和连线。EU / China 原图继续保留。
+[查看 r4 六页大图](review/r4/README.md)。本轮另存了带 `r4` 文件名的 PPT / PDF，方便与上一版区分。
 
-| 页 | 调整 |
-|---|---|
-| 4 | Planner 到 Router 改为直线；工具调用采用短分叉，推理角色在同一轴线上 |
-| 11 | 交换机上下端口共用中心线；两个 Supernode 与各自节点采用对称分叉 |
-| 16 | 同域亲和用居中的一分二；跨域分离直接垂直连接，去掉小折弯 |
-| 18 | API / scheduler 和 audit / metrics 分别对齐；箭头落在组件边缘，去掉挤在边界上的标签 |
-| 20 | 改为竖向事件顺序、明确的统计区间与公式；不再画未标注的示意采样点 |
-| 21 | 改为后续工作表：分组关系、社区接入、benchmark；每项列出要验证的行为 |
+- **11**：上方完整展示两组放置，下方分别对照 locality 与 anti-affinity YAML；拓扑域、PodGroup、Node 三层边界分开。
+- **16**：改为上下两组关系对照，去掉透视交换机与装饰性连接线。
+- **4、18、20**：连线的箭头改为显式对称路径；第 4 页的网络与节点改为正视图。
+- **21**：保留上轮新增的后续工作表。
 
-交换机连接点与分叉中心由同一组坐标生成。重新查看了六页 PDF 导出，检查端点、转折和文字间距；仍保留 SVG 编辑源与固定 PNG。
+六张 EU / China 原图保持不变。YAML 仍为精简片段，完整字段关系见 `examples/`。SVG 保留编辑源，PPT 使用固定 PNG。
 
-## 六页预览
-
-### 4 · Workload characteristics
-![第 4 页](review/focus-04.png)
-
-### 11 · Instance isolation
-![第 11 页](review/focus-11.png)
-
-### 16 · SubGroup relationships
-![第 16 页](review/focus-16.png)
-
-### 18 · Benchmark framework
-![第 18 页](review/focus-18.png)
-
-### 20 · Measurement definitions
-![第 20 页](review/focus-20.png)
-
-### 21 · Next work
-![第 21 页](review/focus-21.png)
-
-## 前后对照
-
-左侧上版，右侧本轮，依次为第 4、11、16、18、20、21 页。
-
-![前后对照](review/before-after.png)
+![第 11、16 页前后对照](review/r4/before-after.png)
