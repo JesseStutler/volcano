@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-22 页修订版。背景保留；讲者改为 Ricardo Aravena 和 Rainie Li，新增介绍页与四张章节引导页。技术页采用原图加 API 对照，ecosystem 改为控制器到共享 API 的关系图。
+22 页修订版。背景保留；讲者改为 Ricardo Aravena 和 Rainie Li，新增介绍页与四张章节引导页。技术页采用原图加 API 对照，ecosystem 改为控制器输入与分组模型对照。自画图使用更深的文字、边框与连线；分组用包含关系，测量用事件时间轴。参见[重点页前后对照](visual-review.md)。
 
 ## 这次实际复用的图
 
@@ -22,7 +22,11 @@
 - `svg/`：正文组合图与背景；包含嵌入的旧 PNG、可编辑文字和路径。
 - `png/`：SVG 的固定渲染结果，供 PPT 使用；连接线与图形不会因 PowerPoint 排版漂移。
 - `examples/`：PPT 展示的 YAML 片段，**省略了字段，不是直接 apply 的完整 manifest**。
-- `src/build_deck.py`：生成 SVG、PNG、PPT；`render_preview.py` 生成 PDF 缩略图。
+- `src/build_deck.py`：配色、YAML、存量图版面和 PPT 生成。
+- `src/polish_figures.py`：第 4、11、13、15、16、18–22 页的自画图与排版。
+- `src/render_preview.py`：生成 PDF 缩略图。
+- `geometry-audit.json`：各页连接线坐标，便于检查水平 / 垂直路径。
+- `assets/icons/`：Kubernetes 官方资源图标，附来源与许可证。
 - `manifest.json`：页码、素材和原草稿备注页的对应关系。
 - `references.json`：各页技术来源。
 

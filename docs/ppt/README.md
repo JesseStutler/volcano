@@ -4,13 +4,14 @@
 
 讲者：**Ricardo Aravena · Rainie Li**
 
-## 修订版 · 2026-10-29
+## 视觉修订版 · 2026-10-29
 
-22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。Ecosystem 改为控制器与调度 API 的关系图。
+22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。本轮重做自画部分：用 Pod 成员和嵌套边界表达分组，用独立链路表达 benchmark，用事件时间轴表达测量口径；加深正文、关键边框与连线。
 
 - [PDF 预览](Volcano_KubeCon_NA_2026.pdf)
 - [下载 PowerPoint](Volcano_KubeCon_NA_2026.pptx?raw=true)
 - [整套缩略图](Volcano_KubeCon_NA_2026_preview.png)
+- [重点页前后对照与参考](na2026/visual-review.md)
 - [逐页大纲](Volcano_KubeCon_NA_2026_draft_outline.zh-CN.md)
 - [素材来源与制作说明](na2026/)
 - [下载图与源文件包](Volcano_KubeCon_NA_2026_sources.zip?raw=true)

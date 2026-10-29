@@ -25,11 +25,11 @@ Ricardo Aravena · Rainie Li。约 24–25 分钟正文，5 分钟问答。[PPT]
 | 13 | 接入关系 | Kthena、KubeRay、Grove、Kubeflow、LWS；区分已有与推进中 |
 | 14 | Kthena | 沿用 China 映射图与 gangPolicy / roles YAML |
 | 15 | KubeRay | 两个完整的双 Pod 副本；replica label 对照 SubGroup policy |
-| 16 | 后续分组关系 | 同一 PodGroup 内的 SubGroup affinity / anti-affinity，标为 Proposed |
+| 16 | 后续分组关系 | 分开示意同域亲和与跨域分离，标为 Proposed |
 | 17 | 第四章：Benchmark | 更多 workload，需要可重复的比较 |
-| 18 | 框架 | 场景输入、API 与调度器、audit / metrics、报告 |
+| 18 | 框架 | 场景输入、被测集群、观测链路与报告 |
 | 19 | 进展与验证 | 已有入口和采集能力；继续扩展场景、比较优化、重复测试 |
-| 20 | 测量口径 | 延迟分布、吞吐窗口与对照条件；后续可换成一项实际结果 |
+| 20 | 测量口径 | 用事件时间轴说明延迟与吞吐窗口；后续可换成实际结果 |
 | 21 | 收尾 | 回扣四部分，邀请集成与测试反馈 |
 | 22 | Q&A | 5 分钟 |
 

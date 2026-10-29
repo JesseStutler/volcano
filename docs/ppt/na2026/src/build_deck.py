@@ -18,7 +18,7 @@ ROOT=Path(__file__).resolve().parents[1]; PPT=ROOT.parent; REPO=PPT.parents[1]
 ASSETS=ROOT/'assets'; SVG=ROOT/'svg'; PNG=ROOT/'png'
 REUSE_SVG='--reuse-svg' in sys.argv
 for d in [ASSETS,SVG,PNG]:d.mkdir(exist_ok=True)
-C={'ink':'#202d3c','muted':'#647282','line':'#8ea8cb','light':'#d4deea','pale':'#f5f8fc','blue':'#356696','prefill':'#e9f1fb','decode':'#edf1f5','green':'#3d705d','mint':'#edf5f0','purple':'#765399','lav':'#f3eef8','orange':'#e94c25','amber':'#8b621c','sand':'#fff5e2','white':'#ffffff'}
+C={'ink':'#17283b','muted':'#414f60','line':'#52677f','light':'#a6b5c6','pale':'#f2f5f9','blue':'#164f89','prefill':'#dce9f8','decode':'#dce5ee','green':'#146653','mint':'#deeee8','purple':'#62448d','lav':'#eae3f3','orange':'#c14421','amber':'#8b621c','sand':'#fff5e2','white':'#ffffff'}
 FONT='/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf'
 BOLD='/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf'
 MONO='/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf'
@@ -36,9 +36,9 @@ def wrap(text,width,size,bold=False):
  return result
 
 class Art:
- def __init__(self,name,w=1480,h=560):self.name=name;self.w=w;self.h=h;self.bg=[];self.edges=[];self.front=[];self.nodes={};self.textboxes=[]
+ def __init__(self,name,w=1480,h=560):self.name=name;self.w=w;self.h=h;self.bg=[];self.edges=[];self.front=[];self.routes=[];self.nodes={};self.textboxes=[]
  def rect(self,x,y,w,h,fill='white',stroke='light',rx=8,layer='front',dash=False):
-  el=f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{col(fill)}" stroke="{col(stroke) if stroke else "none"}" stroke-width="1.6"'+(' stroke-dasharray="7 5"' if dash else '')+'/>'
+  el=f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{col(fill)}" stroke="{col(stroke) if stroke else "none"}" stroke-width="2.2"'+(' stroke-dasharray="7 5"' if dash else '')+'/>'
   getattr(self,layer).append(el)
  def text(self,x,y,text,size=30,c='ink',bold=False,width=1400,anchor='start',mono=False):
   lines=wrap(text,width,size,bold);lh=size*1.28
@@ -55,8 +55,9 @@ class Art:
  def anchor(self,id,side):
   x,y,w,h=self.nodes[id];return {'top':(x+w/2,y),'bottom':(x+w/2,y+h),'left':(x,y+h/2),'right':(x+w,y+h/2)}[side]
  def path(self,points,arrow=True,c='line',dash=False):
+  self.routes.append({'points':points,'arrow':arrow,'color':col(c)})
   d='M'+' L'.join(f'{x},{y}' for x,y in points)
-  self.edges.append(f'<path d="{d}" fill="none" stroke="{col(c)}" stroke-width="2.2" stroke-linejoin="round"'+(' marker-end="url(#arrow)"' if arrow else '')+(' stroke-dasharray="7 5"' if dash else '')+'/>')
+  self.edges.append(f'<path d="{d}" fill="none" stroke="{col(c)}" stroke-width="3" stroke-linejoin="round"'+(f' marker-end="url(#arrow-{col(c).lstrip(chr(35))})"' if arrow else '')+(' stroke-dasharray="7 5"' if dash else '')+'/>')
  def connect(self,a,aside,b,bside,via=None,arrow=True,dash=False):
   p=self.anchor(a,aside);q=self.anchor(b,bside)
   # Leave a small gap at the target border; arrow tip points at the target.
@@ -75,7 +76,8 @@ class Art:
   p=Path(path);mime='image/svg+xml' if p.suffix=='.svg' else ('image/jpeg' if p.suffix in ['.jpg','.jpeg'] else 'image/png');uri='data:'+mime+';base64,'+base64.b64encode(p.read_bytes()).decode()
   self.front.append(f'<g opacity="{opacity}"><image x="{x}" y="{y}" width="{w}" height="{h}" preserveAspectRatio="xMidYMid meet" href="{uri}"/></g>')
  def save(self):
-  content=f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{self.h}" viewBox="0 0 {self.w} {self.h}"><title>{escape(self.name)}</title><defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="{C["line"]}"/></marker></defs>'+''.join(self.bg+self.edges+self.front)+'</svg>'
+  markers=''.join(f'<marker id="arrow-{color.lstrip(chr(35))}" viewBox="0 0 12 12" refX="12" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="{color}"/></marker>' for color in set(C.values()))
+  content=f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{self.h}" viewBox="0 0 {self.w} {self.h}"><title>{escape(self.name)}</title><defs>{markers}</defs>'+''.join(self.bg+self.edges+self.front)+'</svg>'
   p=SVG/(self.name+'.svg')
   if REUSE_SVG and p.exists():content=p.read_text()
   else:p.write_text(content)
@@ -121,15 +123,18 @@ def rawtext(a,x,y,t,size=26,c='ink',bold=False,mono=False):
  a.front.append(f'<text x="{x}" y="{y}" xml:space="preserve" font-family="{"Liberation Mono" if mono else "Liberation Sans"}" font-size="{size}" font-weight="{700 if bold else 400}" fill="{col(c)}">{escape(t)}</text>')
 
 def code(a,x,y,w,h,label,body,size=25,highlights=(),filename=None):
- a.rect(x,y,w,h,'#f5f7fa','#d6dfe9',3)
- a.text(x+20,y+31,label,20,'muted',True,width=w-40);rule(a,x+18,y+45,w-36)
+ a.rect(x,y,w,h,'#f5f7fa','line',3)
+ a.rect(x,y,w,47,'ink',None,0)
+ a.text(x+20,y+32,label,21,'white',True,width=w-40)
  lh=size*1.19
  for i,line in enumerate(body.strip('\n').splitlines()):
   yy=y+75+i*lh
   if ImageFont.truetype(MONO,size*2).getlength(line)/2>w-36:raise ValueError(f'Code line too wide: {a.name}: {line}')
   if yy>y+h-7:raise ValueError(f'Code overflows {a.name}: {label}')
-  if any(k in line for k in highlights):a.rect(x+4,yy-size+2,w-8,lh,'#e4edf8',None,0)
-  rawtext(a,x+20,yy,line,size,'blue' if ':' in line and not line.lstrip().startswith('#') else 'muted',False,True)
+  if any(k in line for k in highlights):
+   a.rect(x+3,yy-size+2,w-6,lh,'#dce9f8',None,0)
+   a.rect(x+3,yy-size+2,5,lh,'blue',None,0)
+  rawtext(a,x+20,yy,line,size,'blue' if any(k in line for k in highlights) else 'ink',False,True)
  if filename:
   examples[filename]=body.strip()+'\n';(ROOT/'examples'/filename).write_text(body.strip()+'\n')
 
@@ -149,19 +154,8 @@ def note(a,x,y,num,head,body,w=400):
 # Four divider slides are composed with native PowerPoint text below.
 dividers={3:(1,'Unified scheduling','Different paths. Shared infrastructure.','How do schedulers coordinate node access?'),7:(2,'Multi-level gang\n& network topology','From available nodes to runnable workloads.','What must run together, and where should it fit?'),12:(3,'Ecosystem','Workload controllers carry scheduling intent.','How do roles and replicas reach the scheduler?'),17:(4,'Benchmark\nframework & progress','Measure behavior across workload shapes.','What can we reproduce, compare, and improve?')}
 
-# 04: a compact workload diagram, with the service path explicit.
+# 04: composition in polish_figures.py.
 a=art(4,'workload-demands','Different Workloads, Shared Infrastructure','Training, inference, and agent applications put different demands on the same cluster.',1,2)
-a.text(0,40,'Training & RL',33,bold=True);a.text(0,91,'Coordinated compute',26,'muted')
-a.text(0,170,'Inference',33,bold=True);a.text(0,221,'Serving roles and replicas',26,'muted')
-a.text(0,300,'Agent applications',33,bold=True);a.text(0,351,'Bursty, latency-sensitive work',26,'muted')
-a.box('agent',1000,10,430,70,'Agent applications','white',29,True)
-a.box('service',1000,170,430,95,'Inference / sandbox services','prefill',28)
-a.connect('agent','bottom','service','top');a.text(1040,130,'requests / runtime calls',22,'muted',width=400)
-a.box('training',540,170,370,95,'Training / RL jobs','prefill',29)
-a.panel(520,350,930,132,'SHARED KUBERNETES INFRASTRUCTURE',fill='white')
-for i,lab in enumerate(['CPU / GPU capacity','Network locality','Placement policy']):a.text(544+i*303,442,lab,24,width=294)
-a.path([(725,265),(725,345)]);a.path([(1215,265),(1215,345)])
-a.text(0,545,'The scheduling unit depends on the runtime and workload model.',29,'blue',True,width=1470)
 
 # 05: retain the original detailed architecture, not a replacement box summary.
 a=art(5,'unified-architecture','A Coordinated Scheduling Framework','Specialized scheduling paths coordinate through NodeShard.',1,3,'China 2026 slide 7; same architecture family as EU 2026.')
@@ -231,47 +225,11 @@ subGroupPolicy:
     highestTierAllowed: 2''',24,('highestTierAllowed',),filename='multilevel-topology-spec.yaml')
 a.text(0,554,'Select each role’s Pods in its policy; selectors are omitted here.',24,'muted',width=910)
 
-# 11: a placement example, not merely a pair of generic capability boxes.
+# 11: composition in polish_figures.py.
 a=art(11,'instance-isolation','Keep Each Instance Together, Place Instances Apart','PodGroup anti-affinity separates service instances across HyperNode domains.',2,9,'docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.')
-for y,label,prefix in [(45,'SUPERNODE A','instance-a'),(290,'SUPERNODE B','instance-b')]:
- a.rect(0,y,690,210,'#f7faff','line',3)
- a.text(20,y+32,label,21,'muted',True)
- a.rect(20,y+57,650,130,'white','blue',3,dash=True)
- a.text(38,y+91,prefix+' · PodGroup',25,'blue',True,width=600)
- for j,role in enumerate(['Prefill','Decode']):
-  a.rect(40+j*320,y+112,290,56,'mint' if j==0 else 'prefill','light',3)
-  a.text(55+j*320,y+148,role+'  [P0] [P1]',23,'green' if j==0 else 'blue',width=275)
-a.text(0,24,'AVAILABLE · v1.16',20,'green',True)
-code(a,740,0,740,500,'PodGroup · same rule on each instance','''metadata:
-  labels: {app: model-a}
-spec:
-  networkTopology:
-    mode: hard
-    highestTierName: supernode
-  topologyAffinity:
-    podGroupAntiAffinity:
-      required:
-      - podGroupSelector:
-          matchLabels: {app: model-a}
-        topologyTierName: supernode''',25,('podGroupAntiAffinity','topologyTierName'),filename='podgroup-anti-affinity.yaml')
-a.text(0,549,'Required rules wait for a legal domain. Preferred rules allow a feasible fallback.',26,'blue',True,width=1470)
 
-# 13: ecosystem as controller-to-API relationships, not a horizontal status table.
+# 13: composition in polish_figures.py.
 a=art(13,'ecosystem','Controllers Bring Workload Structure to Scheduling','Integration depth differs: group support and topology support are separate steps.',3,10,'Kthena docs; KubeRay #5249 / #5369; Grove #516; Kubeflow Trainer Volcano plugin; LWS #498.')
-# Each controller connects to the shared API at a named port; status stays beside its owner.
-items=[('kt',0,0,'Kthena','kthena.svg','Role / replica gang + topology'),('ray',0,193,'KubeRay','kuberay.png','SubGroup merged; topology in progress'),('grove',0,386,'Grove','dynamo-grove.svg','SubGroup backend; topology mapping open'),('kf',1030,75,'Kubeflow Trainer','kubeflow-trainer.svg','Existing Volcano plugin'),('lws',1030,335,'LeaderWorkerSet','leaderworkerset.svg','Existing gang integration')]
-for id,x,y,name,logo,status in items:
- a.image(x,y,65,55,ASSETS/logo);a.text(x+82,y+38,name,29,bold=True,width=365)
- a.text(x,y+90,status,23,'muted',width=425)
- a.nodes[id]=(x,y,435,118)
-a.rect(555,145,365,272,'pale','line',3);a.text(585,185,'VOLCANO API',24,'blue',True,width=305)
-for y,label in [(245,'PodGroup'),(307,'SubGroup policies'),(369,'Network topology')]:a.text(585,y,label,28,bold=True,width=310)
-a.path([(435,59),(495,59),(495,445),(435,445)],False)
-a.path([(435,252),(495,252)],False);a.path([(495,280),(550,280)])
-a.path([(1030,134),(975,134),(975,394),(1030,394)],False)
-a.path([(975,280),(925,280)])
-a.text(1030,528,'Next: finer groups and locality',23,'blue',True,width=440)
-a.text(0,553,'Controllers preserve role and replica identity; Volcano applies scheduling policy.',26,'blue',True,width=1470)
 
 # 14: strong existing Kthena figure, kept in its original form.
 a=art(14,'kthena-mapping','Kthena: From Serving Roles to Scheduling Groups','One ServingGroup maps to one PodGroup; each role replica forms a SubGroup.',3,6,'China 2026 slide 22; Kthena ModelServing gang scheduling guide.')
@@ -292,98 +250,28 @@ template:
     workerReplicas: 1''',24,('minRoleReplicas','workerReplicas'),filename='kthena-modelserving-spec.yaml')
 a.text(1025,540,'Pod templates omitted.',23,'muted',width=440)
 
-# 15: YAML and actual logical replica membership, including a separate head.
+# 15: composition in polish_figures.py.
 a=art(15,'ray-replicas','KubeRay: A Replica Can Span Multiple Pods','The replica label separates complete groups inside one WorkerGroup.',3,11,'KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.')
-a.text(0,36,'RayCluster workerGroupSpecs · excerpt',22,'muted',True,width=700)
-code(a,0,58,690,153,'Multi-host WorkerGroup','''minReplicas: 2
-numOfHosts: 2''',28,('minReplicas','numOfHosts'),filename='ray-worker-group.yaml')
-for y,r in [(260,'replica-0'),(404,'replica-1')]:
- a.rect(0,y,690,115,'#f7faff','line',3);a.text(18,y+32,r+' → SubGroup',25,'blue',True,width=650)
- for i in range(2):a.box(r+str(i),20+i*340,y+49,310,48,'host '+str(i)+' · Pod','white',24)
-code(a,750,0,730,390,'Generated PodGroup.spec · excerpt','''subGroupPolicy:
-- name: worker
-  labelSelector:
-    matchLabels: {ray.io/group: worker}
-  matchLabelKeys:
-  - ray.io/worker-group-replica-name
-  minSubGroups: 2
-  subGroupSize: 2''',25,('matchLabelKeys','minSubGroups','subGroupSize'),filename='ray-subgroup-spec.yaml')
-a.text(770,445,'Gang: merged  ·  Replica topology: in progress',24,'blue',True,width=700)
-a.text(770,495,'The head uses a separate group.\nOne WorkerGroup can create multiple SubGroups.',24,'muted',width=690)
 
-# 16: specific next relationship, drawn within a single PG; no fake API.
+# 16: composition in polish_figures.py.
 a=art(16,'subgroup-next','Next: Relationships Between SubGroups','Extend the placement model as controllers expose richer workload structure.',3,12,'docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.')
-a.text(0,40,'PROPOSED · within one PodGroup',23,'purple',True)
-a.rect(0,74,925,440,'white','line',3,layer='bg',dash=True);a.text(23,112,'Serving instance · PodGroup',27,'blue',True)
-for x,lab,role in [(30,'Rack A','Replica 0'),(480,'Rack B','Replica 1')]:
- a.rect(x,155,415,322,'#f8fafd','light',3,layer='bg');a.text(x+18,188,lab,25,'muted',True)
- for y,t,c in [(225,'Prefill / '+role,'mint'),(345,'Decode / '+role,'prefill')]:a.box(lab+t,x+18,y,379,74,t,c,25)
- a.path([(x+207,300),(x+207,339)],False,c='purple')
- a.text(x+240,329,'near',21,'purple')
-a.path([(237,480),(237,495),(687,495),(687,480)],False,c='purple');a.text(395,544,'replicas apart',23,'purple',True,width=260)
-note(a,995,85,'01','Affinity','Keep cooperating SubGroups in a shared domain.',475)
-note(a,995,265,'02','Anti-affinity','Separate replicas across selected domains.',475)
-a.text(1040,455,'Controller mappings and API semantics are still being developed.',25,'muted',width=425)
 
-# 18: a real control/observation architecture with distinct data flows.
+# 18: composition in polish_figures.py.
 a=art(18,'benchmark-architecture','A Repeatable Scheduling Benchmark Framework','Generate scenarios, observe API events, and retain comparable measurements.',4,13,'benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.')
-a.rect(0,0,390,505,'white','light',3,layer='bg');a.text(22,39,'SCENARIO INPUT',22,'muted',True)
-a.text(22,105,'Workload profiles',30,bold=True,width=345)
-a.text(22,159,'Gang jobs / bare Pods',25,'muted',width=345)
-a.text(22,239,'Cluster model',30,bold=True,width=345)
-a.text(22,293,'Nodes, resources,\nHyperNode topology',25,'muted',width=345)
-a.text(22,407,'Version + scheduler config',24,'blue',True,width=345)
-a.rect(465,0,550,505,'pale','line',3,layer='bg');a.text(487,39,'KUBERNETES CLUSTER',22,'muted',True)
-a.box('api',510,92,460,74,'API server / audit log','white',28,True)
-a.box('scheduler',510,252,460,80,'Volcano scheduler','white',28,True)
-a.box('nodes',510,406,460,64,'KWOK nodes / real nodes','white',25)
-a.nodes['input']=(0,70,390,118);a.connect('input','right','api','left')
-a.path([(655,168),(655,246)]);a.text(674,206,'watch objects',23,'muted',width=270)
-a.path([(930,248),(930,210),(990,210),(990,70),(740,70),(740,88)]);a.text(888,192,'bind',21,'muted',width=90)
-a.text(775,385,'placement',21,'muted',width=200)
-a.connect('scheduler','bottom','nodes','top')
-a.box('audit',1110,92,370,74,'audit-exporter','white',28)
-a.box('prom',1110,252,370,80,'Prometheus','white',28)
-a.box('report',1110,406,370,64,'Grafana / reports','white',26)
-a.connect('api','right','audit','left');a.connect('audit','bottom','prom','top');a.connect('scheduler','right','prom','left');a.connect('prom','bottom','report','top')
-a.text(1031,281,'metrics',18,'muted',width=90)
-a.text(0,551,'KWOK exercises scheduling behavior; real workloads are needed for GPU / network performance.',25,'blue',True,width=1480)
 
-# 19: source-backed commands, not empty progress cards.
+# 19: composition in polish_figures.py.
 a=art(19,'benchmark-progress','Benchmark Progress and Ongoing Validation','The harness is available; testing and optimization continue across workload scenarios.',4,14,'benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.')
-code(a,0,0,780,338,'benchmark/ · example workflow','''# Build from local source
-make setup
 
-# A gang workload scenario
-make test-gang-env \\
-  JOBS=10 REPLICAS=100 \\
-  MIN_AVAILABLE=100''',27,('make test-gang-env',))
-a.text(0,405,'AVAILABLE',21,'green',True)
-a.text(0,453,'Kind / existing clusters · Gang / Pod profiles\nTopology setup · Audit / metrics · Reports',27,width=770)
-note(a,850,56,'01','Vary the workload','Job size, total Pods, and placement constraints.',620)
-note(a,850,230,'02','Compare consistently','Pin versions, resources, and measurement windows.',620)
-note(a,850,404,'03','Repeat and investigate','Re-run observations and trace the bottlenecks.',620)
-
-# 20: measurement boundaries and concrete interpretation.
+# 20: composition in polish_figures.py.
 a=art(20,'benchmark-measurement','From Measurements to Reliable Comparisons','Keep scheduling latency distinct from application readiness.',4,15,'benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.')
-a.box('created',0,90,355,85,'Pod created','white',30,True);a.box('scheduled',565,90,355,85,'Pod scheduled','white',30,True);a.box('ready',1125,90,355,85,'Application ready','pale',27)
-a.connect('created','right','scheduled','left');a.connect('scheduled','right','ready','left',dash=True)
-a.text(380,68,'scheduling latency',23,'blue',True,width=220)
-a.text(955,68,'runtime / application',21,'muted',width=250)
-rule(a,0,250,1480)
-for x,head,body in [(0,'Latency distribution','P50 / P90 / P99\nInclude the workload and scale.'),(520,'Scheduling throughput','State the observation window.\nKeep the raw events.'),(1040,'Comparison context','Version, configuration, resources\nand repeat runs.')]:
- a.text(x,320,head,29,bold=True,width=430);a.text(x,378,body,26,'muted',width=425)
-a.text(0,535,'Current focus: repeatable comparisons and continued validation.',30,'blue',True,width=1470)
 
-# 21,22: concise close.
+# 21–22: typographic close in polish_figures.py.
 a=art(21,'takeaways','Framework, Workloads, Ecosystem, Evidence','Four connected pieces of the scheduling story.',4,16)
-for y,num,head,sub in [(0,'01','Unified scheduling','Coordinate node access across specialized scheduling paths.'),(132,'02','Workload-aware placement','Preserve complete groups, locality, and instance separation.'),(264,'03','Ecosystem integration','Bring controller roles and replica identity into scheduling.'),(396,'04','Benchmark and improve','Use repeatable measurements to guide ongoing validation.')]:
- a.text(0,y+42,num,30,'blue',True);a.text(100,y+42,head,32,bold=True,width=1350);a.text(100,y+94,sub,27,'muted',width=1350)
 a=art(22,'questions','Questions & Discussion','Workload shapes, integration feedback, and reproducible observations are welcome.',0,17)
-a.text(0,100,'What must your workload keep together—\nand what should it place apart?',40,bold=True,width=1400)
-a.text(0,330,'github.com/volcano-sh/volcano',35,'blue',True,width=1380)
-a.text(0,415,'Roadmap and feedback · issue #6166',29,'muted',width=1300)
+from polish_figures import polish
+polish(arts, art, code, rawtext, C, ASSETS)
 for a in arts.values():a.save()
+(ROOT/'geometry-audit.json').write_text(json.dumps({str(n):a.routes for n,a in arts.items()},indent=2)+'\n')
 
 # Native PowerPoint title/profile/divider text. Source notes follow the remapped pages.
 prs=Presentation();prs.slide_width=Inches(13.333333);prs.slide_height=Inches(7.5)
