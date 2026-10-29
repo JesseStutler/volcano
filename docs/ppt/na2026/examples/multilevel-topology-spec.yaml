@@ -1,15 +1,15 @@
 minMember: 8
 networkTopology:
   mode: hard
-  highestTierAllowed: 3
+  highestTierName: core
 subGroupPolicy:
 - name: prefill
   subGroupSize: 4
   networkTopology:
     mode: hard
-    highestTierAllowed: 1
+    highestTierName: leaf
 - name: decode
   subGroupSize: 4
   networkTopology:
     mode: hard
-    highestTierAllowed: 2
+    highestTierName: spine

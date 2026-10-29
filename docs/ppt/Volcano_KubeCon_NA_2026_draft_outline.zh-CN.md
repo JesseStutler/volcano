@@ -13,16 +13,16 @@ Ricardo Aravena · Rainie Li。约 24–25 分钟正文，5 分钟问答。[PPT]
 | 1 | 封面 | 原标题，两位讲者 |
 | 2 | Speaker profiles | 照片与简短介绍，正式职务可再调整 |
 | 3 | 第一章：统一调度 | 不同路径如何共享集群 |
-| 4 | Workload demands | 训练、推理、agent 应用的需求 |
+| 4 | Workload demands | 训练 collective、推理 P/D 角色、agent 调用链 |
 | 5 | Unified architecture | 沿用 China 架构图，讲双路径与协同 |
 | 6 | NodeShard | 沿用控制器图，对照 desired / in-use YAML |
 | 7 | 第二章：多级 Gang 与网络拓扑 | 有节点，还要有完整副本和局部性 |
 | 8 | PodGroup / SubGroup | 沿用训练与 serving 分组图 |
 | 9 | HyperNode | 物理网络与父、叶节点 YAML 对照 |
-| 10 | 多级拓扑放置 | 沿用 EU / China 网络图，对照不同层级约束 |
+| 10 | 多级拓扑放置 | 沿用 EU / China 网络图，以 highestTierName 对照层级约束 |
 | 11 | PodGroup anti-affinity | 实例内聚拢，实例间分离；展示关键 YAML |
 | 12 | 第三章：Ecosystem | 控制器怎样传递角色与副本身份 |
-| 13 | 接入关系 | Kthena、KubeRay、Grove、Kubeflow、LWS；区分已有与推进中 |
+| 13 | 接入关系 | Kthena / KubeRay / Grove 现状；RBG 推进中，Kubeflow 与 LWS multi-group 后续方向 |
 | 14 | Kthena | 沿用 China 映射图与 gangPolicy / roles YAML |
 | 15 | KubeRay | 两个完整的双 Pod 副本；replica label 对照 SubGroup policy |
 | 16 | 后续分组关系 | 分开示意同域亲和与跨域分离，标为 Proposed |

@@ -29,7 +29,9 @@
     "https://github.com/kuberay-project/kuberay/pull/5369",
     "https://github.com/ai-dynamo/grove/pull/516",
     "https://trainer.kubeflow.org/en/latest/operator-guides/job-scheduling/volcano.html",
-    "https://github.com/kubernetes-sigs/lws/pull/498"
+    "https://github.com/kubernetes-sigs/lws/pull/498",
+    "https://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md",
+    "https://github.com/kubernetes-sigs/lws/blob/main/README.md"
   ],
   "11": [
     "https://github.com/kuberay-project/kuberay/pull/5249",

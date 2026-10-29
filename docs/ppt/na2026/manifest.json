@@ -102,7 +102,7 @@
       "title": "Controllers Bring Workload Structure to Scheduling",
       "chapter": 3,
       "svg": "svg/13-ecosystem.svg",
-      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; Kubeflow Trainer Volcano plugin; LWS #498.",
+      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
       "previous_draft_notes_page": 10
     },
     {

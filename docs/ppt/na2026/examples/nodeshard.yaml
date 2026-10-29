@@ -1,9 +1,12 @@
-kind: NodeShard
-metadata:
-  name: volcano
 spec:
-  nodesDesired: [node1, node2, node3]
+  nodesDesired:
+  - node1
+  - node2
 status:
-  nodesInUse: [node0, node1, node2]
-  nodesToRemove: [node0]
-  nodesToAdd: [node3]
+  nodesInUse:
+  - node0
+  - node1
+  nodesToRemove:
+  - node0
+  nodesToAdd:
+  - node2

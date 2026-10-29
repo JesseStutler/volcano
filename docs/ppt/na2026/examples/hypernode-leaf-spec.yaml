@@ -1,5 +1,5 @@
 tier: 1
-tierName: rack
+tierName: leaf
 members:
 - type: Node
   selector:

@@ -1,5 +1,6 @@
 metadata:
-  labels: {app: model-a}
+  labels:
+    app: model-a
 spec:
   networkTopology:
     mode: hard
@@ -8,5 +9,6 @@ spec:
     podGroupAntiAffinity:
       required:
       - podGroupSelector:
-          matchLabels: {app: model-a}
+          matchLabels:
+            app: model-a
         topologyTierName: supernode

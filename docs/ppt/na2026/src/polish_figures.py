@@ -22,17 +22,17 @@ def polish(arts, art, code, raw, C, assets):
         a.text(x,y+7,str(label),21,'white',True,70,'middle')
 
     def bar(a,x,y,w,label,color='ink',size=23):
-        a.rect(x,y,w,44,color,None,0)
-        a.text(x+17,y+30,label,size,'white',True,width=w-34)
+        a.rect(x,y,w,44,'white',None,0)
+        a.path([(x,y+44),(x+w,y+44)],False,color)
+        a.text(x+17,y+30,label,size,color,True,width=w-34)
 
     def frame(a,x,y,w,h,title,color='blue',fill='white'):
         a.rect(x,y,w,h,fill,color,3,layer='bg')
         bar(a,x,y,w,title,color)
 
     def foot(a,text):
-        a.rect(0,511,1480,49,'ink',None,0)
-        a.rect(0,511,6,49,'orange',None,0)
-        a.text(22,545,text,26,'white',True,width=1430)
+        wire(a,[(0,511),(1480,511)],arrow=False,c='light')
+        a.text(0,549,text,25,'ink',True,width=1478)
 
     def icon(a,x,y,size,name='pod'):
         a.image(x,y,size,size,assets/'icons'/f'{name}.svg')
@@ -56,53 +56,93 @@ def polish(arts, art, code, raw, C, assets):
         pw=(w-46)/2
         for j,label in enumerate(pods):pod(a,x+15+j*(pw+16),y+69,label,pw,color,21)
 
-    # 04: workload demands as distinct workload shapes on a common foundation.
-    a=renew(4)
-    for y in [0,161,322]:
-        a.rect(0,y,1480,145,'white',None,0,layer='bg')
-        wire(a,[(0,y+145),(1480,y+145)],arrow=False,c='light')
-    for y,title,desc in [(0,'Training & RL','Coordinated compute'),(161,'Inference','Roles and complete replicas'),(322,'Agent applications','Bursty, latency-sensitive requests')]:
-        a.text(0,y+39,title,32,'ink',True,width=340)
-        a.text(0,y+81,desc,25,'muted',width=335)
-    # Training: one gang boundary, four member Pods.
-    a.rect(390,12,620,111,'pale','blue',2,layer='bg',dash=True)
-    for i in range(4):pod(a,410+i*149,34,f'W{i}',130,'blue',23)
-    a.text(1060,48,'Start a complete group',29,'blue',True,width=400)
-    a.text(1060,92,'Resources + coordination',24,'muted',width=400)
-    # Serving: two explicit role groups; containment carries membership.
-    for x,label,color in [(390,'Prefill','green'),(720,'Decode','blue')]:
-        a.rect(x,176,290,113,'white',color,2,layer='bg')
-        a.text(x+16,205,label,23,color,True,width=260)
-        icon(a,x+22,224,47);icon(a,x+94,224,47)
-        a.text(x+166,254,'replica',23,'muted',width=110)
-    a.text(1060,210,'Keep communication local',29,'blue',True,width=410)
-    a.text(1060,254,'Roles + topology',24,'muted',width=400)
-    # Requests are small events, not Pod symbols.
-    for i,x in enumerate([408,444,480,553,589,625]):
-        a.front.append(f'<circle cx="{x}" cy="393" r="10" fill="{C["orange"]}"/>')
-    a.text(397,437,'request bursts',22,'muted',width=260)
-    a.rect(764,350,246,94,'pale','line',3)
-    icon(a,783,365,53,'svc');a.text(850,386,'Serving /',24,'ink',True,width=145);a.text(850,416,'sandbox',24,'ink',True,width=145)
-    wire(a,[(646,393),(761,393)])
-    a.text(1060,370,'Respond to bursts',29,'blue',True,width=400)
-    a.text(1060,414,'Runtime determines the unit',24,'muted',width=410)
-    foot(a,'Shared cluster capacity; different requirements for coordination, locality, and latency.')
+    # Physical symbols follow the EU/China multi-level topology figure.
+    # A switch is hardware; a dashed contour is a scheduling group.
+    def switch(a,x,y,label,w=104):
+        top=26; depth=19; height=27
+        points=[(x,y+top),(x+depth,y),(x+w,y),(x+w-depth,y+top)]
+        a.front.append('<polygon points="'+' '.join(f'{px},{py}' for px,py in points)+'" fill="#08749d" stroke="white" stroke-width="2.5"/>')
+        a.front.append(f'<path d="M{x},{y+top} h{w-depth} v{height} h-{w-depth} Z M{x+w-depth},{y+top} l{depth},-{top} v{height} l-{depth},{top} Z" fill="#075e87" stroke="white" stroke-width="2.5"/>')
+        # Two opposed port-direction marks, explicitly anchored to the top face.
+        a.front.append(f'<path d="M{x+31},{y+9} h40 l-6,-3 m6,3 l-8,3 M{x+64},{y+19} h-40 l6,3 m-6,-3 l8,-3" fill="none" stroke="white" stroke-width="2"/>')
+        if label:a.text(x+w/2,y-9,label,23,'ink',True,width=w+90,anchor='middle')
+        return (x+w/2,y),(x+(w-depth)/2,y+top+height)
 
-    # 11: placement is visible on node chassis; each service instance has a boundary.
+    def rack(a,x,y,w,title,roles,color='blue',h=157):
+        # Explicit node chassis and named Pod rows; no implied GPU count.
+        a.rect(x,y,w,h,'#f5f7fa','line',1)
+        a.front.append(f'<path d="M{x+w},{y} l9,-7 v{h} l-9,7" fill="#dce5ee" stroke="{C["line"]}" stroke-width="1.4"/>')
+        a.text(x+w/2,y+26,title,21,'ink',True,width=w-8,anchor='middle')
+        rh=(h-48)/len(roles)
+        for i,label in enumerate(roles):
+            yy=y+37+i*rh
+            a.rect(x+9,yy,w-18,rh-8,'prefill' if color=='blue' else 'mint',color,4)
+            a.text(x+w/2,yy+25,label,21,color,True,width=w-24,anchor='middle')
+            if rh>=70:
+                a.text(x+w/2,yy+55,'Pod',19,'muted',width=w-24,anchor='middle')
+        return (x+w/2,y-4)
+
+    def scope(a,x,y,w,h,label,color='blue',fill='white'):
+        a.rect(x,y,w,h,fill,color,22,layer='bg',dash=True)
+        a.text(x+18,y+32,label,24,color,True,width=w-36)
+
+    def service(a,x,y,w,label,sub=None,color='blue',h=66):
+        # A named runtime component, not a Kubernetes Pod symbol.
+        a.rect(x,y,w,h,'white',color,8)
+        a.text(x+w/2,y+(29 if sub else 40),label,25,'ink',True,width=w-20,anchor='middle')
+        if sub:a.text(x+w/2,y+54,sub,21,'muted',width=w-20,anchor='middle')
+
+    # 04: asymmetric composition. Distributed compute, a request graph, and
+    # disaggregated serving have different shapes because they behave differently.
+    a=renew(4)
+    a.text(0,28,'TRAINING & RL',24,'blue',True)
+    a.text(0,64,'Complete compute groups; collective communication',24,'muted',width=510)
+    scope(a,0,112,515,370,'One training gang','blue')
+    st,sb=switch(a,206,190,'Collective fabric')
+    # Two nodes / four ranks form a real compute group; a labeled bus shows all-reduce.
+    for x,title,roles in [(35,'GPU node A',['rank 0','rank 1']),(294,'GPU node B',['rank 2','rank 3'])]:
+        rp=rack(a,x,299,177,title,roles,h=158)
+        wire(a,[sb,(sb[0],271),(rp[0],271),rp],arrow=False)
+    a.text(256,286,'all-reduce',21,'blue',True,width=150,anchor='middle')
+    a.text(610,28,'AGENT APPLICATION',24,'orange',True)
+    a.text(610,64,'Variable fan-out; latency-sensitive runtime calls',24,'muted',width=850)
+    service(a,617,105,190,'Planner',color='orange',h=70)
+    service(a,927,105,205,'Retrieval', 'tool service',color='orange',h=70)
+    service(a,1235,105,230,'Sandbox','runtime session',color='orange',h=70)
+    wire(a,[(807,139),(924,139)],'orange')
+    wire(a,[(712,105),(712,88),(1350,88),(1350,102)],'orange')
+    a.text(846,122,'tool',20,'orange',width=70)
+    # Model calls branch downward from the planner, rather than becoming Pods.
+    wire(a,[(710,175),(710,194),(572,194),(572,377),(614,377)],'orange')
+    a.text(726,220,'model calls',21,'orange',True,width=180)
+    a.text(935,219,'Requests reuse services and runtimes.',23,'muted',width=530)
+    a.text(610,277,'INFERENCE',24,'green',True)
+    a.text(610,310,'Long-lived roles; local KV transfer; complete replicas',24,'muted',width=865)
+    service(a,617,341,190,'Router',color='green',h=73)
+    scope(a,888,339,577,143,'Serving instance','green')
+    service(a,908,390,200,'Prefill','prompt compute',color='green',h=70)
+    service(a,1243,390,200,'Decode','token generation',color='blue',h=70)
+    wire(a,[(807,377),(859,377),(859,425),(905,425)],'green')
+    wire(a,[(1108,425),(1240,425)],'green')
+    a.text(1175,409,'KV',21,'green',True,width=90,anchor='middle')
+    a.text(1175,456,'transfer',20,'muted',width=110,anchor='middle')
+    foot(a,'Shared Kubernetes capacity · compute groups, serving replicas, and runtime demand are different scheduling concerns.')
+
+    # 11: network hierarchy and concrete placement, with no abstract apart-arrow.
     a=renew(11)
-    for y,domain,instance,color in [(0,'Supernode A','instance-a','blue'),(250,'Supernode B','instance-b','green')]:
-        frame(a,0,y,690,223,domain,'ink')
-        a.rect(14,y+58,662,150,'white',color,3,layer='bg',dash=True)
-        a.text(27,y+85,instance+' · PodGroup',24,color,True,width=600)
-        # Short host strips keep the boundary legible without pretending Pods are nodes.
-        for x,node_name,labels in [(28,'Node '+domain[-1]+'0',['P0','D0']),(359,'Node '+domain[-1]+'1',['P1','D1'])]:
-            a.rect(x,y+98,301,94,'pale','line',2)
-            a.text(x+12,y+124,node_name,20,'muted',True,width=275)
-            for j,t in enumerate(labels):
-                icon(a,x+12+j*148,y+137,39)
-                a.text(x+59+j*148,y+165,t,22,color,True,width=90)
-    code(a,740,0,740,475,'PodGroup · same rule on each instance','''metadata:
-  labels: {app: model-a}
+    ct,cb=switch(a,295,35,'Shared fabric')
+    a.text(435,31,'P: Prefill · D: Decode',23,'muted',width=265)
+    for x,domain,instance,color in [(0,'Supernode A','instance-a','blue'),(365,'Supernode B','instance-b','green')]:
+        scope(a,x,155,325,327,domain,color)
+        st,sb=switch(a,x+110,212,'')
+        wire(a,[cb,(cb[0],107),(x+270,107),(x+270,200),(st[0],200),st],arrow=False)
+        for xx,title,roles in [(x+18,'Node 0',['P0','P1']),(x+175,'Node 1',['D0','D1'])]:
+            rp=rack(a,xx,304,128,title,roles,color,h=122)
+            wire(a,[sb,(sb[0],283),(rp[0],283),rp],arrow=False)
+        a.text(x+163,463,instance+' · PodGroup',22,color,True,width=305,anchor='middle')
+    code(a,740,0,740,482,'PodGroup · same rule on each instance','''metadata:
+  labels:
+    app: model-a
 spec:
   networkTopology:
     mode: hard
@@ -111,76 +151,88 @@ spec:
     podGroupAntiAffinity:
       required:
       - podGroupSelector:
-          matchLabels: {app: model-a}
-        topologyTierName: supernode''',25,('highestTierName','podGroupAntiAffinity','topologyTierName'),filename='podgroup-anti-affinity.yaml')
-    foot(a,'Inside an instance: locality. Between instances: separation. PodGroup anti-affinity is available in v1.16.')
+          matchLabels:
+            app: model-a
+        topologyTierName: supernode''',24,('highestTierName','podGroupAntiAffinity','topologyTierName'),filename='podgroup-anti-affinity.yaml')
+    foot(a,'Locality keeps each instance within one domain; anti-affinity places matching PodGroups in different domains.')
 
-    # 13: inspect controller inputs and the grouping model they convey, not a logo hub.
+    # 13: community-specific next steps; no generic hub or placeholder grouping art.
     a=renew(13)
-    a.text(0,29,'CONTROLLER INPUTS',22,'muted',True)
-    projects=[(65,'Kthena','kthena.svg','ModelServing / role replicas','Gang + topology available','green'),
-              (203,'KubeRay','kuberay.png','RayCluster / multi-host replicas','SubGroup merged · topology in progress','blue'),
-              (341,'Grove','dynamo-grove.svg','PodCliqueSet / scaling groups','SubGroup backend · topology mapping open','blue')]
-    for y,title,logo,resource,status,color in projects:
-        a.image(0,y,62,53,assets/logo)
-        a.text(83,y+31,title,30,'ink',True,width=420)
-        a.text(83,y+70,resource,25,'ink',width=580)
-        a.text(83,y+107,status,23,color,True,width=595)
-    # A labeled translation boundary, no many-to-one decorative arrows.
-    wire(a,[(700,50),(700,469)],arrow=False,c='light')
-    a.text(785,29,'VOLCANO GROUPING MODEL',22,'muted',True)
-    frame(a,785,59,695,408,'PodGroup · workload admission','ink')
-    a.text(810,143,'Select role',25,'ink',True,width=270)
-    raw(a,1080,143,'labelSelector',24,'blue',False,True)
-    a.text(810,191,'Partition replicas',25,'ink',True,width=280)
-    raw(a,1080,191,'matchLabelKeys',24,'blue',False,True)
-    wire(a,[(810,216),(1454,216)],arrow=False,c='light')
-    bundle(a,810,240,303,143,'SubGroup 0','blue',('0','1'))
-    bundle(a,1151,240,303,143,'SubGroup 1','green',('0','1'))
-    a.text(810,435,'Topology constraints are a separate integration step.',23,'muted',width=640)
-    foot(a,'Kubeflow Trainer and LWS already integrate with Volcano; finer groups and locality are next.')
+    a.text(0,29,'INTEGRATIONS & CURRENT GAPS',23,'blue',True)
+    a.text(790,29,'NEXT COMMUNITY WORK',23,'purple',True)
+    wire(a,[(730,12),(730,480)],arrow=False,c='light')
+    projects=[(64,'Kthena','kthena.svg','ModelServing → role replicas','Gang and topology available.'),
+              (210,'KubeRay','kuberay.png','Multi-host replica → SubGroup','Gang merged; topology in progress.'),
+              (356,'Grove','dynamo-grove.svg','PodClique / scaling group → SubGroup','Backend merged; topology mapping remains.')]
+    for y,title,logo,mapping,status in projects:
+        a.image(0,y,64,48,assets/logo)
+        a.text(85,y+31,title,30,'ink',True,width=575)
+        a.text(85,y+72,mapping,24,'ink',width=590)
+        a.text(85,y+109,status,23,'muted',width=600)
+        if y<356:wire(a,[(85,y+132),(688,y+132)],arrow=False,c='light')
+    for y,title,status,line1,line2 in [
+        (64,'RBG','IN PROGRESS','RoleInstance → SubGroup foundation.','Continue the integration with the community.'),
+        (210,'Kubeflow','PLANNED','Build on the existing Volcano plugin.','Extend finer grouping and topology support.'),
+        (356,'LWS','PLANNED · MULTI-GROUP','Build on existing gang scheduling.','Connect multi-role groups to scheduling intent.')]:
+        a.text(790,y+31,title,30,'ink',True,width=240)
+        a.text(1040,y+29,status,21,'purple',True,width=438)
+        a.text(790,y+72,line1,24,'ink',width=680)
+        a.text(790,y+109,line2,23,'muted',width=680)
+        if y<356:wire(a,[(790,y+132),(1480,y+132)],arrow=False,c='light')
+    foot(a,'The next integration step: preserve roles, replica identity, and locality across controller boundaries.')
 
-    # 15: show the replica label on actual member Pods and align it with API fields.
+    # 15: each multi-host replica is an explicit pair of worker Pods.
+    # No shared switch here: merged gang support does not yet guarantee topology.
     a=renew(15)
     (assets.parent/'examples'/'ray-worker-group.yaml').write_text('minReplicas: 2\nnumOfHosts: 2\n')
-    frame(a,0,0,700,475,'WorkerGroup · 2 replicas × 2 hosts','ink')
-    a.text(20,85,'Each replica is one complete SubGroup.',25,'muted',width=655)
-    for x,r,color in [(20,'0','blue'),(365,'1','green')]:
-        frame(a,x,115,315,280,'Replica '+r,color)
-        for y,host in [(183,'0'),(282,'1')]:
-            pod(a,x+16,y,'host '+host,283,color,25)
-            a.text(x+20,y+91,'replica-name = '+r,21,color,True,width=275)
-    a.text(20,441,'Same replica label → same SubGroup',25,'ink',True,width=660)
+    a.text(0,29,'RayCluster · worker group',28,'ink',True,width=680)
+    raw(a,0,71,'minReplicas: 2',26,'blue',False,True)
+    raw(a,0,104,'numOfHosts: 2',26,'blue',False,True)
+    service(a,235,103,225,'Ray head','separate group',h=70)
+    for x,r,color in [(0,'0','blue'),(365,'1','green')]:
+        scope(a,x,235,325,211,'SubGroup · replica '+r,color)
+        for xx,host in [(x+18,'0'),(x+175,'1')]:
+            rack(a,xx,296,128,'host '+host,['worker'],color,h=120)
+        # Head-to-worker RPC: common bus, no topology placement meaning.
+        wire(a,[(348,173),(348,205),(x+162,205),(x+162,233)],c='line')
+        a.text(x+163,478,'replica-name = '+r,23,color,True,width=325,anchor='middle')
+    a.text(0,195,'worker registration / RPC',21,'muted',width=300)
     code(a,750,0,730,372,'PodGroup.spec · generated grouping','''subGroupPolicy:
 - name: worker
   labelSelector:
-    matchLabels: {ray.io/group: worker}
+    matchLabels:
+      ray.io/group: worker
   matchLabelKeys:
   - ray.io/worker-group-replica-name
   minSubGroups: 2
   subGroupSize: 2''',25,('matchLabelKeys','minSubGroups','subGroupSize'),filename='ray-subgroup-spec.yaml')
-    dot(a,770,419,'1');a.text(800,428,'Partition by the replica label',27,'ink',True,width=660)
-    dot(a,770,464,'2','green');a.text(800,473,'Require two complete, two-Pod groups',25,'ink',True,width=660)
-    foot(a,'Gang support is merged. Replica topology is in progress. The head has its own group.')
+    a.text(770,424,'One replica label → one complete SubGroup',26,'ink',True,width=690)
+    a.text(770,470,'Two replicas × two hosts = four worker Pods',25,'muted',width=690)
+    foot(a,'Grouping view, not a topology guarantee. Gang support is merged; replica topology is still in progress.')
 
-    # 16: two different topology intents, not a single ambiguous near/apart arrow.
+    # 16: same physical vocabulary as slide 10; two separate proposed intents.
     a=renew(16)
     a.text(0,29,'PROPOSED · SubGroup relationships within one PodGroup',23,'purple',True,width=1450)
-    for x,num,title,subtitle in [(0,'01','Affinity','Cooperating groups share a domain'),(780,'02','Anti-affinity','Replicas occupy different domains')]:
-        dot(a,x+18,78,num,'purple',18)
-        a.text(x+55,89,title,32,'ink',True,width=620)
-        a.text(x,135,subtitle,25,'muted',width=680)
-    # Affinity: one supernode, two groups, same frame. No claim of replica-index pairing.
-    frame(a,0,170,700,260,'Supernode A','ink')
-    bundle(a,20,240,315,155,'Prefill SubGroup','green',('P0','P1'))
-    bundle(a,365,240,315,155,'Decode SubGroup','blue',('D0','D1'))
-    a.text(20,475,'One shared topology boundary',26,'ink',True,width=660)
-    # Anti-affinity: two separate racks within the current workload.
+    a.text(0,84,'Affinity: cooperating groups',30,'ink',True,width=700)
+    a.text(780,84,'Anti-affinity: independent replicas',30,'ink',True,width=700)
+    wire(a,[(740,65),(740,482)],arrow=False,c='light')
+    # Shared-domain affinity: a common switch above distinct role subgroups.
+    scope(a,0,122,700,356,'Supernode A','purple')
+    st,sb=switch(a,295,183,'')
+    for x,label,roles,color in [(22,'Prefill SubGroup',['P0','P1'],'blue'),(378,'Decode SubGroup',['D0','D1'],'green')]:
+        scope(a,x,285,300,180,'',color)
+        rp=rack(a,x+57,305,180,'GPU node',roles,color,h=122)
+        a.text(x+150,452,label,23,color,True,width=290,anchor='middle')
+        wire(a,[sb,(sb[0],261),(rp[0],261),rp],arrow=False)
+    # Replica separation: two distinct rack-level HyperNode domains.
     for x,label,r in [(780,'Rack A','Replica 0'),(1145,'Rack B','Replica 1')]:
-        frame(a,x,170,335,260,label,'ink')
-        bundle(a,x+17,240,301,155,r,'blue',('P0','P1'))
-    a.text(800,475,'Distinct topology boundaries',26,'ink',True,width=650)
-    foot(a,'Two placement intents, shown separately. SubGroup affinity / anti-affinity remains proposed.')
+        scope(a,x,122,335,356,label,'purple')
+        st,sb=switch(a,x+111,183,'')
+        scope(a,x+18,285,299,180,'','blue')
+        rp=rack(a,x+75,305,180,'GPU node',['Pod 0','Pod 1'],'blue',h=122)
+        a.text(x+168,452,r+' · SubGroup',23,'blue',True,width=290,anchor='middle')
+        wire(a,[sb,(sb[0],267),(rp[0],267),rp],arrow=False)
+    foot(a,'Place cooperating SubGroups together; spread replicas across domains. These relationships remain proposed.')
 
     # 18: an instrumented cluster, with execution and observation kept on separate lanes.
     a=renew(18)
