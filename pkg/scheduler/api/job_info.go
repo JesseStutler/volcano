@@ -139,9 +139,15 @@ type TaskInfo struct {
 	// LastTransaction holds the context of last scheduling transaction
 	LastTransaction *TransactionContext
 
-	Priority                    int32
-	VolumeReady                 bool
-	Preemptable                 bool
+	Priority    int32
+	VolumeReady bool
+	Preemptable bool
+	// BestEffort indicates that a task has no scheduling resource requests.
+	// It is retained for compatibility as the inverse of HasSchedulingResourceRequests.
+	// This is not the Kubernetes Pod QoS class: DRA-only tasks are false here
+	// even when their Pod QoS is BestEffort.
+	// Scheduling decisions should use HasSchedulingResourceRequests; policies
+	// based only on InitResreq should use HasInitResourceRequests.
 	BestEffort                  bool
 	HasRestartableInitContainer bool
 	SchGated                    bool
@@ -208,7 +214,6 @@ const TaskPriorityAnnotation = "volcano.sh/task-priority"
 func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 	initResReq := GetPodResourceRequest(pod)
 	resReq := initResReq
-	bestEffort := initResReq.IsEmpty()
 	preemptable := GetPodPreemptable(pod)
 	revocableZone := GetPodRevocableZone(pod)
 	topologyInfo := GetPodTopologyInfo(pod)
@@ -230,7 +235,6 @@ func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 		Resreq:                      resReq,
 		InitResreq:                  initResReq,
 		Preemptable:                 preemptable,
-		BestEffort:                  bestEffort,
 		HasRestartableInitContainer: hasRestartableInitContainer,
 		RevocableZone:               revocableZone,
 		NumaInfo:                    topologyInfo,
@@ -240,6 +244,8 @@ func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 			Status:   GetTaskStatus(pod),
 		},
 	}
+
+	ti.UpdateSchedulingBestEffort()
 
 	if pod.Spec.Priority != nil {
 		ti.Priority = *pod.Spec.Priority
@@ -252,6 +258,28 @@ func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 	}
 
 	return ti
+}
+
+// HasInitResourceRequests reports whether InitResreq contains scheduling requests such as
+// CPU, memory, extended resources, or scheduler-added CSI attachment counts.
+// ResourceClaims do not affect this result: a DRA-only task returns false.
+// This checks resource requests, not the Kubernetes Pod QoS class.
+func (ti *TaskInfo) HasInitResourceRequests() bool {
+	return !ti.InitResreq.IsEmpty()
+}
+
+// HasSchedulingResourceRequests reports whether the task requests resources
+// that need allocation, including InitResreq and ResourceClaims. Pending tasks
+// with such requests cannot count toward gang readiness before allocation.
+func (ti *TaskInfo) HasSchedulingResourceRequests() bool {
+	return ti.HasInitResourceRequests() || len(ti.Pod.Spec.ResourceClaims) > 0
+}
+
+// UpdateSchedulingBestEffort refreshes the compatibility BestEffort field after
+// resource requests change. Scheduling decisions use HasSchedulingResourceRequests
+// directly; neither changes the Kubernetes Pod QoS class.
+func (ti *TaskInfo) UpdateSchedulingBestEffort() {
+	ti.BestEffort = !ti.HasSchedulingResourceRequests()
 }
 
 // GetTransactionContext get transaction context of a task
@@ -1017,10 +1045,11 @@ func (ji *JobInfo) WaitingTaskNum() int32 {
 	return int32(len(ji.TaskStatusIndex[Pipelined]))
 }
 
+// PendingBestEffortTaskNum counts pending tasks without scheduling resource requests.
 func (ji *JobInfo) PendingBestEffortTaskNum() int32 {
 	count := 0
 	for _, task := range ji.TaskStatusIndex[Pending] {
-		if task.BestEffort {
+		if !task.HasSchedulingResourceRequests() {
 			count++
 		}
 	}
@@ -1139,7 +1168,7 @@ func (ji *JobInfo) getJobAllocatedRoles() map[string]int32 {
 
 		if status == Pending {
 			for _, task := range tasks {
-				if task.InitResreq.IsEmpty() {
+				if !task.HasSchedulingResourceRequests() {
 					occupiedMap[task.TaskRole]++
 				}
 			}
@@ -1213,7 +1242,7 @@ func (ji *JobInfo) CheckTaskPipelined() bool {
 
 		if status == Pending {
 			for _, task := range tasks {
-				if task.InitResreq.IsEmpty() {
+				if !task.HasSchedulingResourceRequests() {
 					occupiedMap[task.TaskRole]++
 				}
 			}

@@ -198,8 +198,9 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 					if !api.PreemptableStatus(task.Status) {
 						return false
 					}
-					// BestEffort pod is not supported to preempt unBestEffort pod.
-					if preemptor.BestEffort && !task.BestEffort {
+					// Tasks without ordinary resource requests cannot preempt tasks that have them.
+					// This restriction also applies to DRA-only tasks.
+					if !preemptor.HasInitResourceRequests() && task.HasInitResourceRequests() {
 						return false
 					}
 					if !task.Preemptable {
@@ -258,8 +259,9 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 					if !api.PreemptableStatus(task.Status) {
 						return false
 					}
-					// BestEffort pod is not supported to preempt unBestEffort pod.
-					if preemptor.BestEffort && !task.BestEffort {
+					// Tasks without ordinary resource requests cannot preempt tasks that have them.
+					// This restriction also applies to DRA-only tasks.
+					if !preemptor.HasInitResourceRequests() && task.HasInitResourceRequests() {
 						return false
 					}
 					// should skip not preemptable pod

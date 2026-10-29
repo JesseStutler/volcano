@@ -260,8 +260,9 @@ func (sc *SchedulerCache) NewTaskInfo(pod *v1.Pod) (*schedulingapi.TaskInfo, err
 	if err := sc.addPodCSIVolumesToTask(taskInfo); err != nil {
 		return taskInfo, err
 	}
-	// Update BestEffort because the InitResreq maybe changes
-	taskInfo.BestEffort = taskInfo.InitResreq.IsEmpty()
+	// CSI attachment counts are added to Resreq, which shares InitResreq here.
+	// Refresh BestEffort to include these scheduling requests.
+	taskInfo.UpdateSchedulingBestEffort()
 	draResreq, claimDRAResreq, claimKeys, err := sc.buildTaskDRAInfo(pod)
 	if err != nil {
 		return taskInfo, err

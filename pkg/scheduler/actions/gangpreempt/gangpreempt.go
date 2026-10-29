@@ -198,8 +198,8 @@ func (gp *Action) selectDomainBundles(ssn *framework.Session, preemptorJob *api.
 			if !api.PreemptableStatus(task.Status) || !task.Preemptable {
 				continue
 			}
-			// NOTE: legacy preempt filters out non-BestEffort victims when
-			// the preemptor is BestEffort. That check is intentionally
+			// NOTE: legacy preempt filters out victims with ordinary requests when
+			// the preemptor has no ordinary requests. That check is intentionally
 			// removed here; UnifiedEvictableFn plugins handle eligibility.
 			victimJob, found := ssn.Jobs[task.Job]
 			if !found || victimJob.Queue != preemptorJob.Queue {
