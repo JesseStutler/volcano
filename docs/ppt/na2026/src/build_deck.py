@@ -223,7 +223,7 @@ a.text(0,553,'The same hierarchy is available through the standalone HyperNode c
 
 # 10: reuse the actual network drawing, with the two topology levels in YAML.
 a=art(10,'multilevel-placement','Place Groups at Different Topology Levels','An eight-Pod instance spans a larger domain; Prefill and Decode use different locality constraints.',2,8,'EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.')
-original(a,'china-17-multilevel-topology.png',0,25,900,510)
+original(a,'china-17-multilevel-topology.png',0,0,900,500)
 code(a,940,0,540,531,'PodGroup.spec · key fields','''minMember: 8
 networkTopology:
   mode: hard
@@ -387,4 +387,4 @@ prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026
 prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print(f'{len(order)} slides; r6 simplified presentation; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; r7 diagram explanations; eight YAML excerpts and chapter dividers.')

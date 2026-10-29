@@ -2,7 +2,7 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-Ricardo Aravena · Rainie Li。24 页，约 25 分钟正文 + 5 分钟问答。[PPT](Volcano_KubeCon_NA_2026_r6.pptx) · [PDF](Volcano_KubeCon_NA_2026_r6.pdf)
+Ricardo Aravena · Rainie Li。24 页，约 25 分钟正文 + 5 分钟问答。[PPT](Volcano_KubeCon_NA_2026_r7.pptx) · [PDF](Volcano_KubeCon_NA_2026_r7.pdf)
 
 从不同工作负载的调度诉求切入，讲双路径如何协调资源，再落到完整分组、拓扑和组间关系。通过生态案例说明这些需求怎样传给 Volcano，最后讲 benchmark 已有基础与接下来要验证的问题。
 
@@ -36,4 +36,4 @@ Benchmark 讲框架与测试计划，不填猜测结果。横向比较要匹配�
 
 保留 Volcano 背景，拿到官方模板后再套版。好的旧图继续用；新图保存 SVG，PPT 内嵌固定 PNG。演讲前复核生态状态，并留两次计时排练。
 
-r6 只在页面上保留图、关键标签和必要状态。副标题、重复解释与总结句移到备注，减少全大写和颜色。
+r7 沿用 r6 的版式，每个图块补一两句说明关系或目的。副标题、重复总结和长段解释仍留在备注。

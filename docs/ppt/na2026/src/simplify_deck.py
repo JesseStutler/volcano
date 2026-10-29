@@ -117,4 +117,6 @@ def simplify(arts,art,titles,C,assets):
       14:'Kthena',15:'KubeRay',23:'Grove',13:'Next integrations',
       18:'Benchmark framework',19:'Comparing schedulers',20:'Benchmark scenarios',21:'What’s next',22:'Thank you',
     })
+    from diagram_context import add_context
+    add_context(arts)
     return removed
