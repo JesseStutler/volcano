@@ -1,0 +1,386 @@
+[
+  {
+    "file": "china-25-partner-01-1.png",
+    "row": 0,
+    "col": 0,
+    "shape": 16,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-01-2.png",
+    "row": 0,
+    "col": 1,
+    "shape": 17,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-01-3.png",
+    "row": 0,
+    "col": 2,
+    "shape": 25,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-01-4.png",
+    "row": 0,
+    "col": 3,
+    "shape": 23,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-02-1.jpg",
+    "row": 1,
+    "col": 0,
+    "shape": 9,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-02-2.png",
+    "row": 1,
+    "col": 1,
+    "shape": 45,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-02-3.png",
+    "row": 1,
+    "col": 2,
+    "shape": 43,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-02-4.png",
+    "row": 1,
+    "col": 3,
+    "shape": 46,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-03-1.png",
+    "row": 2,
+    "col": 0,
+    "shape": 20,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-03-2.png",
+    "row": 2,
+    "col": 1,
+    "shape": 47,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-03-3.png",
+    "row": 2,
+    "col": 2,
+    "shape": 19,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-03-4.png",
+    "row": 2,
+    "col": 3,
+    "shape": 15,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-04-1.png",
+    "row": 3,
+    "col": 0,
+    "shape": 41,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-04-2.png",
+    "row": 3,
+    "col": 1,
+    "shape": 48,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-04-3.png",
+    "row": 3,
+    "col": 2,
+    "shape": 13,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-04-4.png",
+    "row": 3,
+    "col": 3,
+    "shape": 14,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-05-1.png",
+    "row": 4,
+    "col": 0,
+    "shape": 52,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-05-2.png",
+    "row": 4,
+    "col": 1,
+    "shape": 11,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-05-3.png",
+    "row": 4,
+    "col": 2,
+    "shape": 10,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-05-4.png",
+    "row": 4,
+    "col": 3,
+    "shape": 12,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-06-1.png",
+    "row": 5,
+    "col": 0,
+    "shape": 21,
+    "crop": [
+      0.05053,
+      0.0,
+      0.05044,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-06-2.png",
+    "row": 5,
+    "col": 1,
+    "shape": 35,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-06-3.png",
+    "row": 5,
+    "col": 2,
+    "shape": 22,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-06-4.png",
+    "row": 5,
+    "col": 3,
+    "shape": 51,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-07-1.png",
+    "row": 6,
+    "col": 0,
+    "shape": 27,
+    "crop": [
+      0.20051,
+      0.21266,
+      0.17737,
+      0.18696
+    ]
+  },
+  {
+    "file": "china-25-partner-07-2.png",
+    "row": 6,
+    "col": 1,
+    "shape": 49,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-07-3.png",
+    "row": 6,
+    "col": 2,
+    "shape": 18,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-07-4.png",
+    "row": 6,
+    "col": 3,
+    "shape": 28,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-08-1.png",
+    "row": 7,
+    "col": 0,
+    "shape": 30,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-08-2.png",
+    "row": 7,
+    "col": 1,
+    "shape": 32,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-08-3.png",
+    "row": 7,
+    "col": 2,
+    "shape": 34,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  {
+    "file": "china-25-partner-08-4.png",
+    "row": 7,
+    "col": 3,
+    "shape": 50,
+    "crop": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+]

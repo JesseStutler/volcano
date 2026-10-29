@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-23 页，当前为 r5。更新讲者简介、工作负载诉求、实例 HA / SubGroup 关系、生态顺序和 benchmark 比较计划。[重点页预览](review/r5/README.md)。
+24 页，当前为 r6。保留图和关键文字，解释移入备注。复用社区用户 logo 和二维码。[重点页预览](review/r6/README.md)。
 
 ## 这次实际复用的图
 
@@ -26,7 +26,8 @@
 - `examples/`：PPT 展示的 YAML 片段，**省略了字段，不是直接 apply 的完整 manifest**。
 - `src/build_deck.py`：配色、YAML、存量图版面和 PPT 生成。
 - `src/polish_figures.py`：KubeRay、benchmark 框架与收尾页。
-- `src/approved_revision.py`：r5 的 workload、共享拓扑、Grove、社区计划和横向测试图。
+- `src/approved_revision.py`：workload、共享拓扑、Grove、社区计划和横向测试图。
+- `src/simplify_deck.py`：r6 文字精简、标题调整、社区用户页和二维码页。
 - `integration-status.json`：本轮核查的生态状态及固定版本来源。
 - `src/render_preview.py`：生成 PDF 缩略图。
 - `src/validate_deck.py`：检查文字边界、连线避让、箭头几何、YAML 及 PPT 页数 / 备注。
@@ -47,6 +48,10 @@ python3 docs/ppt/na2026/src/render_preview.py
 ```
 
 依赖：`python-pptx`、`cairosvg`、`Pillow`、`lxml`；预览另需 `PyMuPDF`。字体为 Liberation Sans / Mono。可用 LibreOffice 导出 PDF。标题、讲者资料和章节引导页为 PowerPoint 原生文本；套官方模板时可直接调整。
+
+## 社区素材
+
+第 23 页的 32 个用户 logo、第 24 页的三个二维码均取自 China 第 25 页。原始图片位于 `assets/community/`，提取时保留字节和原裁剪信息。未沿用旧页的 60+ 数字，也未新增伙伴关系声明。二维码原图与最终 PDF 均已解码核对，结果见 `assets/community/qr-targets.json` 和 `review/r6/qr-check.json`。
 
 ## 状态与讲者资料
 

@@ -1,7 +1,7 @@
 # 视觉修改记录
 
-当前为 **r5**：[重点页与前后对照](review/r5/README.md)。23 页，章节内顺序已调整，请按新版页码反馈。
+当前为 **r6**：[重点页与前后对照](review/r6/README.md)。24 页。
 
-这轮重做工作负载诉求、实例 HA / SubGroup 关系、生态计划与 benchmark 场景；补入 Grove 独立案例。沿用第 10 页的拓扑层级和交换机符号，继续保留六张 EU / China 原图。物理网络使用无方向的连线，调度流程使用正交箭头。
+这一轮减少颜色和重复解释，去掉全大写栏目名、正文副标题及页底总结句。保留图和关键文字，解释转入讲者备注。补回 China 的社区用户 logo 和官网 / GitHub / Slack 二维码。
 
-历史版本：[r4](review/r4/README.md)。
+历史版本：[r5](review/r5/README.md) · [r4](review/r4/README.md)。

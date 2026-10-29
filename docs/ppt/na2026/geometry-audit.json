@@ -12,7 +12,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#164f89",
+      "color": "#176889",
       "head": [
         [
           379.0,
@@ -40,7 +40,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#146653",
+      "color": "#5b753e",
       "head": [
         [
           1130.0,
@@ -68,7 +68,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -82,7 +82,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -128,7 +128,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#c14421"
+      "color": "#555555"
     },
     {
       "points": [
@@ -142,7 +142,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#c14421",
+      "color": "#555555",
       "head": [
         [
           265.0,
@@ -178,7 +178,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#c14421",
+      "color": "#555555",
       "head": [
         [
           620.0,
@@ -210,7 +210,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#c14421",
+      "color": "#555555",
       "head": [
         [
           620.0,
@@ -238,7 +238,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#164f89",
+      "color": "#176889",
       "head": [
         [
           1090.0,
@@ -270,7 +270,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#164f89",
+      "color": "#176889",
       "head": [
         [
           925.0,
@@ -285,20 +285,6 @@
           370.0
         ]
       ]
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
     }
   ],
   "5": [],
@@ -315,7 +301,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
+      "color": "#cccccc"
     }
   ],
   "8": [],
@@ -332,7 +318,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -346,7 +332,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
+      "color": "#cccccc"
     }
   ],
   "10": [
@@ -362,7 +348,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
+      "color": "#cccccc"
     }
   ],
   "11": [
@@ -378,7 +364,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -393,7 +379,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -408,7 +394,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -423,7 +409,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -438,7 +424,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -453,7 +439,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -468,7 +454,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -483,7 +469,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -498,7 +484,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -513,7 +499,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -528,7 +514,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -543,7 +529,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -558,7 +544,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -573,7 +559,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -588,7 +574,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -603,7 +589,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -618,7 +604,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -633,7 +619,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -648,7 +634,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -663,7 +649,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -678,7 +664,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -693,7 +679,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -708,7 +694,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -723,7 +709,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -738,21 +724,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     }
   ],
   "17": [
@@ -768,7 +740,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -782,21 +754,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     }
   ],
   "14": [
@@ -812,7 +770,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
+      "color": "#cccccc"
     }
   ],
   "15": [
@@ -836,7 +794,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           157.0,
@@ -872,7 +830,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           522.0,
@@ -900,21 +858,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#164f89"
-    },
-    {
-      "points": [
-        [
-          0,
-          511
-        ],
-        [
-          1480,
-          511
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     }
   ],
   "12": [
@@ -930,7 +874,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -945,7 +889,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -960,7 +904,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -975,7 +919,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -990,7 +934,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1005,7 +949,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1020,7 +964,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1035,7 +979,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1050,7 +994,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1065,7 +1009,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1080,7 +1024,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1095,7 +1039,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1110,7 +1054,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1125,7 +1069,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1140,7 +1084,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1155,7 +1099,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1170,7 +1114,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1185,7 +1129,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1200,7 +1144,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1215,7 +1159,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1230,7 +1174,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1245,7 +1189,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1260,7 +1204,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1275,7 +1219,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f",
+      "color": "#656565",
       "kind": "fabric"
     },
     {
@@ -1290,21 +1234,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     }
   ],
   "19": [
@@ -1320,7 +1250,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           420.0,
@@ -1348,7 +1278,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#164f89",
+      "color": "#176889",
       "head": [
         [
           605.0,
@@ -1376,7 +1306,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#164f89",
+      "color": "#176889",
       "head": [
         [
           865.0,
@@ -1404,7 +1334,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           1120.0,
@@ -1432,7 +1362,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#146653",
+      "color": "#5b753e",
       "head": [
         [
           1300.0,
@@ -1460,7 +1390,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#146653",
+      "color": "#5b753e",
       "head": [
         [
           1120.0,
@@ -1488,7 +1418,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#146653",
+      "color": "#5b753e",
       "head": [
         [
           1300.0,
@@ -1503,20 +1433,6 @@
           435.0
         ]
       ]
-    },
-    {
-      "points": [
-        [
-          0,
-          511
-        ],
-        [
-          1480,
-          511
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
     }
   ],
   "20": [
@@ -1532,7 +1448,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#164f89",
+      "color": "#176889",
       "head": [
         [
           622.0,
@@ -1560,7 +1476,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f"
+      "color": "#656565"
     },
     {
       "points": [
@@ -1574,7 +1490,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f"
+      "color": "#656565"
     },
     {
       "points": [
@@ -1588,7 +1504,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           1080.0,
@@ -1616,7 +1532,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           1080.0,
@@ -1644,7 +1560,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           1080.0,
@@ -1659,20 +1575,6 @@
           383.0
         ]
       ]
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
     }
   ],
   "21": [
@@ -1688,7 +1590,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -1702,7 +1604,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -1716,7 +1618,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -1730,7 +1632,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#cccccc"
     },
     {
       "points": [
@@ -1776,7 +1678,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#c14421"
+      "color": "#555555"
     },
     {
       "points": [
@@ -1790,7 +1692,7 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f"
+      "color": "#656565"
     },
     {
       "points": [
@@ -1804,97 +1706,11 @@
         ]
       ],
       "arrow": false,
-      "color": "#52677f"
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
+      "color": "#656565"
     }
   ],
-  "22": [
-    {
-      "points": [
-        [
-          0,
-          56
-        ],
-        [
-          1480,
-          56
-        ]
-      ],
-      "arrow": false,
-      "color": "#52677f"
-    },
-    {
-      "points": [
-        [
-          0,
-          203
-        ],
-        [
-          1480,
-          203
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
-    },
-    {
-      "points": [
-        [
-          0,
-          343
-        ],
-        [
-          1480,
-          343
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
-    },
-    {
-      "points": [
-        [
-          0,
-          511
-        ],
-        [
-          1480,
-          511
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
-    }
-  ],
-  "23": [
-    {
-      "points": [
-        [
-          0,
-          264
-        ],
-        [
-          1480,
-          264
-        ]
-      ],
-      "arrow": false,
-      "color": "#52677f"
-    }
-  ],
+  "22": [],
+  "24": [],
   "16": [
     {
       "points": [
@@ -1908,7 +1724,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           860.0,
@@ -1936,7 +1752,7 @@
         ]
       ],
       "arrow": true,
-      "color": "#52677f",
+      "color": "#656565",
       "head": [
         [
           860.0,
@@ -1951,20 +1767,7 @@
           310.0
         ]
       ]
-    },
-    {
-      "points": [
-        [
-          0,
-          513
-        ],
-        [
-          1480,
-          513
-        ]
-      ],
-      "arrow": false,
-      "color": "#a6b5c6"
     }
-  ]
+  ],
+  "23": []
 }

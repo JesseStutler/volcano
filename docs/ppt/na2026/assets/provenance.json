@@ -88,5 +88,15 @@
     "file": "svg/11-instance-isolation.svg; svg/12-subgroup-next.svg",
     "source": "assets/reused/china-17-multilevel-topology.png",
     "format": "Adapted two-core/four-spine/four-leaf layout, original embedded switch crop (818,110,158,114); editable SVG cables, topology boundaries and placements. Original PNG unmodified."
+  },
+  {
+    "file": "assets/community/china-25-partner-*",
+    "source": "Volcano-kubecon-china-final-v1.pptx, slide 25",
+    "format": "32 original embedded community-user logo images. Original bytes preserved; original picture crops recorded in partners.json."
+  },
+  {
+    "file": "assets/community/china-25-community-qr.png",
+    "source": "Volcano-kubecon-china-final-v1.pptx, slide 25, shape 44",
+    "format": "Original embedded Website / GitHub / Slack QR image, 818 x 256. SVG viewports select each code. Decoded targets recorded in qr-targets.json."
   }
 ]
