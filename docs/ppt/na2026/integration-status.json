@@ -1,0 +1,30 @@
+{
+  "checked": "2026-10-29",
+  "kthena": {
+    "gang_and_topology": "available",
+    "servinggroup_anti_affinity": "proposal; not implemented in main during review",
+    "sources": [
+      "https://github.com/volcano-sh/kthena/pull/1478",
+      "https://github.com/volcano-sh/kthena/issues/645"
+    ]
+  },
+  "kuberay": {
+    "multi_host_subgroups": "merged #5249",
+    "replica_topology": "open #5369",
+    "sources": [
+      "https://github.com/ray-project/kuberay/pull/5249",
+      "https://github.com/ray-project/kuberay/pull/5369"
+    ]
+  },
+  "grove": {
+    "podgang_and_subgroups": "implemented in current main; release availability not asserted",
+    "topologyConstraint": "explicitly rejected by backend",
+    "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go"
+  },
+  "roadmap": {
+    "source": "maintainer instructions in this conversation",
+    "rbg": "in progress",
+    "kubeflow": "planned deeper group/topology integration",
+    "lws": "planned multi-group support"
+  }
+}

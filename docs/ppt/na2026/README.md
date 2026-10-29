@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-22 页，当前为 r4。第 11 页改成放置图与两段 YAML 对照；第 16 页重排两种 SubGroup 关系，自画图采用正视图与显式对称箭头。[r4 六页大图](review/r4/README.md)。
+23 页，当前为 r5。更新讲者简介、工作负载诉求、实例 HA / SubGroup 关系、生态顺序和 benchmark 比较计划。[重点页预览](review/r5/README.md)。
 
 ## 这次实际复用的图
 
@@ -13,6 +13,8 @@
 | 10 | EU 16 / China 17：Multi-Level Network Topology | 两套材料使用同一网络图；保留图，重排关键 YAML |
 | 14 | China 22：Kthena Hierarchical Gang Scheduling | 整图沿用，保留角色数量与 gangPolicy 的关键字段 |
 
+第 11、12 页沿用第 10 页的两层交换网络布局与原交换机符号，在同一 fabric 上重新标注实例及 SubGroup 放置。物理连线不加箭头；调度流程使用水平 / 垂直箭头。交换机是嵌入的旧图裁片，连线、分组和文字可在 SVG 中编辑。
+
 原始 PPT 中这些图是 **PNG**，位于 `assets/reused/`；没有把它们重新画一遍，也不将它们称为可编辑矢量图。新增的 YAML、注释及关系图是 SVG 文本和路径。`assets/provenance.json` 记录来源和原图尺寸。
 
 参考了 [KubeCon NA 2025 WG Serving](https://static.sched.com/hosted_files/kccncna2025/79/KubeCon%20NA%202025%20-%20WG%20Serving.pptx.pdf) 的角色、硬件层级与部署关系表达，以及 [Volcano EU 2025](https://static.sched.com/hosted_files/kccnceu2025/cc/Kubecon%20EU2025%20Volcano.pdf) 的拓扑与 API 对照。只借鉴组织方式，没有复制外部演讲图。
@@ -23,9 +25,12 @@
 - `png/`：SVG 的固定渲染结果，供 PPT 使用；连接线与图形不会因 PowerPoint 排版漂移。
 - `examples/`：PPT 展示的 YAML 片段，**省略了字段，不是直接 apply 的完整 manifest**。
 - `src/build_deck.py`：配色、YAML、存量图版面和 PPT 生成。
-- `src/polish_figures.py`：第 4、11、13、15、16、18–22 页的自画图与排版。
+- `src/polish_figures.py`：KubeRay、benchmark 框架与收尾页。
+- `src/approved_revision.py`：r5 的 workload、共享拓扑、Grove、社区计划和横向测试图。
+- `integration-status.json`：本轮核查的生态状态及固定版本来源。
 - `src/render_preview.py`：生成 PDF 缩略图。
-- `geometry-audit.json`：各页连接线坐标，便于检查水平 / 垂直路径。
+- `src/validate_deck.py`：检查文字边界、连线避让、箭头几何、YAML 及 PPT 页数 / 备注。
+- `geometry-audit.json`：各页连接线坐标；流程箭头为正交路径，物理 fabric 的直连线另作标记。
 - `assets/icons/`：Kubernetes 官方资源图标，附来源与许可证。
 - `manifest.json`：页码、素材和原草稿备注页的对应关系。
 - `references.json`：各页技术来源。
@@ -43,8 +48,11 @@ python3 docs/ppt/na2026/src/render_preview.py
 
 依赖：`python-pptx`、`cairosvg`、`Pillow`、`lxml`；预览另需 `PyMuPDF`。字体为 Liberation Sans / Mono。可用 LibreOffice 导出 PDF。标题、讲者资料和章节引导页为 PowerPoint 原生文本；套官方模板时可直接调整。
 
-## 仍需讲者补充
+## 状态与讲者资料
 
-- Profile 页暂用公开会议头像和简介。Rainie 的 Pinterest / YuniKorn PMC 身份见 [YuniKorn 社区页](https://yunikorn.apache.org/community/people/)；Ricardo 的公开简介见 [Linux Foundation](https://events.linuxfoundation.org/archive/2026/open-source-summit-north-america/program/program-committee/)，未填写尚不确定的现任公司与正式职务。头像取自公开会议页，可替换为讲者偏好的版本。
-- 第 20 页当前是测量口径，待选定一项实际 benchmark 结果后替换。不包含猜测曲线或未经核查的性能提升数字。
-- KubeRay topology PR #5369 在 2026-10-29 核查时为 open，演讲前再确认。
+- Ricardo 的职务依据 [NA 2026 会议资料](https://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/program/schedule/?id=1289640)：AI Infrastructure Lead, Nunchux AI；CNCF 身份是 [TOC Alternate (GB)](https://www.cncf.io/people/technical-oversight-committee/)，不写 Governing Board 成员或 Founder。Rainie 的 Pinterest / YuniKorn PMC 身份见 [YuniKorn 社区页](https://yunikorn.apache.org/community/people/)。照片来自公开会议页。
+- [Kthena #1478](https://github.com/volcano-sh/kthena/pull/1478) 是开放中的 topology affinity 文档 proposal，第 11 页只借 ServingGroup → PodGroup 关系讲场景，不声称 Kthena 已实现 anti-affinity。
+- [KubeRay #5369](https://github.com/ray-project/kuberay/pull/5369) 仍为 open；Grove 当前 main 已实现 SubGroup 映射，仍拒绝 topologyConstraint。来源见 `integration-status.json`。
+- 第 20、21 页讲横向测试与场景计划。对照集合和结果尚未定稿；不填模拟性能结果，不用 KWOK 推导实际 GPU / 模型吞吐。
+
+上述状态于 2026-10-29 核查，演讲前再复核。按当前备注计时约 25 分钟，另留 5 分钟问答。

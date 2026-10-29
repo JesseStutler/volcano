@@ -2,41 +2,34 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-Ricardo Aravena · Rainie Li。约 24–25 分钟正文，5 分钟问答。[PPT](Volcano_KubeCon_NA_2026.pptx) · [PDF](Volcano_KubeCon_NA_2026.pdf)
+Ricardo Aravena · Rainie Li。23 页，约 25 分钟正文 + 5 分钟问答。[PPT](Volcano_KubeCon_NA_2026_r5.pptx) · [PDF](Volcano_KubeCon_NA_2026_r5.pdf)
 
-主线不变：先讲不同调度路径如何协调资源，再讲完整分组与拓扑放置，接着看生态控制器如何传递这些需求，最后用 benchmark 验证调度表现。Agentic AI 是背景，不把每次 agent 调用都等同于创建 Pod，也不预设双路径一定更快。
-
-## 逐页安排
+从不同工作负载的调度诉求切入，讲双路径如何协调资源，再落到完整分组、拓扑和组间关系。通过生态案例说明这些需求怎样传给 Volcano，最后讲 benchmark 已有基础与接下来要验证的问题。
 
 | 页 | 内容 | 讲法 / 素材 |
 |---|---|---|
-| 1 | 封面 | 原标题，两位讲者 |
-| 2 | Speaker profiles | 照片与简短介绍，正式职务可再调整 |
-| 3 | 第一章：统一调度 | 不同路径如何共享集群 |
-| 4 | Workload demands | 训练 collective、推理 P/D 角色、agent 调用链 |
-| 5 | Unified architecture | 沿用 China 架构图，讲双路径与协同 |
-| 6 | NodeShard | 沿用控制器图，对照 desired / in-use YAML |
-| 7 | 第二章：多级 Gang 与网络拓扑 | 有节点，还要有完整副本和局部性 |
-| 8 | PodGroup / SubGroup | 沿用训练与 serving 分组图 |
-| 9 | HyperNode | 物理网络与父、叶节点 YAML 对照 |
-| 10 | 多级拓扑放置 | 沿用 EU / China 网络图，以 highestTierName 对照层级约束 |
-| 11 | PodGroup anti-affinity | 实例内聚拢，实例间分离；展示关键 YAML |
-| 12 | 第三章：Ecosystem | 控制器怎样传递角色与副本身份 |
-| 13 | 接入关系 | Kthena / KubeRay / Grove 现状；RBG 推进中，Kubeflow 与 LWS multi-group 后续方向 |
-| 14 | Kthena | 沿用 China 映射图与 gangPolicy / roles YAML |
-| 15 | KubeRay | 两个完整的双 Pod 副本；replica label 对照 SubGroup policy |
-| 16 | 后续分组关系 | 分开示意同域亲和与跨域分离，标为 Proposed |
-| 17 | 第四章：Benchmark | 更多 workload，需要可重复的比较 |
-| 18 | 框架 | 场景输入、被测集群、观测链路与报告 |
-| 19 | 进展与验证 | 已有入口和采集能力；继续扩展场景、比较优化、重复测试 |
-| 20 | 测量口径 | 用事件顺序、区间与公式说明延迟和吞吐；后续可换成实际结果 |
-| 21 | 后续工作 | SubGroup 关系、社区接入、benchmark；列出各项验证重点 |
-| 22 | Q&A | 5 分钟 |
+| 1–2 | 标题、讲者 | Ricardo：Nunchux AI 的 AI Infrastructure Lead、CNCF TOC Alternate (GB)；Rainie：Pinterest、YuniKorn PMC |
+| 3 | 第一章：统一调度 | 不同工作负载怎样共享集群 |
+| 4 | Training / Inference / Agents | TP/PP 完整分组、P/D 拓扑、突发与低延迟；agent 先复用预热池，缺容量再调度补池 |
+| 5–6 | 双路径、NodeShard | 沿用 China 架构和控制器图；对照 desired / in-use YAML |
+| 7 | 第二章：多级 Gang 与网络拓扑 | 分组与放置一起讲 |
+| 8–9 | PodGroup / SubGroup、HyperNode | 沿用原图，对照父、叶 HyperNode YAML |
+| 10 | 多级拓扑放置 | 沿用 EU / China 网络图，以 highestTierName 表达不同层级 |
+| 11 | 实例 HA | 同一 fabric 内，两份完整实例分开放在两个 Supernode；展示 PG anti-affinity YAML |
+| 12 | SubGroup 关系 | 沿用同一拓扑：P/D 在 Supernode 内亲和，Decode 副本跨 Leaf 分离；标为 Proposed |
+| 13 | 第三章：Ecosystem | 控制器传递角色和副本身份 |
+| 14 | Kthena | 沿用 ServingGroup / role replica 映射图和 YAML |
+| 15 | KubeRay | 双 host 副本与 SubGroup policy 对照；拓扑接入仍在推进 |
+| 16 | Grove | PodGang → PG、内部 PodGroups → SG policies；当前不支持 topologyConstraint |
+| 17 | 下一步社区工作 | 带 logo 的 RBG、Kubeflow、LWS；分别讲推进中、后续分组与拓扑、多组支持 |
+| 18 | 第四章：Benchmark | 可重复地比较不同调度器 |
+| 19 | 已有框架 | 场景、集群、API 事件与报告链路 |
+| 20 | 横向对照 | 同环境重放同一 workload，逐个运行调度器，比较延迟、吞吐、完整 gang 和放置 |
+| 21 | 场景选择 | 突发、gang 大小与碎片、拓扑约束；找适用场景及其代价 |
+| 22–23 | 后续工作、Q&A | SubGroup 关系、社区推进、横向与拓扑测试；5 分钟讨论 |
 
-## 准备重点
+PodGroup anti-affinity 是 Volcano 已有能力；Kthena 的对应接入仍是开放 proposal，不能写成已交付。SubGroup affinity / anti-affinity 也明确作为下一步。
 
-前三章以旧图复用和 API 对照为主，避免引入新故事。PodGroup anti-affinity 是当前能力，SubGroup 关系是后续方向；生态接入深度不同，不能把 gang 接入等同于完整 topology 支持。
+Benchmark 讲框架与测试计划，不填猜测结果。横向比较要匹配支持的语义、固定配置并重复运行；KWOK 能验证调度行为，实际 GPU / KV 性能需另测。正文尽量用图，口径、命令和来源放讲者备注。
 
-Benchmark 先讲已有框架与正在推进的测试。结果只选一个有版本、环境、规模和重复次数的例子；尚未选定前保留测量口径页，不填猜测数字。KWOK 说明调度行为，不证明 GPU 或模型吞吐。
-
-当前保留 Volcano 背景，拿到官方模板后再套版。旧图本身是 PNG，直接复用；新增图、YAML 和注释保存 SVG，再导出固定 PNG。讲者介绍依据公开资料，待讲者偏好补充。最后留两次计时排练，并复核生态 PR 状态。
+保留 Volcano 背景，拿到官方模板后再套版。好的旧图继续用；新图保存 SVG，PPT 内嵌固定 PNG。演讲前复核生态状态，并留两次计时排练。

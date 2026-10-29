@@ -3,6 +3,7 @@
   "slides": [
     {
       "page": 1,
+      "source_id": 1,
       "title": "Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents",
       "chapter": 0,
       "svg": null,
@@ -11,6 +12,7 @@
     },
     {
       "page": 2,
+      "source_id": 2,
       "title": "Speakers",
       "chapter": 0,
       "svg": null,
@@ -19,6 +21,7 @@
     },
     {
       "page": 3,
+      "source_id": 3,
       "title": "Unified scheduling",
       "chapter": 1,
       "svg": null,
@@ -27,6 +30,7 @@
     },
     {
       "page": 4,
+      "source_id": 4,
       "title": "Different Workloads, Shared Infrastructure",
       "chapter": 1,
       "svg": "svg/04-workload-demands.svg",
@@ -35,6 +39,7 @@
     },
     {
       "page": 5,
+      "source_id": 5,
       "title": "A Coordinated Scheduling Framework",
       "chapter": 1,
       "svg": "svg/05-unified-architecture.svg",
@@ -43,6 +48,7 @@
     },
     {
       "page": 6,
+      "source_id": 6,
       "title": "NodeShard: Desired Nodes and Current Use",
       "chapter": 1,
       "svg": "svg/06-nodeshard.svg",
@@ -51,6 +57,7 @@
     },
     {
       "page": 7,
+      "source_id": 7,
       "title": "Multi-level gang & network topology",
       "chapter": 2,
       "svg": null,
@@ -59,6 +66,7 @@
     },
     {
       "page": 8,
+      "source_id": 8,
       "title": "PodGroup and SubGroup: Preserve Workload Structure",
       "chapter": 2,
       "svg": "svg/08-group-structure.svg",
@@ -67,6 +75,7 @@
     },
     {
       "page": 9,
+      "source_id": 9,
       "title": "HyperNode: From Physical Fabric to Scheduling Domains",
       "chapter": 2,
       "svg": "svg/09-hypernode-api.svg",
@@ -75,6 +84,7 @@
     },
     {
       "page": 10,
+      "source_id": 10,
       "title": "Place Groups at Different Topology Levels",
       "chapter": 2,
       "svg": "svg/10-multilevel-placement.svg",
@@ -83,6 +93,7 @@
     },
     {
       "page": 11,
+      "source_id": 11,
       "title": "Keep Each Instance Together, Place Instances Apart",
       "chapter": 2,
       "svg": "svg/11-instance-isolation.svg",
@@ -91,6 +102,16 @@
     },
     {
       "page": 12,
+      "source_id": 16,
+      "title": "Next: Relationships Between SubGroups",
+      "chapter": 2,
+      "svg": "svg/12-subgroup-next.svg",
+      "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
+      "previous_draft_notes_page": 12
+    },
+    {
+      "page": 13,
+      "source_id": 12,
       "title": "Ecosystem",
       "chapter": 3,
       "svg": null,
@@ -98,15 +119,8 @@
       "previous_draft_notes_page": null
     },
     {
-      "page": 13,
-      "title": "Controllers Bring Workload Structure to Scheduling",
-      "chapter": 3,
-      "svg": "svg/13-ecosystem.svg",
-      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
-      "previous_draft_notes_page": 10
-    },
-    {
       "page": 14,
+      "source_id": 14,
       "title": "Kthena: From Serving Roles to Scheduling Groups",
       "chapter": 3,
       "svg": "svg/14-kthena-mapping.svg",
@@ -115,6 +129,7 @@
     },
     {
       "page": 15,
+      "source_id": 15,
       "title": "KubeRay: A Replica Can Span Multiple Pods",
       "chapter": 3,
       "svg": "svg/15-ray-replicas.svg",
@@ -123,14 +138,25 @@
     },
     {
       "page": 16,
-      "title": "Next: Relationships Between SubGroups",
+      "source_id": 23,
+      "title": "Grove: Carry PodGang Structure into Volcano",
       "chapter": 3,
-      "svg": "svg/16-subgroup-next.svg",
-      "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
-      "previous_draft_notes_page": 12
+      "svg": "svg/16-grove-mapping.svg",
+      "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected.",
+      "previous_draft_notes_page": null
     },
     {
       "page": 17,
+      "source_id": 13,
+      "title": "Next: RBG, Kubeflow, and LWS",
+      "chapter": 3,
+      "svg": "svg/17-ecosystem.svg",
+      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
+      "previous_draft_notes_page": 10
+    },
+    {
+      "page": 18,
+      "source_id": 17,
       "title": "Benchmark framework & progress",
       "chapter": 4,
       "svg": null,
@@ -138,42 +164,47 @@
       "previous_draft_notes_page": null
     },
     {
-      "page": 18,
+      "page": 19,
+      "source_id": 18,
       "title": "A Repeatable Scheduling Benchmark Framework",
       "chapter": 4,
-      "svg": "svg/18-benchmark-architecture.svg",
+      "svg": "svg/19-benchmark-architecture.svg",
       "source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.",
       "previous_draft_notes_page": 13
     },
     {
-      "page": 19,
-      "title": "Benchmark Progress and Ongoing Validation",
+      "page": 20,
+      "source_id": 19,
+      "title": "Compare Schedulers on the Same Workload",
       "chapter": 4,
-      "svg": "svg/19-benchmark-progress.svg",
+      "svg": "svg/20-benchmark-progress.svg",
       "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
       "previous_draft_notes_page": 14
     },
     {
-      "page": 20,
-      "title": "Benchmark Metrics: Latency and Throughput",
+      "page": 21,
+      "source_id": 20,
+      "title": "Which Scenarios Fit Which Scheduler?",
       "chapter": 4,
-      "svg": "svg/20-benchmark-measurement.svg",
+      "svg": "svg/21-benchmark-measurement.svg",
       "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
       "previous_draft_notes_page": 15
     },
     {
-      "page": 21,
+      "page": 22,
+      "source_id": 21,
       "title": "What We Will Work On Next",
       "chapter": 4,
-      "svg": "svg/21-takeaways.svg",
+      "svg": "svg/22-takeaways.svg",
       "source": "",
       "previous_draft_notes_page": 16
     },
     {
-      "page": 22,
+      "page": 23,
+      "source_id": 22,
       "title": "Questions & Discussion",
       "chapter": 0,
-      "svg": "svg/22-questions.svg",
+      "svg": "svg/23-questions.svg",
       "source": "",
       "previous_draft_notes_page": 17
     }

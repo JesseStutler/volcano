@@ -167,7 +167,7 @@ def note(a,x,y,num,head,body,w=400):
 # Four divider slides are composed with native PowerPoint text below.
 dividers={3:(1,'Unified scheduling','Different paths. Shared infrastructure.','How do schedulers coordinate node access?'),7:(2,'Multi-level gang\n& network topology','From available nodes to runnable workloads.','What must run together, and where should it fit?'),12:(3,'Ecosystem','Workload controllers carry scheduling intent.','How do roles and replicas reach the scheduler?'),17:(4,'Benchmark\nframework & progress','Measure behavior across workload shapes.','What can we reproduce, compare, and improve?')}
 
-# 04: composition in polish_figures.py.
+# 04: composition in approved_revision.py.
 a=art(4,'workload-demands','Different Workloads, Shared Infrastructure','Training, inference, and agent applications put different demands on the same cluster.',1,2)
 
 # 05: retain the original detailed architecture, not a replacement box summary.
@@ -241,11 +241,11 @@ subGroupPolicy:
     highestTierName: spine''',24,('highestTierName',),filename='multilevel-topology-spec.yaml')
 a.text(0,554,'Named tiers: core (3) · spine (2) · leaf (1)',24,'blue',True,width=910)
 
-# 11: composition in polish_figures.py.
-a=art(11,'instance-isolation','Keep Each Instance Together, Place Instances Apart','PodGroup anti-affinity separates service instances across HyperNode domains.',2,9,'docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.')
+# 11: composition in approved_revision.py.
+a=art(11,'instance-isolation','Keep Each Instance Together, Place Instances Apart','ServingGroup → PodGroup: a Kthena scenario. Anti-affinity integration in Kthena is proposed.',2,9,'docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.')
 
-# 13: composition in polish_figures.py.
-a=art(13,'ecosystem','Controllers Bring Workload Structure to Scheduling','Existing integrations and the next steps in role, replica, and topology support.',3,10,'Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.')
+# 13: composition in approved_revision.py.
+a=art(13,'ecosystem','Next: RBG, Kubeflow, and LWS','Build on current integrations; carry finer group structure and placement requirements.',3,10,'Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.')
 
 # 14: strong existing Kthena figure, kept in its original form.
 a=art(14,'kthena-mapping','Kthena: From Serving Roles to Scheduling Groups','One ServingGroup maps to one PodGroup; each role replica forms a SubGroup.',3,6,'China 2026 slide 22; Kthena ModelServing gang scheduling guide.')
@@ -269,25 +269,36 @@ a.text(1025,540,'Pod templates omitted.',23,'muted',width=440)
 # 15: composition in polish_figures.py.
 a=art(15,'ray-replicas','KubeRay: A Replica Can Span Multiple Pods','The replica label separates complete groups inside one WorkerGroup.',3,11,'KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.')
 
-# 16: composition in polish_figures.py.
-a=art(16,'subgroup-next','Next: Relationships Between SubGroups','Extend the placement model as controllers expose richer workload structure.',3,12,'docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.')
+# 16: composition in approved_revision.py.
+a=art(16,'subgroup-next','Next: Relationships Between SubGroups','Keep cooperating groups local while separating replicas inside the same PodGroup.',2,12,'docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.')
 
 # 18: composition in polish_figures.py.
 a=art(18,'benchmark-architecture','A Repeatable Scheduling Benchmark Framework','Generate scenarios, observe API events, and retain comparable measurements.',4,13,'benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.')
 
-# 19: composition in polish_figures.py.
-a=art(19,'benchmark-progress','Benchmark Progress and Ongoing Validation','The harness is available; testing and optimization continue across workload scenarios.',4,14,'benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.')
+# 19: composition in approved_revision.py.
+a=art(19,'benchmark-progress','Compare Schedulers on the Same Workload','Repeat controlled runs to understand throughput, latency, and placement tradeoffs.',4,14,'benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.')
 
-# 20: composition in polish_figures.py.
-a=art(20,'benchmark-measurement','Benchmark Metrics: Latency and Throughput','Separate scheduling delay, runtime readiness, and successful binding throughput.',4,15,'benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.')
+# 20: composition in approved_revision.py.
+a=art(20,'benchmark-measurement','Which Scenarios Fit Which Scheduler?','Expand tests across arrival patterns, group structure, and network topology.',4,15,'benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.')
 
 # 21–22: typographic close in polish_figures.py.
 a=art(21,'takeaways','What We Will Work On Next','Next steps in group placement, controller integration, and benchmarking.',4,16)
 a=art(22,'questions','Questions & Discussion','Workload shapes, integration feedback, and reproducible observations are welcome.',0,17)
 from polish_figures import polish
 polish(arts, art, code, rawtext, C, ASSETS)
-for a in arts.values():a.save()
-(ROOT/'geometry-audit.json').write_text(json.dumps({str(n):a.routes for n,a in arts.items()},indent=2)+'\n')
+from approved_revision import revise
+revise(arts, art, code, rawtext, original, C, ASSETS)
+order=[1,2,3,4,5,6,7,8,9,10,11,16,12,14,15,23,13,17,18,19,20,21,22]
+page_for={source_id:page for page,source_id in enumerate(order,1)}
+for n,a in arts.items():
+ a.name=f'{page_for[n]:02d}-'+a.name.split('-',1)[1]
+ a.save()
+# Remove only stale generated body images after a page-order change.
+valid={a.name for a in arts.values()}|{'background','cover-background'}
+for folder in [SVG,PNG]:
+ for path in folder.iterdir():
+  if path.suffix in ['.svg','.png'] and path.stem not in valid:path.unlink()
+(ROOT/'geometry-audit.json').write_text(json.dumps({str(page_for[n]):a.routes for n,a in arts.items()},indent=2)+'\n')
 
 # Native PowerPoint title/profile/divider text. Source notes follow the remapped pages.
 prs=Presentation();prs.slide_width=Inches(13.333333);prs.slide_height=Inches(7.5)
@@ -302,7 +313,7 @@ chapter_names={0:'MAINTAINER TRACK',1:'UNIFIED SCHEDULING',2:'MULTI-LEVEL GANG &
 agenda=['Unified scheduling','Multi-level gang & network topology','Ecosystem','Benchmark framework & progress']
 references=json.loads((ROOT/'references.json').read_text())
 manifest=[]
-for n in range(1,23):
+for page,n in enumerate(order,1):
  sl=prs.slides.add_slide(prs.slide_layouts[6]);special=n==1 or n in dividers
  sl.shapes.add_picture(str(PNG/('cover-background.png' if special else 'background.png')),0,0,width=prs.slide_width,height=prs.slide_height)
  sl.shapes.add_picture(str(ASSETS/'volcano-logo.png'),Inches(10.85),Inches(.32),width=Inches(1.9))
@@ -318,13 +329,13 @@ for n in range(1,23):
  elif n==2:
   titles[n]='Speakers'
   ptext(sl,.50,.95,12,.65,'Speakers',33,True)
-  for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','Cloud Native & AI Infrastructure','Open-source infrastructure\nKubernetes and AI/ML platforms','serverbooter.com'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
+  for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)\nCloud native and AI infrastructure','nunchux.ai · CNCF TOC'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
    sl.shapes.add_picture(str(ASSETS/photo),Inches(x),Inches(2.00),width=Inches(1.75),height=Inches(1.75))
    ptext(sl,x,4.02,5.4,.5,person,30,True)
    ptext(sl,x,4.68,5.3,.43,role,22,False,'blue')
    ptext(sl,x,5.27,5.3,.85,detail,20,False,'muted')
    ptext(sl,x,6.35,5.3,.30,link,15,False,'blue')
-  notes='0:40。简介暂依据公开资料；Ricardo 当前公司和正式职务不确定，未填公司。收到讲者偏好后更新文字与头像。照片来自 Linux Foundation 公开讲者页。\nhttps://events.linuxfoundation.org/archive/2026/open-source-summit-north-america/program/program-committee/\nhttps://events.linuxfoundation.org/spinnaker-live/program/featured-speakers/\nhttps://yunikorn.apache.org/community/people/\nhttps://www.linkedin.com/in/rainie-li-71b2b146'
+  notes='0:40。Ricardo：NA 2026 官方会议资料列为 Nunchux AI 的 AI Infrastructure Lead；CNCF TOC 页面列为 TOC Alternate (GB)，不是 Governing Board 成员，不写 Founder 或 CEO。2026-10-29 核查。照片来自 Linux Foundation 公开讲者页。\nhttps://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/program/schedule/?id=1289640\nhttps://www.cncf.io/people/technical-oversight-committee/\nhttps://events.linuxfoundation.org/archive/2026/open-source-summit-north-america/program/program-committee/\nhttps://events.linuxfoundation.org/spinnaker-live/program/featured-speakers/\nhttps://yunikorn.apache.org/community/people/\nhttps://www.linkedin.com/in/rainie-li-71b2b146'
  elif n in dividers:
   c,title,bridge,question=dividers[n];titles[n]=title.replace('\n',' ');chapters[n]=c
   ptext(sl,.65,1.42,2,.70,f'{c:02d}',38,True,'blue')
@@ -338,21 +349,22 @@ for n in range(1,23):
   ptext(sl,.52,1.57,12.25,.47,subtitles[n],17,False,'muted')
   sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.12),width=Inches(12.333333),height=Inches(4.666667))
   talks={
-   4:'1:00。先讲共同的基础设施需求：训练/RL 更强调协同计算，推理有角色与副本结构，agent 业务带来突发和延迟压力。并非每次 agent 调用都要创建一个 Pod。',
+   4:'1:20。训练图展示两个 PP stage，每个 stage 两个 TP ranks，需要完整子组及通信局部性。推理展示 P/D 分离，不同角色及副本的 gang 与 topology 约束。Agent 路径先命中预热池并复用 ready runtime；池子耗尽时由 runtime/pool controller 请求容量，经快速 Pod 调度补池。请求突发图是需求示意，没有测量值。池管理不是 Volcano 自带能力，也不是每次调用创建 Pod。',
    5:'1:30。复用 China 架构图，从左右两条路径讲到中间 NodeShard。worker/Binder 的冲突检查是局部机制；不宣称并行一定带来性能提升。',
    6:'1:40。重点对照 nodesDesired 和 nodesInUse。期望集合变化后需等待协调器交接，不迁移运行中的 Pod。旧图中的资源策略是架构扩展点，不表示所有策略都已完成。',
    8:'2:00。用左边训练和右边 serving 两种结构解释 PodGroup 与 SubGroup，先看完整计算组，再看下面的放置域。一个 policy 可以按 replica label 分出多个实际 SubGroup。',
    9:'1:30。从物理网络映射到 HyperNode：非叶节点的成员是 HyperNode，叶节点的成员是 Node。standalone HyperNode 已交付；其他调度器 adapter 是独立的集成工作。',
    10:'2:00。PodGroup 是较大的实例边界，prefill 和 decode 的 locality 约束可以不同。两层约束都显式填写，不假设子组继承 PodGroup 的 topology。',
-   11:'1:40。先让每个实例聚拢，再用 PodGroup anti-affinity 将两个实例分开。required 和 preferred 的差别是没有理想域时是否允许回退。',
-   13:'1:15。左侧讲 Kthena、KubeRay、Grove 的已交付能力及拓扑差距。右侧讲社区后续工作：RBG 正在推进，Kubeflow 计划深化，LWS 推进 multi-group 调度支持。RBG 已有 gang/SubGroup 映射文档，Kubeflow 与 LWS 已有基础接入，不从零开始。后续方向来自 maintainer 计划，不表示已交付。',
+   11:'1:40。复用第 10 页网络层级及交换机符号，两个 Supernode 共用上层 core fabric。两个完整服务实例各在一个域，避免一次域故障同时影响两份实例。P/D 是简化角色标记，不代表唯一模型结构。Kthena ServingGroup→PodGroup 可作为场景，但 topology affinity 接入截至 2026-10-29 仍是开放 proposal #1478 / issue #645，不能说 Kthena 已交付 anti-affinity。HA 的服务恢复还需 routing/health checks，scheduler 不提供应用故障切换。',
+   13:'0:50。具体 Kthena、KubeRay、Grove 案例之后再讲后续社区方向。RBG 推进中，已有 RoleInstance→SubGroup 基础；Kubeflow 计划在现有 Volcano 插件上深化分组及拓扑；LWS 计划 multi-role/multi-group 支持。状态来自 maintainer 的推进计划，不能写作全部已交付。',
    14:'1:40。沿用 China Kthena 图及关键 YAML，按 ServingGroup→PodGroup、role replica→SubGroup 的顺序讲。一个 Entry 加一个 Worker 组成两 Pod 副本。',
    15:'1:30。两个 replica，每个两个 hosts；用 matchLabelKeys 保持副本身份。head 另有分组。本页不把尚在推进的 KubeRay topology PR 当作已合入能力。',
-   16:'1:10。说明后续在同一个 PodGroup 内表达 SubGroup affinity/anti-affinity 的方向。图是意图示例，不提供假装已可执行的未来 YAML。',
+   16:'1:20。放在第二章，以相同 fabric 演进关系语义。同一个 PodGroup 的 Prefill 与两个 Decode SubGroup 都位于 Supernode A，满足上层亲和；两个 Decode 副本分别位于 Leaf 0 与 Leaf 1，满足更细层级的反亲和。每个 SubGroup 都是完整两 Pod 组。Supernode B 和其他空闲 rack 表明这些约束是有选择的放置，而非资源只剩此处。关系 API 为 proposed，不提供伪造的可执行 YAML。',
    18:'1:30。沿数据路径解释 benchmark：场景输入→API/调度器→audit-exporter 与 Prometheus→报告。KWOK 只验证调度行为，不代表真实 GPU 执行吞吐。',
-   19:'1:20。已有框架、场景和观察能力是本章可以确定展示的进展。继续验证规模、约束和优化，不为了演讲单独制造漂亮结果。命令仅展示框架用法，本次没有运行集群测试。',
-   20:'1:20。讲清 created→scheduled 的统计口径、吞吐窗口和对照条件。仍待选定一项代表性结果，可以后续原位替换本页。',
-   21:'1:10。按后续工作收尾：SubGroup 关系；RBG、Kubeflow 与 LWS multi-group 集成；扩展规模、分组与拓扑约束场景的重复测试。每项都明确需要验证的行为，不承诺未经验证的性能提升。',
+   19:'1:20。已有 harness 为重复场景和指标采集打底。后续在同样集群容量、相同 workload arrivals/grouping/resources 下逐个运行不同 scheduler；每次 reset，不能让调度器同时竞争资源。固定每个实现的版本、配置和指标口径；记录各自合理调参后的配置。Kubernetes scheduler 可作为支持场景的 baseline，其他调度器集合待确定。未支持 gang 或 topology 的调度器不强行比较相同语义，须标注差异。比较 tail latency、binding throughput、完整 gang 数及放置正确性，不展示虚构结果。',
+   20:'1:20。选择代表性场景，寻找每种 scheduler 的适用边界，不只找有利 Volcano 的配置。第一类改变 arrival rate、预留容量，观察突发的尾延迟和积压恢复；只测试 pool 容量请求的调度，不用 KWOK 宣称完整 agent runtime 延迟。第二类改变 SubGroup 大小和可用资源碎片，观察完整 gangs 和 binding throughput。第三类组合 topology tier limits、可用域、gang/anti-affinity，检查 placement correctness 与完成延迟。KWOK 可以验证调度行为；NCCL/KV 带宽及实际模型吞吐需要真实硬件另测。本页是 ongoing/planned test matrix，没有 benchmark 数字。',
+   21:'1:00。收尾强调下一步：SubGroup affinity/anti-affinity 的语义与实现；RBG/Kubeflow/LWS multi-group 的社区工作；多调度器横向对照、代表性场景及 topology-aware gang 测试。',
+   23:'0:50。根据 Grove main 的实际 Volcano backend：一个 PodGang 生成一个 Volcano PodGroup；PodGang.spec.podGroups 中每一项生成 SubGroup policy，name 和 PodClique label 选中组，subGroupSize=max(minReplicas,1)，minSubGroups=1。图示两个组分别 2 和 4 Pods，总 minMember=6。当前 main 明确拒绝 PodCliqueSet / PodClique / PodCliqueScalingGroup 上的 topologyConstraint。区分已合入的 adapter 与发布版本支持；不要只依据 #516 初始 PR 描述判断后续 main。\nhttps://github.com/NVIDIA/grove/blob/main/operator/internal/scheduler/volcano/backend.go',
    22:'5:00。问答。优先收集工作负载如何分组、需要哪些拓扑关系，以及可重复的测试场景。'
   }
   notes=talks[n]
@@ -362,17 +374,17 @@ for n in range(1,23):
   notes+='\n\n本页新版素材与说明：'+sources[n]
   if n==13:notes+='\nhttps://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md\nhttps://github.com/kubernetes-sigs/lws/blob/main/README.md\n右侧为 maintainer 提供的推进方向；RBG 公开文档已有 RoleInstance→SubGroup 基础。LWS 已有副本组，下一步是跨角色 multi-group 调度集成。'
   if n==10:notes+='\n图例使用两个固定角色组，各4 Pods。spec 片段省略 labelSelector；实际使用时给两个 policy 配置匹配各自角色的 Pod selector。不是可直接 apply 的完整 manifest。'
-  if n==11:notes+='\n启用 group-topology-affinity 与 network-topology-aware；每个 PodGroup 配置相同分离规则。selector 匹配 PodGroup 标签，默认同 namespace。'
+  if n==11:notes+='\nhttps://github.com/volcano-sh/kthena/pull/1478\nhttps://github.com/volcano-sh/kthena/issues/645\n启用 group-topology-affinity 与 network-topology-aware；每个 PodGroup 配置相同分离规则。selector 匹配 PodGroup 标签，默认同 namespace。'
   if n==14:notes+='\n图中每个 role replica 有一个 Entry 和一个 Worker Pod；YAML 保留 gangPolicy、role 副本数与 workerReplicas，省略 entryTemplate、workerTemplate 与 networkTopology。Gang 不表示所有 Pod 原子绑定或同时启动。'
   if n==16:notes+='\n本页为未来方向，不能当作已交付 API。示意同一 PodGroup 内将协作组放近、将副本分开；具体 selector 与亲和关系设计仍需社区讨论。'
-  if n==20:notes+='\n尚未选定代表性 benchmark 结果，本页只讲测量口径，不呈现虚构性能曲线或提升比例。'
+  if n==20:notes+='\n口径：scheduledAt−createdAt；binding throughput 为成功 bindings / 首尾成功 bind 时间差。对照时保留原始事件、重复次数与环境配置。命令与完整指标定义见 benchmark/README.md。'
   notes+='\nVisual: na2026/svg/'+arts[n].name+'.svg。PNG 固定几何；复用的旧图原本为位图，新增 YAML 和注释为 SVG 文本。'
  ptext(sl,.52,7.13,11.5,.22,'Volcano  |  KubeCon + CloudNativeCon North America 2026',9,False,'muted')
- ptext(sl,12.05,7.09,.75,.28,f'{n:02d} / 22',11,False,'muted',PP_ALIGN.RIGHT)
+ ptext(sl,12.05,7.09,.75,.28,f'{page:02d} / {len(order)}',11,False,'muted',PP_ALIGN.RIGHT)
  sl.notes_slide.notes_text_frame.text=notes
- manifest.append({'page':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'previous_draft_notes_page':oldnotes.get(n)})
+ manifest.append({'page':page,'source_id':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'previous_draft_notes_page':oldnotes.get(n)})
 prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026 — revised technical presentation'
 prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print('22 slides; reused original figures; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; r5 approved revisions; eight YAML excerpts and chapter dividers.')

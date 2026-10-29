@@ -68,5 +68,25 @@
     "file": "assets/rainie.jpeg",
     "source": "https://events.linuxfoundation.org/wp-content/uploads/2020/05/Rainie-Li-310x310.jpeg",
     "format": "Public conference headshot"
+  },
+  {
+    "file": "assets/rbg.svg",
+    "source": "https://raw.githubusercontent.com/rolebasedgroup/rolebasedgroup.github.io/main/static/img/logo.svg",
+    "format": "Official project SVG"
+  },
+  {
+    "file": "assets/leaderworkerset.svg",
+    "source": "https://raw.githubusercontent.com/kubernetes-sigs/lws/main/site/static/images/logo.svg",
+    "format": "Official project SVG"
+  },
+  {
+    "file": "assets/kubeflow.svg",
+    "source": "https://raw.githubusercontent.com/kubeflow/website/master/assets/icons/logo.svg",
+    "format": "Official project SVG"
+  },
+  {
+    "file": "svg/11-instance-isolation.svg; svg/12-subgroup-next.svg",
+    "source": "assets/reused/china-17-multilevel-topology.png",
+    "format": "Adapted two-core/four-spine/four-leaf layout, original embedded switch crop (818,110,158,114); editable SVG cables, topology boundaries and placements. Original PNG unmodified."
   }
 ]

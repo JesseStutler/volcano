@@ -2,26 +2,19 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-讲者：**Ricardo Aravena · Rainie Li**
+Ricardo Aravena · Rainie Li。23 页，约 25 分钟正文 + 5 分钟问答。
 
-## 视觉修订版 · 2026-10-29
-
-22 页，约 24–25 分钟正文 + 5 分钟问答。保留 Volcano 水印背景，补入讲者介绍和四张章节引导页。统一调度、分组、拓扑与 Kthena 沿用 EU / China 的原图；关键 API 加上精简 YAML。r4 将第 11 页改为上方放置图、下方两段 YAML；第 16 页重排亲和与分离关系。自画图采用正视图与对称箭头，SVG 和固定 PNG 同步更新。
-
-- [r4 PDF 预览](Volcano_KubeCon_NA_2026_r4.pdf)
-- [r4 PowerPoint](Volcano_KubeCon_NA_2026_r4.pptx?raw=true)
-- [整套缩略图](Volcano_KubeCon_NA_2026_preview.png)
-- [r4 六页大图](na2026/review/r4/README.md)
-- [第 11、16 页前后对照](na2026/visual-review.md)
+- [r5 PDF 预览](Volcano_KubeCon_NA_2026_r5.pdf)
+- [r5 PowerPoint](Volcano_KubeCon_NA_2026_r5.pptx?raw=true)
+- [r5 重点页大图与修改记录](na2026/review/r5/README.md)
 - [逐页大纲](Volcano_KubeCon_NA_2026_draft_outline.zh-CN.md)
-- [素材来源与制作说明](na2026/)
-- [下载图与源文件包](Volcano_KubeCon_NA_2026_sources.zip?raw=true)
+- [素材与制作源文件](na2026/)
+- [下载 SVG / PNG / 源文件包](Volcano_KubeCon_NA_2026_sources.zip?raw=true)
 
-讲者介绍暂依据公开资料，照片来自 Linux Foundation 讲者页；未填写 Ricardo 尚未确认的现任公司和正式职务。Benchmark 第 20 页仍讲测量口径，待选定实际结果后替换。
+这轮补全第 4 页 Training / Inference / Agents 的调度诉求，用第 10 页的网络结构串起实例 HA 与 SubGroup 关系。SubGroup 页移入第二章；生态按 Kthena、KubeRay、Grove 案例展开，再讲 RBG / Kubeflow / LWS。Benchmark 改为横向比较与代表性场景测试。Ricardo 简介已按 NA 会议与 CNCF 资料更新。
 
-![修订版预览](Volcano_KubeCon_NA_2026_preview.png)
+Kthena topology anti-affinity 接入目前仍是 proposal；Grove 当前 backend 已有 SubGroup 映射，但不支持 topologyConstraint。已交付能力和后续计划在页内或讲者备注中区分，不展示未经测量的 benchmark 数字。
 
-## 前一版与研究记录
+![r5 整套预览](Volcano_KubeCon_NA_2026_preview.png)
 
-- [带制作提示的初稿](Volcano_KubeCon_NA_2026_draft.pptx?raw=true)
-- [详细研究与来源](Volcano_KubeCon_NA_2026_group_topology_outline.zh-CN.md)
+前版留存：[r4 PDF](Volcano_KubeCon_NA_2026_r4.pdf) · [r4 修改记录](na2026/review/r4/README.md) · [早期研究](Volcano_KubeCon_NA_2026_group_topology_outline.zh-CN.md)
