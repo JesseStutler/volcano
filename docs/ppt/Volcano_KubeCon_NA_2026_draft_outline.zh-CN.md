@@ -2,63 +2,61 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-标题与摘要沿用已提交版本。正文 25 分钟，问答 5 分钟；对应 [PPT 草稿](Volcano_KubeCon_NA_2026_draft.pptx)。
+2026-10-29 更新。标题与摘要保持不变，正文 25 分钟，问答 5 分钟。对应 [PPT 草稿](Volcano_KubeCon_NA_2026_draft.pptx)。
 
-## 主线
+## 四部分主线
 
-先讲不同调度路径如何协调使用集群，再讲分布式工作负载如何拿到完整、位置合适的资源组合。NodeShard 保留为架构基础，多级 Gang、拓扑和生态进展是这次的重点。
+1. **统一调度**：复用双路径与 NodeShard 材料，讲不同调度路径如何协调使用集群。
+2. **多级 Gang 与网络拓扑**：从 PodGroup / SubGroup 的完整副本，讲到组内放置和组间分离。
+3. **Ecosystem**：哪些社区已经采用、采用到什么程度，哪些集成还在扩展。
+4. **Benchmark 框架与进展**：怎么测、已有基础、正在验证的结果，以及还需要继续做的测试。
 
-转场可以这样讲：
+连接这四部分的逻辑是：框架协调资源，工作负载表达需求，生态控制器传递这些需求，benchmark 验证调度表现。后续方向放在各部分结尾，不再单列一章 roadmap。
 
-> 前面解决了调度路径如何协调使用节点。但有了可用节点，还不等于工作负载能够运行。我们还需要完整的副本、合适的网络位置，以及组与组之间的放置关系。
+两个转场：
 
-Agentic AI 用来交代背景，不把每次 Agent 调用都解释成新建一个 Pod。乐观并行讲机制，不承诺未经验证的性能收益。
+> 有了可用节点，还不等于工作负载能够运行。接下来要解决完整副本和拓扑放置。
+
+> 接入的 workload 和 controller 越多，就越需要可重复的测试，弄清规模、延迟和调度开销如何变化。
 
 ## 逐页安排
 
-| 页 | 标题 / 内容 | 时间 | 素材 |
+| 页 | 内容 | 时间 | 素材 |
 |---|---|---:|---|
-| **第一章** | **调度路径如何协调** | **6 分钟** | |
-| 1 | 原标题、讲者，简述今天要讲的两层协调 | 0:30 | 封面 |
-| 2 | Different Workloads, Shared Infrastructure：Agent 应用、推理服务与训练共享基础设施 | 1:00 | 生命周期图精简 |
-| 3 | A Coordinated Scheduling Framework：双路径架构，简述 worker / Binder 职责 | 1:30 | China 7–8 / EU 9 |
-| 4 | NodeShard: Coordinating Node Access：用一次节点范围调整解释协调过程 | 2:00 | China 9 / EU 10–11 |
-| 5 | Available Nodes Are Only the Beginning：资源总量够，仍可能缺完整副本或合适拓扑 | 1:00 | 新增转场 |
-| **第二章** | **工作负载内部如何协调** | **10 分钟** | |
-| 6 | PodGroup and SubGroup：用 Kthena P/D 场景解释完整副本与两级 Gang | 2:30 | China 14、22 |
-| 7 | HyperNode：一棵拓扑树，说明域、层级和约束 | 2:00 | China 16 |
+| **第一章** | **统一调度** | **6:00** | |
+| 1 | 原标题与讲者，交代四部分内容 | 0:30 | 封面 |
+| 2 | Different Workloads, Shared Infrastructure：Agent 应用、推理与训练的基础设施需求 | 1:00 | 生命周期图精简 |
+| 3 | A Coordinated Scheduling Framework：双路径，简述 worker / Binder | 1:30 | China 7–8 / EU 9 |
+| 4 | NodeShard: Coordinating Node Access：节点候选范围如何协调 | 2:00 | China 9 / EU 10–11 |
+| 5 | Available Nodes Are Only the Beginning：从资源范围转到工作负载需求 | 1:00 | 转场图 |
+| **第二章** | **Multi-Level Gang + Network Topology** | **8:30** | |
+| 6 | PodGroup / SubGroup：用 Kthena P/D 案例解释完整副本 | 2:30 | China 14、22 |
+| 7 | HyperNode：拓扑域、层级与约束 | 2:00 | China 16 |
 | 8 | Multi-Level Placement：实例位于较大域，副本位于较小域 | 2:00 | China 17 |
-| 9 | PodGroup Anti-Affinity：实例内部聚拢，两个实例之间分离 | 2:00 | China 15，更新为已发布 |
-| 10 | Placement Rules：required 无合法域时 Pending；preferred 可退化 | 1:30 | 静态案例或短录屏 |
-| **第三章** | **生态如何接入** | **4 分钟** | |
-| 11 | Ecosystem Progress：Kthena、KubeRay、Grove 的能力与状态，Kubeflow / LWS 的深化方向 | 2:00 | 新增能力表 |
-| 12 | KubeRay：两个双 Pod 副本，不等于任意四个 Pods | 1:00 | 新增具体案例 |
-| 13 | Standalone HyperNode：独立 controller 已交付，外部 adapter 分开标状态 | 1:00 | China 19 |
-| **第四章** | **接下来做什么** | **5 分钟** | |
-| 14 | SubGroup Relationships：同一 PodGroup 内的 affinity / anti-affinity，标为 Proposed | 2:00 | 新增关系图 |
-| 15 | Roadmap：补齐组间语义，深化 controller 映射，用真实场景验证 | 1:30 | v1.17 主线摘录 |
-| 16 | Takeaways & Community：回顾两层协调，邀请提供场景与参与集成 | 1:30 | 社区入口 |
+| 9 | PodGroup Anti-Affinity：组内聚拢、实例间分离；顺带讲 required / preferred | 2:00 | China 15，更新状态 |
+| **第三章** | **Ecosystem** | **4:30** | |
+| 10 | 能力表：Kthena、KubeRay、Grove 已有接入与推进中的部分 | 2:00 | 新增能力表 |
+| 11 | KubeRay：两个完整的双 Pod 副本，不等于任意四个 Pods | 1:00 | 具体案例 |
+| 12 | 扩展方向：standalone HyperNode 已交付；Kubeflow / LWS 深化；SubGroup 关系提案 | 1:30 | 合并原 roadmap 页 |
+| **第四章** | **Benchmark Framework & Progress** | **6:00** | |
+| 13 | 框架：环境 → workload profiles → audit / metrics → reports | 1:30 | 仓库 benchmark/ |
+| 14 | 进展：已有场景与指标采集；仍在推进的测试和优化验证 | 1:30 | 已有能力 / 测试中两栏 |
+| 15 | 一项代表性结果：配置、观察、结论边界与下一步复测 | 1:30 | 待选结果，当前留占位 |
+| 16 | 回顾四部分，邀请贡献 workload profile、测试反馈和生态集成 | 1:30 | 收尾 |
 | 17 | Q&A | 5:00 | |
 
-## 这次的新内容
+## Benchmark 这一章怎么讲
 
-Kthena 的 P/D 案例贯穿第二章：先凑齐完整副本，再约束组内拓扑，最后增加第二个实例，通过 PodGroup anti-affinity 分散放置。第三章用 KubeRay 说明类似需求也来自其他生态。
+仓库已有 Kind/KWOK 与已有集群入口、Gang / Pod 场景、拓扑配置、audit-exporter、Prometheus/Grafana 和报告收集。这些是框架进展，可以先讲清楚，不必等到所有性能测试完成。
 
-NA 的增量集中在 PodGroup anti-affinity、KubeRay 的 SubGroup 接入、standalone HyperNode 已交付，以及下一步的 SubGroup 关系。Global、混部保留为已有覆盖面，不单开章节。
+结果页只选一个有上下文的例子：一条曲线、一项优化前后对比，或一个 profiling 发现。注明版本、环境、规模、指标口径和重复次数；尚未稳定的结果标为 **Under validation**。具体展示哪项结果仍待选定，草稿不填猜测数字。
 
-截至 2026-10-28：KubeRay SubGroup PR 已合并，replica topology PR 仍在推进；Grove 已合并 gang / SubGroup backend，topology 尚未接通；Kubeflow 与 LWS 已有 Volcano 集成，后续是深化。正式演讲前再核对版本与 PR 状态。
+KWOK 结果用于说明调度行为与开销，不证明真实 GPU 通信或模型吞吐。benchmark 也不必承担“证明双路径一定更快”的任务；可以坦诚讲已经测到了什么、接下来还在验证什么。
 
-## 草稿怎么读
+## 制作与准备
 
-- **深蓝标题、白底正文**：拟上屏内容，英文。
-- **浅蓝图框、等宽小字**：图示草稿或旧素材复用位置，形状可编辑。
-- **浅黄备注条、中文字体**：制作提示与待确认事项，正式版移入讲者备注。
-- **紫色 Proposed 标记**：未来能力，不表示已发布。
+深蓝为正式内容，浅蓝为可编辑图示草稿，浅黄为中文制作备注；Proposed 表示未来能力，Under validation 表示结果还在核实。当前使用工作版式，来源与讲解边界放在讲者备注。
 
-当前使用简洁的 16:9 工作版式，未套用未经确认的 NA 官方模板。来源和讲解边界放在每页的讲者备注中。
+先把前三章的旧图与新增生态状态整理好，同时选定 benchmark 的代表性案例。只沿用正在推进的测试，不为凑一页结果另起大规模实验。最后留两次计时排练，核对版本和 PR 状态。
 
-## 剩余时间怎么用
-
-前两天定分工、串好转场，验证一个 anti-affinity 放置案例；接着三天把复用图和新增页补齐。最后留两次计时排练，核对生态状态，导出 PDF 与离线演示。没有现成环境就用准确的静态图，不让演示拖住整套材料。
-
-讲者分工可按第 1–5、6–10、11–16 页划分。详尽核查与来源保留在[研究大纲](Volcano_KubeCon_NA_2026_group_topology_outline.zh-CN.md)，本稿只用于制作与排练。
+生态状态沿用 2026-10-28 的核查，演讲前再确认。详细来源见[研究记录](Volcano_KubeCon_NA_2026_group_topology_outline.zh-CN.md)；benchmark 依据见[框架文档](https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md)与[指标收集脚本](https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/collect-report.sh)。

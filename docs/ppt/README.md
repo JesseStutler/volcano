@@ -2,7 +2,9 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-17 页草稿：25 分钟正文 + 5 分钟问答。英文上屏，中文制作与讲者备注。
+2026-10-29 更新。17 页草稿：25 分钟正文 + 5 分钟问答。英文上屏，中文制作与讲者备注。
+
+四部分：统一调度 → 多级 Gang 与网络拓扑 → Ecosystem → Benchmark 框架与进展。Benchmark 结果页暂留占位，待选定正在验证的案例。
 
 - [精简大纲](Volcano_KubeCon_NA_2026_draft_outline.zh-CN.md)
 - [PDF 预览](Volcano_KubeCon_NA_2026_draft.pdf)

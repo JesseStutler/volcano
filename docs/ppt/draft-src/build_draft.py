@@ -181,17 +181,10 @@ for x,domain,inst in [(5.65,'Supernode A','Instance A'),(9.13,'Supernode B','Ins
  box(s,x+.24,3.36,2.7,.61,inst+' / PG','pale',16)
  pod(s,x+.35,4.40,'Prefill','pale',1.15);pod(s,x+1.67,4.40,'Decode','decode',1.15)
 txt(s,5.80,5.68,6.35,.26,'Within-group topology + between-group anti-affinity',12,False,'blue',MONO)
-note(s,'2:00。每个实例是一个 PodGroup，内部约束到同一个 supernode，两个 PodGroups 用 anti-affinity 分散。需要启用 plugin；规则选择 PodGroup labels / namespaces，相互分离时双方都应配置规则。主要通过 allocate 执行，不承诺 backfill 的 BestEffort Pods 同样受约束。拓扑分散本身不等于应用 failover。',[AA,'https://github.com/volcano-sh/volcano/pull/5349'])
-
-# 10
-s=base('When Placement Rules Cannot Be Satisfied','02 / Coordinating workload groups',10,'1:30','待补：45–60 秒录屏或实际放置截图。当前是预期行为示意，不是测试结果。')
-txt(s,.65,1.92,11.9,.58,'Example: only one domain has enough resources.',25,True)
-for x,title,fill,result,body in [(.67,'REQUIRED','pale','Keep the second group Pending','Do not violate the separation rule.'),(6.87,'PREFERRED','decode','Allow a feasible fallback','The preference may be relaxed.')]:
- rect(s,x,2.92,5.79,2.80,fill);txt(s,x+.23,3.16,5.30,.33,title,13,True,'blue',MONO);txt(s,x+.23,3.94,5.25,.85,result,24,True);txt(s,x+.23,5.02,5.25,.44,body,18,False,'muted')
-note(s,'1:30。隔离测试环境中，其他资源与约束都满足，仅 anti-affinity 无第二个合法域。required 保持 Pending；preferred 可以选择违反偏好的可行放置，并非保证一定放到某节点。若无实测截图，保留 illustrative 标签，不宣称已经运行演示。',[AA])
+note(s,'2:00。顺带说明 required 无合法域则 Pending、preferred 可退化；不再单独占一页。每个实例是一个 PodGroup，内部约束到同一个 supernode，两个 PodGroups 用 anti-affinity 分散。需要启用 plugin；规则选择 PodGroup labels / namespaces，相互分离时双方都应配置规则。主要通过 allocate 执行，不承诺 backfill 的 BestEffort Pods 同样受约束。拓扑分散本身不等于应用 failover。',[AA,'https://github.com/volcano-sh/volcano/pull/5349'])
 
 # 11
-s=base('Controllers Bring Workload Structure to Scheduling','03 / Ecosystem progress',11,'2:00','状态截至 2026-10-28；已合并不等于下游稳定版已发布。演讲前核对 PR 和版本。')
+s=base('Controllers Bring Workload Structure to Scheduling','03 / Ecosystem progress',10,'2:00','状态截至 2026-10-28；已合并不等于下游稳定版已发布。演讲前核对 PR 和版本。')
 cols=[.65,2.57,7.25]; widths=[1.92,4.68,4.80]
 headers=['PROJECT','EXISTING / MERGED','NEXT / IN PROGRESS']
 for x,w,h in zip(cols,widths,headers):rect(s,x,1.92,w,.51,'navy');txt(s,x+.12,2.04,w-.24,.26,h,12,True,'white')
@@ -204,7 +197,7 @@ txt(s,.72,5.86,11.8,.28,'Controllers supply identity; the scheduler applies grou
 note(s,'2:00。Kthena 已有 gang/topology。KubeRay #5249 已合并，#5369 截至核查仍 open。Grove #516 最终实现包含 SubGroupPolicy，但显式拒绝 topology constraints。Kubeflow / LWS 不是从零集成，后续深化分组与拓扑。各条既有能力不都意味着同等支持两级 gang 或 topology。',[KT+'gang-scheduling.md',KT+'network-topology.md',RAY+'5249',RAY+'5369',GROVE,'https://trainer.kubeflow.org/en/latest/operator-guides/job-scheduling/volcano.html','https://github.com/kubernetes-sigs/lws/pull/498'])
 
 # 12
-s=base('KubeRay: A Replica Can Span Multiple Pods','03 / Ecosystem progress',12,'1:00','新增案例：WorkerGroup / policy / 实际 replica 不混为一谈；省略 head，仅聚焦一个 worker group。')
+s=base('KubeRay: A Replica Can Span Multiple Pods','03 / Ecosystem progress',11,'1:00','新增案例：WorkerGroup / policy / 实际 replica 不混为一谈；省略 head，仅聚焦一个 worker group。')
 txt(s,.65,1.94,4.2,.60,'minReplicas = 2\nnumOfHosts = 2',22,True,'blue',MONO)
 txt(s,.65,3.28,4.2,1.40,'The requirement is two complete replicas, each spanning two Pods.',24,True)
 txt(s,.65,5.05,4.2,.65,'Any four Pods are not enough.',19,False,'muted')
@@ -214,46 +207,54 @@ box(s,5.90,4.43,5.93,.70,'2 complete replicas × 2 hosts','white',22)
 badge(s,5.90,5.47,'GANG: MERGED','mint','green',2.42);badge(s,8.52,5.47,'TOPOLOGY: IN PROGRESS','yellow','amber',3.19)
 note(s,'1:00。仅讨论一个 worker group，忽略 head 等其他需求。minReplicas=2,numOfHosts=2，需要两套完整 replica identity，每套两个 Pods。三个来自 replica 0、一个来自 replica 1 并不满足。一个 WorkerGroup / subgroup policy 能生成多个实际 SubGroups。',[RAY+'5249',RAY+'5369'])
 
-# 13
-s=base('HyperNode Beyond a Single Scheduler','03 / Ecosystem progress',13,'1:00','复用：China 19。独立 controller 更新为已交付；外部 scheduler adapter 单独标状态。')
-bullets(s,[('Standalone discovery and controller','Topology can be maintained as a reusable component.'),('A shared topology API','Consumers read the HyperNode model.'),('Adapters remain separate work','API availability does not imply every scheduler is integrated.')],size=20)
-panel(s)
-box(s,6.30,2.52,5.35,.70,'Discovery / standalone controller');link(s,8.97,3.22,8.97,3.77)
-box(s,6.30,3.77,5.35,.70,'HyperNode API');link(s,8.97,4.47,7.22,5.03);link(s,8.97,4.47,10.82,5.03)
-box(s,5.70,5.03,3.02,.60,'Volcano','white',17);box(s,9.32,5.03,3.02,.60,'Other consumers*','white',17)
-txt(s,6.00,5.78,6.15,.23,'*Scheduler adapters: planned / separate integrations',11,False,'muted',MONO)
-note(s,'1:00。standalone HyperNode controller 已在 v1.16 交付。外部消费者可使用 API，但 kube-scheduler / coscheduling 等 adapter 仍要单独实现，不能画成全部已经支持。',[R16,R17])
+# 12 — ecosystem next steps
+s=base('Extending the Ecosystem and Placement Model','03 / Ecosystem progress',12,'1:30','Standalone HyperNode 已交付；SubGroup 关系与进一步的 controller / adapter 接入分别标状态。')
+for x,title,body,fill in [(.65,'Available foundation','Standalone HyperNode controller\nA reusable topology API','pale'),(4.83,'Integration work','KubeRay / Grove topology\nDeeper Kubeflow / LWS mappings','pale'),(9.01,'Proposed semantics','SubGroup affinity / anti-affinity\nWithin the same PodGroup','lav')]:
+ rect(s,x,2.05,3.65,3.50,fill);txt(s,x+.18,2.35,3.25,.88,title,23,True);txt(s,x+.18,3.70,3.25,1.40,body,19,False,'muted')
+txt(s,.70,5.90,11.9,.35,'As integrations grow, we need repeatable ways to evaluate scheduling behavior.',18,True,'blue')
+note(s,'1:30。第三章同时交代已有采用与扩展方向。HyperNode standalone 已发布；API 独立可用不等于所有 scheduler adapter 已交付。未来 SubGroup affinity/anti-affinity 位于同一 PodGroup 内，不与已发布的 PodGroup anti-affinity 混淆。转场：控制器与工作负载不断增加，下一步要用可重复的 benchmark 验证规模、延迟和调度开销。',[R16,R17,D+'group-topology-affinity.md'])
 
-# 14
-s=base('Next: Relationships Between SubGroups','04 / What comes next',14,'2:00','未来方向：同一 PodGroup 内的 SubGroup 关系。以下只说明需求，不代表已发布字段。')
-badge(s,.65,1.88,'PROPOSED','lav','purple',1.65)
-txt(s,.65,2.52,4.20,1.06,'Beyond a boundary\nfor each group.',26,True)
-txt(s,.65,3.88,4.20,1.70,'Express which SubGroups should be near each other, and which should be spread across domains.',21,False,'muted')
-panel(s,'SAME PODGROUP — TWO SEPARATE SCENARIOS')
-for yy,label in [(2.48,'AFFINITY: share a target domain'),(4.25,'ANTI-AFFINITY: use different domains')]:
- txt(s,5.66,yy,6.65,.33,label,14,True,'purple')
-if True:
- rect(s,5.75,3.00,6.4,.88,'lav','line',True);box(s,6.0,3.18,2.5,.48,'SubGroup A','white',14);box(s,9.4,3.18,2.5,.48,'SubGroup B','white',14)
- for xx,lab in [(5.75,'SubGroup A'),(9.2,'SubGroup B')]:
-  rect(s,xx,4.80,2.95,.88,'lav','line',True);box(s,xx+.20,4.98,2.55,.48,lab,'white',14)
-note(s,'2:00。回到同一个 PodGroup 内部的关系需求，与前面两个 PodGroups 的 anti-affinity 区分。需明确作用层级、匹配实际副本的方法以及 required/preferred 语义。图是两个独立场景，不表示同一对组同时要求共置与分离。',[D+'group-topology-affinity.md','https://github.com/volcano-sh/volcano/issues/5347',R17])
+BENCH='https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/'
+# 13 — benchmark framework
+s=base('A Repeatable Scheduling Benchmark Framework','04 / Benchmark framework and progress',13,'1:30','基于仓库 benchmark/。框架能力与具体测试结果分开；KWOK 不模拟真实 GPU 计算和网络性能。')
+bullets(s,[('Choose an environment','Kind + KWOK, or an existing Kubernetes cluster.'),('Choose a workload profile','Gang jobs, bare Pods, and topology configurations.'),('Collect observations','Audit events, scheduler metrics, dashboards, and reports.')],size=20)
+panel(s,'EXISTING FRAMEWORK — EDITABLE OVERVIEW')
+for y,label in [(2.45,'Environment + scheduler configuration'),(3.65,'Gang / Pod workload profiles'),(4.85,'Audit + Prometheus / Grafana + reports')]:
+ box(s,5.75,y,6.50,.70,label,'white',18)
+ if y<4.8:link(s,9.0,y+.70,9.0,y+1.20)
+note(s,'1:30。已核对 benchmark/README.md、testcases 与 scripts。框架提供部署、负载配置和指标收集，既支持 Kind/KWOK 也支持已有集群。按配置可创建 HyperNode。KWOK 测试不能证明真实训练、推理或网络吞吐。此处是调度 benchmark，不是应用 benchmark。',[BENCH+'README.md',BENCH+'scripts/README.md'])
 
-# 15
-s=base('From Placement Primitives to Ecosystem Adoption','04 / What comes next',15,'1:30','路线建议：与实际投入对齐；不承诺这页所有事项都在 v1.17 一次交付。')
-for x,num,title,body in [(.65,'01','Define relationships','SubGroup affinity / anti-affinity\nClear matching and failure semantics'),(4.83,'02','Preserve workload intent','Deepen KubeRay / Grove mappings\nExtend Kubeflow / LWS integration'),(9.01,'03','Validate real scenarios','Runnable examples\nPlacement and failure behavior')]:
- rect(s,x,2.02,3.65,3.33,'pale');txt(s,x+.18,2.21,3.25,.44,num,23,True,'blue');txt(s,x+.18,2.95,3.25,.81,title,22,True);txt(s,x+.18,4.08,3.25,1.00,body,17,False,'muted')
-txt(s,.72,5.72,11.8,.38,'Further out: topology adapters and device / network locality.',18,False,'muted')
-note(s,'1:30。近期主线：关系语义、controller 映射、真实场景验证。Kthena 继续作为参考场景；KubeRay / Grove 深化；Kubeflow / LWS 在已有集成上拓展。xPU / DRA / GPU-NIC locality 为中期方向，不把整个路线图照搬到正文。',[R17])
+# 14 — concrete framework progress, not performance claims
+s=base('Progress So Far—and What We Are Still Testing','04 / Benchmark framework and progress',14,'1:30','进展页：左侧是已核查的框架能力；右侧是待讲者确认的测试重点，不写成已完成结果。')
+rect(s,.65,1.98,5.85,4.08,'pale');rect(s,6.82,1.98,5.85,4.08,'yellow')
+badge(s,.88,2.20,'IN THE FRAMEWORK','mint','green',2.30);badge(s,7.05,2.20,'VALIDATION IN PROGRESS','yellow','amber',3.08)
+for y,h,t in [(2.92,'Configurable test scenarios','Gang / Pod profiles and topology setup'),(3.93,'Latency and throughput collection','Audit-based observations and scheduler metrics'),(4.94,'Repeatable setup and reporting','Scripts, dashboards, and saved reports')]:
+ txt(s,.90,y,5.32,.39,h,19,True);txt(s,.90,y+.46,5.32,.48,t,16,False,'muted')
+for y,h,t in [(2.92,'Representative workload shapes','Scale, job sizes, and topology constraints'),(3.93,'Optimization comparisons','Matched configurations and repeated runs'),(4.94,'Measurement boundaries','Separate creation, scheduling, and app readiness')]:
+ txt(s,7.07,y,5.32,.39,h,19,True);txt(s,7.07,y+.46,5.32,.48,t,16,False,'muted')
+note(s,'1:30。用户确认 benchmark 持续推进与测试；具体测试重点仍待选择，右栏为建议。左侧仅描述代码已有能力。collect-report 包含 Pod created→scheduled 延迟直方图分位数与成功 binding 事件吞吐计算；本地 audit 文件不可用时吞吐可能缺失。不同来源和时间窗口的指标不能混用。后续可选一项有证据的优化讲进展，不展开 Unschedulable Job Cache。',[BENCH+'scripts/collect-report.sh',BENCH+'manifests/monitoring/grafana-dashboard.json',R17])
 
-# 16
-s=base('One Framework, Workload-Aware Placement','04 / What comes next',16,'1:30','可用 20–30 秒提及 Global / 混部已有能力；正文收回到当前推进方向与社区参与。')
-for yy,no,head,sub in [(1.95,'01','Coordinate scheduling paths','NodeShard and scheduler coordination'),(3.23,'02','Preserve workload structure','Complete groups, topology, and placement relationships'),(4.51,'03','Bring the semantics into controllers','Share use cases and help build integrations')]:
- badge(s,.68,yy+.06,no,'pale','blue',.58);txt(s,1.55,yy,10.8,.45,head,25,True);txt(s,1.55,yy+.56,10.8,.43,sub,19,False,'muted')
-txt(s,.70,6.00,11.8,.30,'github.com/volcano-sh/volcano  ·  v1.17 roadmap: issue #6166',15,False,'blue')
-note(s,'1:30。总结：框架协调、工作负载结构、生态采用。邀请大家带来角色、副本和互联需求，参与 controller 集成与关系语义讨论。若需呼应摘要，可简述项目仍有 Global / 混部已有覆盖，但不宣称新的推进成果。',[R17,'https://github.com/volcano-sh/volcano'])
+# 15 — reserve space for actual evidence, no invented chart
+s=base('Benchmark Snapshot: Results Under Validation','04 / Benchmark framework and progress',15,'1:30','待填：选择一项正在复测的结果，补环境、版本、负载与重复次数。当前没有放入测量数据。')
+badge(s,.65,1.90,'WORK IN PROGRESS','yellow','amber',2.50)
+txt(s,.65,2.60,4.15,.49,'One scenario. One question.',23,True)
+txt(s,.65,3.45,4.15,1.44,'Show what changed, what was measured, and what remains under test.',21,False,'muted')
+txt(s,.65,5.20,4.15,.62,'Freeze the claim after validation.',18,True,'blue')
+panel(s,'RESULT PLACEHOLDER — NO MEASURED DATA YET')
+box(s,5.77,2.64,6.47,1.30,'Insert one verified chart or a real dashboard capture','white',22)
+for y,label in [(4.24,'Build / cluster / nodes / workload: TBD'),(4.78,'Metric / window / repetitions: TBD'),(5.32,'Observation / limits / next test: TBD')]:
+ txt(s,5.88,y,6.18,.35,label,14,False,'muted',MONO)
+note(s,'1:30。等待讲者选定当前测试成果。优先选择一组能说明问题的曲线或对比，不把无上下文日志中的数字直接放上来。注明 scheduler build、Kubernetes、控制面资源、节点/Pod/Job规模、gang/topology规则、测量口径与重复次数。没有稳定数字时换成真实 profiling 发现及复测进展，不制造占位曲线，不把旧 scheduler 的优化结果归因于乐观并行架构。',[BENCH+'README.md',BENCH+'scripts/collect-report.sh'])
+
+# 16 — close the four-part story
+s=base('Framework, Workloads, Ecosystem, Evidence','04 / Benchmark framework and progress',16,'1:30','收尾：测试和优化仍在继续，邀请贡献真实 workload 与 benchmark profile；不把 WIP 写成完成。')
+for yy,no,head,sub in [(1.85,'01','Coordinate scheduling paths','Dual paths and NodeShard coordination'),(2.89,'02','Preserve workload structure','Multi-level gang and network topology'),(3.93,'03','Extend ecosystem integrations','Existing adoption and deeper controller mappings'),(4.97,'04','Measure and improve','Repeatable benchmarks and ongoing validation')]:
+ badge(s,.68,yy+.06,no,'pale','blue',.58);txt(s,1.55,yy,10.8,.42,head,23,True);txt(s,1.55,yy+.48,10.8,.36,sub,17,False,'muted')
+txt(s,.70,6.08,11.8,.27,'Contribute workload profiles, reproducible observations, and integration feedback.',15,False,'blue')
+note(s,'1:30。回顾四章：统一调度框架、工作负载语义、生态、benchmark。明确性能工作还在持续测试和优化，邀请用户贡献真实场景、可复现 profile 和对比方法。Global/混部不另开章节。',[R17,BENCH+'README.md'])
 
 # 17
-s=base('Questions?','Discussion',17,'5:00','备份材料：NodeShard 模式、关键 API、plugin 开关、生态版本与来源；正式版移除此提示。')
+s=base('Questions?','Discussion',17,'5:00','备份材料：NodeShard 模式、关键 API、生态版本与 benchmark 方法；正式版移除此提示。')
 txt(s,.70,2.05,11.8,.64,'What should your workload keep together—or place apart?',28,True)
 box(s,.75,3.55,5.45,1.16,'Scheduling paths\nNodeShard coordination','pale',24)
 box(s,7.13,3.55,5.45,1.16,'Workload groups\nGang + topology + relationships','pale',24)
@@ -263,7 +264,7 @@ note(s,'5:00。问答准备：NodeShard 和 HyperNode 的区别；hard shard 切
 prs.core_properties.title='Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents'
 prs.core_properties.subject='KubeCon NA 2026 Maintainer Track — editable content draft'
 prs.core_properties.author='Volcano presentation working draft'
-prs.core_properties.comments='English slide content; Chinese production notes. Status checked 2026-10-28. Illustrative diagrams, not measured results.'
+prs.core_properties.comments='Revised 2026-10-29: unified scheduling, group topology, ecosystem, benchmark. Ecosystem status checked 2026-10-28. Benchmark results pending selection; no invented measurements.'
 for slide in prs.slides:
  for effect in slide._element.xpath('.//a:effectRef'):
   effect.set('idx','0')
