@@ -15,4 +15,6 @@ Ricardo Aravena · Rainie Li。26 页，更新于 2026-10-30。
 
 NA 材料只保留当前版本。
 
-![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png)
+[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=daa88f534fa6)
+
+![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=daa88f534fa6)
