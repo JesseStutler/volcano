@@ -143,10 +143,8 @@ type TaskInfo struct {
 	VolumeReady bool
 	Preemptable bool
 	// BestEffort is true when the task has no ordinary resource requests or DRA claims.
-	// Kept for compatibility, it is the inverse of HasSchedulingResourceRequests.
-	// DRA-only Pods can have Kubernetes BestEffort QoS, but are false here because
-	// they still need device allocation and gang checks. Use HasSchedulingResourceRequests
-	// for scheduling decisions and HasInitResourceRequests for ordinary-resource policies.
+	// DRA-only Pods may have Kubernetes BestEffort QoS, but this field is false
+	// because they still need device allocation and gang checks.
 	BestEffort                  bool
 	HasRestartableInitContainer bool
 	SchGated                    bool
@@ -261,20 +259,18 @@ func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 
 // HasInitResourceRequests checks InitResreq for ordinary requests, including CPU,
 // memory, extended resources, and scheduler-added CSI attachment counts.
-// DRA claims are not included, so DRA-only tasks return false regardless of Pod QoS.
+// DRA claims are not included, so DRA-only tasks return false.
 func (ti *TaskInfo) HasInitResourceRequests() bool {
 	return !ti.InitResreq.IsEmpty()
 }
 
 // HasSchedulingResourceRequests checks for ordinary requests or DRA claims that need allocation.
-// Pending tasks with either kind of request cannot count toward gang readiness
-// before allocation, even when their Kubernetes Pod QoS is BestEffort.
+// Pending tasks with either kind of request cannot count toward gang readiness before allocation.
 func (ti *TaskInfo) HasSchedulingResourceRequests() bool {
 	return ti.HasInitResourceRequests() || (ti.Pod != nil && len(ti.Pod.Spec.ResourceClaims) > 0)
 }
 
-// UpdateSchedulingBestEffort refreshes the compatibility BestEffort field after requests change.
-// Scheduling decisions use HasSchedulingResourceRequests directly; this does not change Pod QoS.
+// UpdateSchedulingBestEffort refreshes BestEffort after resource requests change.
 func (ti *TaskInfo) UpdateSchedulingBestEffort() {
 	ti.BestEffort = !ti.HasSchedulingResourceRequests()
 }
