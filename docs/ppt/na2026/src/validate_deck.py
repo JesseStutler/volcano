@@ -1,6 +1,6 @@
 """Validate generated artifacts without changing them. No cluster tests are run."""
 from pathlib import Path
-import json, math
+import json, math, re
 import yaml
 from lxml import etree
 from PIL import ImageFont
@@ -44,12 +44,19 @@ for slide in manifest:
             _,top,_,bottom=font.getbbox(text,anchor='ls');top=y+top/4;bottom=y+bottom/4
             if x< -1 or x+w>width+1 or top< -1 or bottom>height+1:errors.append((slide['page'],'text outside canvas',text))
             if text:boxes.append((x,top,x+w,bottom,text))
+    rendered_paths=[]
+    for path in r.findall('s:path',ns):
+        d=path.get('d','')
+        if not re.search('[CQASTHVZcqasthvz]',d):
+            values=[float(v) for v in re.findall(r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?',d)]
+            rendered_paths.append(list(zip(values[::2],values[1::2])))
     for route in routes[str(slide['page'])]:
         pts=route['points']
         if route.get('kind')!='fabric':
             assert all(x==xx or y==yy for (x,y),(xx,yy) in zip(pts,pts[1:])),(slide['page'],pts)
         if route['arrow']:
             left,tip,right=route['head'];assert tip==pts[-1]
+            assert any(len(p)==3 and all(math.dist(a,b)<1e-6 for a,b in zip(p,route['head'])) for p in rendered_paths),(slide['page'],'rendered arrowhead differs from geometry audit',route['head'])
             assert abs(math.dist(left,tip)-math.dist(right,tip))<1e-6
             dx,dy=tip[0]-pts[-2][0],tip[1]-pts[-2][1]
             assert abs((right[0]-left[0])*dx+(right[1]-left[1])*dy)<1e-6

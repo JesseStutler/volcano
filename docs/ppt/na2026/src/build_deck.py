@@ -295,6 +295,8 @@ from speaker_labels import speaker_labels
 speaker_labels(arts, subtitles, removed_notes, C)
 from balanced_captions import balance_captions
 balance_captions(arts, subtitles, removed_notes, titles)
+from visual_finish import finish
+finish(arts, C)
 from community_slides import add_community_slides
 add_community_slides(arts, art, titles, ASSETS)
 subtitles[22]=""
@@ -353,8 +355,8 @@ for page,n in enumerate(order,1):
   for i,t in enumerate(agenda,1):ptext(sl,9.30,1.7+(i-1)*.76,3.45,.68,f'{i:02d}  {t}',15,i==c,'blue' if i==c else 'muted')
   notes={3:'0:10。从统一调度框架切入，后面落到工作负载、生态和验证。',7:'0:15。转场：拿到可用节点之后，还要保留完整副本以及它们的通信局部性。',12:'0:10。转场：这些分组和拓扑语义，最终要由用户真正使用的 controller 传进来。',17:'0:10。转场：接入的控制器和约束越多，就越需要可重复的 benchmark。'}[n]
  else:
-  ptext(sl,.50,.88,12.30,.70,titles[n],31 if len(titles[n])<52 else 28.5,True)
-  if subtitles[n]:ptext(sl,.52,1.50,12.25,.47,subtitles[n],21,False,'blue')
+  ptext(sl,.50,.88,12.30,.70,titles[n],30,True)
+  if subtitles[n]:ptext(sl,.52,1.50,12.25,.47,subtitles[n],20,False,'blue')
   sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.05 if subtitles[n] else 1.80),width=Inches(12.333333),height=Inches(4.666667))
   talks={
    4:'1:20。训练图展示两个 PP stage，每个 stage 两个 TP ranks，需要完整子组及通信局部性。推理展示 P/D 分离，不同角色及副本的 gang 与 topology 约束。Agent 路径先命中预热池并复用 ready runtime；池子耗尽时由 runtime/pool controller 请求容量，经快速 Pod 调度补池。请求突发图是需求示意，没有测量值。池管理不是 Volcano 自带能力，也不是每次调用创建 Pod。',
@@ -398,4 +400,4 @@ prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026
 prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print(f'{len(order)} slides; r12 diagram explanations at API mappings; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; r13 typography, alignment, and restrained label colors; eight YAML excerpts and chapter dividers.')
