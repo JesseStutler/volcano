@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-24 页，当前为 r13。保留 r12 的正文、备注与原图，微调字号、字重、标签底色和对齐。[视觉微调对照](review/r13/README.md)。
+24 页，当前为 r14。突出配图解释文字；Grove 右侧补全 SubGroup / Pod 并对齐字段。[注释与 Grove 对照](review/r14/README.md)。
 
 ## 这次实际复用的图
 
@@ -30,7 +30,8 @@
 - `src/light_edit.py`：r8 的外围评论清理。
 - `src/speaker_labels.py`：r9 的短标签与布局、r10 的重复注释清理；完整解释移入备注。
 - `src/balanced_captions.py`：r11/r12 的配图说明、API 映射箭头及数值关系。
-- `src/visual_finish.py`：r13 的纯视觉调整，校验正文文字保持不变。
+- `src/visual_finish.py`：突出配图说明的字号、字重和底色，保持注释文字不变。
+- `src/grove_layout.py`：Grove 双侧分组图，右侧字段共用列坐标。
 - `src/community_slides.py`：沿用社区用户 logo 和二维码页。
 - `src/simplify_deck.py`、`src/diagram_context.py`：历史 r6/r7 处理，不参与当前生成。
 - `integration-status.json`：本轮核查的生态状态及固定版本来源。
