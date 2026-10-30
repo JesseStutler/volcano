@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-24 页，当前为 r11。保留简短但具体的配图说明，交代对象与调度约束 / 机制，详细过程留在备注。[配图说明对照](review/r11/README.md)。
+24 页，当前为 r12。配图说明对应 API 映射、分组关系和数值来源。Grove / KubeRay 等页的实现状态移入备注。[图与 API 映射对照](review/r12/README.md)。
 
 ## 这次实际复用的图
 
@@ -29,7 +29,7 @@
 - `src/approved_revision.py`：workload、共享拓扑、Grove、社区计划和横向测试图。
 - `src/light_edit.py`：r8 的外围评论清理。
 - `src/speaker_labels.py`：r9 的短标签与布局、r10 的重复注释清理；完整解释移入备注。
-- `src/balanced_captions.py`：r11 的配图说明；保留调度意义，控制为短语。
+- `src/balanced_captions.py`：r11/r12 的配图说明、API 映射箭头及数值关系。
 - `src/community_slides.py`：沿用社区用户 logo 和二维码页。
 - `src/simplify_deck.py`、`src/diagram_context.py`：历史 r6/r7 处理，不参与当前生成。
 - `integration-status.json`：本轮核查的生态状态及固定版本来源。

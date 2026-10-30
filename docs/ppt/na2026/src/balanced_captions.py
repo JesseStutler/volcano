@@ -6,10 +6,13 @@ Object names stay in the diagram. Captions add a constraint or mechanism.
 from lxml import etree
 
 
-def balance_captions(arts, subtitles, removed):
+def balance_captions(arts, subtitles, removed, titles):
     drop={
         4:{'Gang + locality'},
         5:{'Batch / fast path','Binder checks','Shared node pools'},
+        9:{'Standalone HyperNode'},
+        15:{'Gang: merged · Topology: in progress'},
+        23:{'minMember: 6'},
         16:{'Affinity','Supernode · KV locality','Anti-affinity','Leaf · replica isolation'},
     }
     for n,targets in drop.items():
@@ -44,6 +47,9 @@ def balance_captions(arts, subtitles, removed):
     a=arts[8]
     a.text(0,552,'Replica identity → complete SubGroups',32,'blue',True,width=1480)
 
+    a=arts[9]
+    a.text(0,552,'Parent: child HyperNodes · leaf: Kubernetes nodes',30,'blue',True,width=1480)
+
     a=arts[10]
     a.text(0,550,'Whole-instance placement + role-specific locality',32,'blue',True,width=1480)
 
@@ -62,9 +68,18 @@ def balance_captions(arts, subtitles, removed):
 
     a=arts[15]
     a.text(770,433,'Replica label → one complete SubGroup',32,'blue',True,width=690)
+    a.text(0,550,'Minimum workers = 2 replicas × 2 hosts',30,'blue',True,width=1480)
 
     a=arts[23]
-    a.text(0,463,'Role minima → gang minimum',32,'blue',True,width=790)
+    # Explain each arrow where the two APIs meet.
+    a.path([(610,43),(870,43)],True,'blue')
+    for y in [167,297]:
+        a.text(740,y,'SubGroup policy',25,'blue',True,width=250,anchor='middle')
+    a.text(0,438,'Minimum Pods per role',27,'ink',True,width=610)
+    a.text(0,487,'2 Prefill + 4 Decode Pods',32,'blue',True,width=610)
+    a.path([(610,479),(870,479)],True,'blue')
+    a.text(894,487,'minMember: 6',32,'green',True,width=570,mono=True)
+
 
     a=arts[13]
     for y,caption in [
@@ -80,3 +95,11 @@ def balance_captions(arts, subtitles, removed):
 
     a=arts[19]
     a.text(0,490,'Latency · throughput · complete gangs · placement',32,'blue',True,width=1480)
+
+    # Implementation status belongs in notes, not in the figure explanation.
+    for n in [11,16,19,20,23]:
+        if subtitles[n]:removed.setdefault(n,[]).append(subtitles[n])
+        subtitles[n]=''
+    subtitles[11]='Same-label PodGroups → separate supernodes'
+    titles[19]='Next: Cross-Scheduler Comparisons'
+    titles[20]='Next: Workload and Topology Test Matrix'

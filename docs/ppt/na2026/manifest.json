@@ -175,7 +175,7 @@
     {
       "page": 20,
       "source_id": 19,
-      "title": "Compare Schedulers on the Same Workload",
+      "title": "Next: Cross-Scheduler Comparisons",
       "chapter": 4,
       "svg": "svg/20-benchmark-progress.svg",
       "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
@@ -184,7 +184,7 @@
     {
       "page": 21,
       "source_id": 20,
-      "title": "Which Scenarios Fit Which Scheduler?",
+      "title": "Next: Workload and Topology Test Matrix",
       "chapter": 4,
       "svg": "svg/21-benchmark-measurement.svg",
       "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",

@@ -294,7 +294,7 @@ subtitles={n:re.sub(r";\s+([A-Za-z])",lambda m:". "+m.group(1).upper(),s) for n,
 from speaker_labels import speaker_labels
 speaker_labels(arts, subtitles, removed_notes, C)
 from balanced_captions import balance_captions
-balance_captions(arts, subtitles, removed_notes)
+balance_captions(arts, subtitles, removed_notes, titles)
 from community_slides import add_community_slides
 add_community_slides(arts, art, titles, ASSETS)
 subtitles[22]=""
@@ -398,4 +398,4 @@ prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026
 prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print(f'{len(order)} slides; r11 concise captions with scheduling meaning; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; r12 diagram explanations at API mappings; eight YAML excerpts and chapter dividers.')
