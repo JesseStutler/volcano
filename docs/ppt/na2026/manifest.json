@@ -106,7 +106,7 @@
       "title": "Gang Preemption Within a HyperNode",
       "chapter": 2,
       "svg": "svg/12-gang-preemption.svg",
-      "source": "China 2026 slide 12 scenario; pkg/scheduler/actions/gangpreempt/gangpreempt.go; gang-aware-eviction-design.md. One Pod uses one GPU in this illustrative example.",
+      "source": "China 2026 slide 12 scenario, using the switch symbols and topology vocabulary of EU 16 / China 17. Gang boundaries and before/after placement are authored SVG. gangpreempt implementation reviewed at ac7f6a4dfe30d992c3b293ea5974c646e3da5da7.",
       "reference_set": null
     },
     {

@@ -40,13 +40,13 @@ def apply_batch(arts, art, code, original, titles, subtitles, sources, assets):
         for j in range(2):pod(a,x+14+j*140,131,132,'TP '+str(j))
     a.path([(320,153),(398,153)],True,'blue')
     a.text(359,130,'PP',23,'blue',True,width=60,anchor='middle')
-    label(a,20,225,678,'TP / PP gangs + network locality')
+    a.box('training-need',20,216,678,68,'TP/PP groups\nGang scheduling · network locality','white',27,True,'blue','blue')
     for x,w,t in [(780,276,'Prefill'),(1164,296,'Decode replicas')]:
         a.rect(x,65,w,142,'white','green',5,dash=True)
         a.text(x+w/2,98,t,28,'green',True,width=w-16,anchor='middle')
         for j in range(2):pod(a,x+14+j*(w-20)/2,131,(w-36)/2,('P' if x==780 else 'D')+str(j),'green')
     a.path([(1056,153),(1164,153)],True,'green');a.text(1110,130,'KV',23,'green',True,width=70,anchor='middle')
-    label(a,780,225,680,'Role gangs + P/D locality','green')
+    a.box('inference-need',780,216,680,68,'Role replicas\nGang scheduling · network locality','white',27,True,'green','green')
     a.rect(0,315,1480,242,'white','orange',10,layer='bg')
     a.text(22,353,'Agents',34,'orange',True);a.text(22,394,'Bursty arrivals',27,'ink',True)
     a.path([(24,465),(48,465),(48,434),(75,434),(75,414),(105,414),(105,448),(140,448),(140,465),(181,465)],False,'orange')
@@ -63,27 +63,20 @@ def apply_batch(arts, art, code, original, titles, subtitles, sources, assets):
     a.path([(1279,471),(1279,379),(940,379)],True,'blue')
     a.text(1176,360,'Pool refill',27,'blue',True,width=250,anchor='middle')
 
-    # The original architecture remains the center. Object-local white labels
-    # and foreground leaders point at its controller and dynamic node slots.
+    # Align explanations with the architecture layers, without drawing leaders
+    # across the reused image. Object names make the association explicit.
     a=renew(5)
     original(a,'china-07-unified-architecture.png',0,0,1000,560,(0,115,3129,2051))
     label(a,354,26,292,'Profiles → paths',size=28,h=52)
-    label(a,1040,120,436,'Strategy-based allocation',size=29,h=62)
-    a.text(1258,229,'Live cluster / node state',29,'ink',width=420,anchor='middle')
-    a.path([(1040,151),(990,151),(990,135),(500,135),(500,156)],False,'blue')
-    a.front.append(a.edges.pop())
-    label(a,1040,412,436,'NodeShard',size=32,h=62)
-    a.text(1258,523,'Dynamic node pool membership',27,'ink',width=420,anchor='middle')
-    a.path([(1040,443),(990,443),(990,548),(500,548),(500,527)],False,'blue')
-    a.front.append(a.edges.pop())
+    a.text(1258,140,'Sharding Controller',31,'blue',True,width=430,anchor='middle')
+    a.box('controller-note',1040,164,436,102,'Live node state\nDynamic pool allocation','white',30,True,'blue','blue')
+    a.text(1258,410,'NodeShard',31,'blue',True,width=430,anchor='middle')
+    a.box('shard-note',1040,434,436,102,'Candidate nodes\nfor each scheduling path','white',30,True,'blue','blue')
 
     a=renew(6);titles[6]='NodeShard: Strategy-Driven Node Allocation'
-    original(a,'china-09-dynamic-node-sharding.png',0,0,510,555)
-    label(a,530,113,430,'Node metrics + strategy',size=30)
-    a.path([(530,139),(486,139),(486,240),(413,240)],False,'blue')
-    label(a,530,292,430,'Recompute desired nodes',size=29)
-    a.path([(960,318),(986,318),(986,99),(1005,99)],True,'blue')
-    code(a,1005,0,475,477,'NodeShard','''spec:
+    original(a,'china-09-dynamic-node-sharding.png',0,0,600,477)
+    a.box('strategy-note',0,490,600,68,'Node metrics + strategy\nCompute desired node allocation','white',28,True,'blue','blue')
+    code(a,690,0,790,555,'NodeShard · spec / status','''spec:
   nodesDesired:
   - node1
   - node2
@@ -94,10 +87,9 @@ status:
   nodesToRemove:
   - node0
   nodesToAdd:
-  - node2''',27,('nodesDesired','nodesInUse'),filename='nodeshard.yaml')
-    label(a,1005,495,475,'Desired set / current use',size=30)
-    a.text(745,433,'Rebalance candidate nodes',29,'ink',True,width=430,anchor='middle')
-    a.text(745,476,'as cluster conditions change',27,'muted',width=430,anchor='middle')
+  - node2''',29,('nodesDesired','nodesInUse'),filename='nodeshard.yaml')
+    a.box('desired-note',1055,93,402,88,'Strategy result\nDesired nodes','white',29,True,'blue','blue')
+    a.box('inuse-note',1055,231,402,88,'Scheduler state\nNodes in use','white',29,True,'blue','blue')
 
     # New teaching page: nested workload hierarchy, not the p4 overview layout.
     a=art(25,'workload-gangs','Whole Workloads, Complete Compute Groups',chapter=2,
@@ -120,14 +112,11 @@ status:
     label(a,808,488,649,'Serving gang → complete role replicas','green',size=30)
 
     a=renew(8)
-    original(a,'china-14-podgroup-subgroup.png',0,0,1100,550,(0,80,1920,760))
-    a.box('pg-note',1145,40,330,110,'PodGroup\nWorkload gang','white',30,True,'blue','blue')
-    a.box('sg-note',1145,190,330,110,'SubGroup\nComplete replica','white',30,True,'blue','blue')
-    a.path([(1145,95),(1066,95)],False,'blue')
-    a.front.append(a.edges.pop())
-    a.path([(1145,245),(1115,245),(1115,157),(1037,157)],False,'blue')
-    a.front.append(a.edges.pop())
-    # Captions are located over the corresponding grouping level, not a footer.
+    original(a,'china-14-podgroup-subgroup.png',0,0,1480,560)
+    # Replace the tiny original legend with one readable, in-figure legend.
+    # No external annotation rails or arrows leave this diagram.
+    a.rect(129,0,1222,52,'white',None,0)
+    label(a,35,0,1410,'PodGroup: job / serving gang    |    SubGroup: TP / role replica gang',size=30,h=52)
 
     a=renew(9)
     original(a,'china-16-hypernode.png',0,22,435,475,(0,55,465,515))
@@ -182,25 +171,60 @@ subGroupPolicy:
     label(a,197,412,35,'2','green',size=27,h=39)
     label(a,417,412,35,'2','green',size=27,h=39)
 
-    # HyperNode-aware gang preemption: before/after, same node slots and domain.
+    # The same switch symbols and core / spine / leaf vocabulary as page 11.
+    # Physical domains have solid outlines; complete gangs have dashed outlines.
     a=art(26,'gang-preemption','Gang Preemption Within a HyperNode',chapter=2,
-          source='China 2026 slide 12 scenario; pkg/scheduler/actions/gangpreempt/gangpreempt.go; gang-aware-eviction-design.md. One Pod uses one GPU in this illustrative example.')
-    label(a,0,0,1480,'Pending serving gang · 4 GPUs in one HyperNode',size=32)
-    for x,phase in [(0,'Before'),(865,'After feasible placement')]:
-        a.text(x+305,108,phase,32,'ink',True,width=610,anchor='middle')
-        for dx,name in [(0,'HyperNode A'),(320,'HyperNode B')]:
-            xx=x+dx;a.rect(xx,140,295,280,'white','blue' if dx==0 else 'light',7,layer='bg')
-            a.text(xx+147,178,name,29,'blue' if dx==0 else 'ink',True,width=270,anchor='middle')
-            a.text(xx+147,219,('Training job A' if x==0 else 'Serving gang') if dx==0 else 'Training job B',26,'ink',width=270,anchor='middle')
-            for j in range(4):
-                row,col=divmod(j,2);px=xx+20+col*137;py=243+row*74
-                t=('A'+str(j) if x==0 else 'S'+str(j)) if dx==0 else ('B'+str(j) if j<2 else 'free')
-                pod(a,px,py,117,t,'blue' if dx==0 else 'green',53)
-    a.path([(615,281),(865,281)],True,'blue')
-    a.text(740,230,'Simulate placement',26,'blue',True,width=240,anchor='middle')
-    a.text(740,333,'Evict + nominate',26,'blue',True,width=230,anchor='middle')
-    label(a,0,454,615,'Select a complete victim gang',size=31,h=70)
-    label(a,865,454,615,'Admit the gang in the freed domain',size=30,h=70)
+          source='China 2026 slide 12 scenario, using the switch symbols and topology vocabulary of EU 16 / China 17. Gang boundaries and before/after placement are authored SVG. gangpreempt implementation reviewed at ac7f6a4dfe30d992c3b293ea5974c646e3da5da7.')
+    a.rect(0,0,740,91,'white','blue',7,dash=True)
+    a.text(20,34,'Preemptor gang',30,'blue',True,width=325)
+    a.text(20,72,'minMember: 4',27,'blue',width=290,mono=True)
+    for j in range(4):pod(a,356+j*94,25,81,'S'+str(j),h=43)
+    a.text(795,32,'4 Pods within one spine HyperNode',30,'blue',True,width=675)
+    a.text(795,76,'highestTierName: spine',27,'ink',width=675,mono=True)
+
+    def cable(points):
+        a.path(points,False,'line');a.routes[-1]['kind']='fabric'
+    def switch(cx,y):
+        # Keep the original blue switch silhouette; clip off old cable stubs.
+        original(a,'china-17-multilevel-topology.png',cx-26,y,52,38,(818,110,158,114))
+        symbol=a.front.pop();clip=f'preempt-switch-{cx}-{y}'
+        scale=52/158;left=cx-26;top=y+(38-114*scale)/2
+        pts=' '.join(f'{left+px*scale},{top+py*scale}' for px,py in [(48,0),(158,0),(158,52),(118,114),(0,114),(0,56)])
+        a.front.append(f'<defs><clipPath id="{clip}"><polygon points="{pts}"/></clipPath></defs><g clip-path="url(#{clip})">{symbol}</g>')
+    def slot(cx,y,text,fill,c):
+        a.rect(cx-29,y,58,53,'pale','line',2)
+        a.rect(cx-25,y+8,50,37,fill,c,3)
+        a.text(cx,y+34,text,22,c,True,width=48,anchor='middle')
+    for ox,phase in [(0,'Before'),(830,'Feasible placement')]:
+        a.text(ox+325,143,phase,32,'ink',True,width=650,anchor='middle')
+        a.text(ox+325,178,'Core',23,'muted',width=150,anchor='middle')
+        switch(ox+325,188)
+        for dx in [0,340]:
+            a.rect(ox+dx,253,310,305,'white','light',8,layer='bg')
+            center=ox+dx+155
+            cable([(ox+325,226),(center,277)])
+            switch(center,277)
+            for leaf in [ox+dx+85,ox+dx+225]:
+                cable([(center,315),(leaf,351)])
+                switch(leaf,351)
+            centers=[ox+dx+45,ox+dx+115,ox+dx+195,ox+dx+265]
+            for i,cx in enumerate(centers):
+                cable([(ox+dx+(85 if i<2 else 225),389),(cx,417)])
+            # Whole-job victims are deliberate gang decisions; B stays intact.
+            if dx==0:
+                c='orange' if ox==0 else 'blue';fill='#faece7' if ox==0 else 'prefill'
+                a.rect(ox+dx+10,410,290,93,'white',c,5,layer='bg',dash=True)
+                a.text(center,495,'Victim gang A' if ox==0 else 'Preemptor gang',25,c,True,width=270,anchor='middle')
+                for j,cx in enumerate(centers):slot(cx,417,('A' if ox==0 else 'S')+str(j),fill,c)
+            else:
+                a.rect(ox+dx+10,410,140,93,'white','green',5,layer='bg',dash=True)
+                a.text(ox+dx+80,495,'Gang B',25,'green',True,width=126,anchor='middle')
+                for j,cx in enumerate(centers):slot(cx,417,'B'+str(j) if j<2 else 'free','mint' if j<2 else 'white','green' if j<2 else 'muted')
+            a.text(center,539,'HyperNode '+('A' if dx==0 else 'B')+' · spine',25,'ink',True,width=298,anchor='middle')
+    a.path([(650,345),(830,345)],True,'blue')
+    a.text(740,299,'Simulate',26,'blue',True,width=168,anchor='middle')
+    a.text(740,392,'Evict gang A',25,'orange',True,width=168,anchor='middle')
+    a.text(740,432,'Nominate S',25,'blue',True,width=168,anchor='middle')
 
     # Kthena: show the real shared rolePolicy, not per-role invented fields.
     a=renew(14);titles[14]='Kthena: Configure Group and Role Topology'

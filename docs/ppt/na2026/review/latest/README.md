@@ -6,6 +6,8 @@
 
 重点页面：[工作负载](slide-04.png) · [协同框架](slide-05.png) · [NodeShard](slide-06.png) · [组结构引入](slide-08.png) · [Gang 抢占](slide-12.png) · [Kthena 配置](slide-16.png) / [映射](slide-17.png) · [KubeRay](slide-18.png) · [Grove](slide-19.png) · [社区](slide-26.png)。
 
+[本轮五页集中预览](refinement.png)：第 4、5、6、9、12 页。
+
 ## 技术核对
 
 Kthena 使用共享的 `template.networkTopology.rolePolicy`。KubeRay 示例开启 autoscaling，使 `minReplicas` 对应 `minSubGroups`。Grove 使用 `grove.io/podclique` 标签。
