@@ -504,7 +504,7 @@ func TestPreempt(t *testing.T) {
 			ExpectEvictNum: 1,
 		},
 		{
-			Name: "DRA-only preemptor cannot evict an ordinary-request pod in another job",
+			Name: "DRA-only preemptor can evict an ordinary-request pod in another job",
 			PodGroups: []*schedulingv1beta1.PodGroup{
 				util.BuildPodGroupWithPrio("victims", "c1", "q1", 1, nil, schedulingv1beta1.PodGroupRunning, "low-priority"),
 				util.BuildPodGroupWithPrio("pg1", "c1", "q1", 1, nil, schedulingv1beta1.PodGroupInqueue, "high-priority"),
@@ -518,11 +518,13 @@ func TestPreempt(t *testing.T) {
 			DeviceClasses:        []*resourcev1.DeviceClass{draClass.DeepCopy()},
 			ResourceSlices:       []*resourcev1.ResourceSlice{draSlice.DeepCopy()},
 			ResourceClaims:       []*resourcev1.ResourceClaim{allocatedClaim.DeepCopy()},
-			ExpectEvictNum:       0,
-			ExpectTaskStatusNums: map[api.JobID]map[api.TaskStatus]int{"c1/pg1": {api.Pending: 1}},
+			ExpectEvictNum:       1,
+			ExpectEvicted:        []string{"c1/victim"},
+			ExpectPipeLined:      map[string][]string{"c1/pg1": {"n1"}},
+			ExpectTaskStatusNums: map[api.JobID]map[api.TaskStatus]int{"c1/pg1": {api.Pipelined: 1}},
 		},
 		{
-			Name: "DRA-only preemptor cannot evict an ordinary-request pod in the same job",
+			Name: "DRA-only preemptor can evict an ordinary-request pod in the same job",
 			PodGroups: []*schedulingv1beta1.PodGroup{
 				util.BuildPodGroupWithPrio("pg1", "c1", "q1", 2, nil, schedulingv1beta1.PodGroupInqueue, "high-priority"),
 			},
@@ -535,8 +537,10 @@ func TestPreempt(t *testing.T) {
 			DeviceClasses:        []*resourcev1.DeviceClass{draClass.DeepCopy()},
 			ResourceSlices:       []*resourcev1.ResourceSlice{draSlice.DeepCopy()},
 			ResourceClaims:       []*resourcev1.ResourceClaim{allocatedClaim.DeepCopy()},
-			ExpectEvictNum:       0,
-			ExpectTaskStatusNums: map[api.JobID]map[api.TaskStatus]int{"c1/pg1": {api.Pending: 1}},
+			ExpectEvictNum:       1,
+			ExpectEvicted:        []string{"c1/victim"},
+			ExpectPipeLined:      map[string][]string{"c1/pg1": {"n1"}},
+			ExpectTaskStatusNums: map[api.JobID]map[api.TaskStatus]int{"c1/pg1": {api.Pipelined: 1}},
 		},
 		{
 			Name: "preemptor with CPU and DRA can evict an ordinary-request pod in another job",

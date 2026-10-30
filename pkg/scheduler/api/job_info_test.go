@@ -99,6 +99,33 @@ func TestNewTaskInfo(t *testing.T) {
 	}
 }
 
+func TestHasSchedulingResourceRequests(t *testing.T) {
+	tests := []struct {
+		name    string
+		request *Resource
+		want    bool
+	}{
+		{
+			name:    "nil Pod without ordinary requests",
+			request: EmptyResource(),
+			want:    false,
+		},
+		{
+			name:    "nil Pod with ordinary requests",
+			request: NewResource(BuildResourceList("1", "0")),
+			want:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := &TaskInfo{
+				InitResreq: tt.request,
+			}
+			assert.Equal(t, tt.want, task.HasSchedulingResourceRequests())
+		})
+	}
+}
+
 func TestAddTaskInfo(t *testing.T) {
 	// case1
 	case01UID := JobID("uid")

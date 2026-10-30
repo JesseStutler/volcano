@@ -26,12 +26,7 @@ func TestSubJobMinResources(t *testing.T) {
 	gpu := v1.ResourceName("nvidia.com/gpu")
 	newTask := func(cpu, memory, gpus float64) *TaskInfo {
 		resource := &Resource{MilliCPU: cpu, Memory: memory, ScalarResources: map[v1.ResourceName]float64{gpu: gpus}}
-		return &TaskInfo{
-			Pod:        &v1.Pod{},
-			InitResreq: resource,
-			Resreq:     resource,
-			BestEffort: resource.IsEmpty(),
-		}
+		return &TaskInfo{InitResreq: resource, Resreq: resource, BestEffort: resource.IsEmpty()}
 	}
 	pending := TasksMap{"cpu-heavy": newTask(8000, 1, 0), "memory-heavy": newTask(1000, 8, 2), "small": newTask(2000, 2, 1)}
 	tests := []struct {

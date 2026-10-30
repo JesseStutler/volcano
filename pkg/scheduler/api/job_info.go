@@ -142,12 +142,8 @@ type TaskInfo struct {
 	Priority    int32
 	VolumeReady bool
 	Preemptable bool
-	// BestEffort indicates that a task has no scheduling resource requests.
-	// It is retained for compatibility as the inverse of HasSchedulingResourceRequests.
-	// This is not the Kubernetes Pod QoS class: DRA-only tasks are false here
-	// even when their Pod QoS is BestEffort.
-	// Scheduling decisions should use HasSchedulingResourceRequests; policies
-	// based only on InitResreq should use HasInitResourceRequests.
+	// BestEffort reports whether the task has neither ordinary resource requests nor DRA claims.
+	// It is a scheduling classification, not the Kubernetes Pod QoS class.
 	BestEffort                  bool
 	HasRestartableInitContainer bool
 	SchGated                    bool
@@ -260,24 +256,18 @@ func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 	return ti
 }
 
-// HasInitResourceRequests reports whether InitResreq contains scheduling requests such as
-// CPU, memory, extended resources, or scheduler-added CSI attachment counts.
-// ResourceClaims do not affect this result: a DRA-only task returns false.
-// This checks resource requests, not the Kubernetes Pod QoS class.
+// HasInitResourceRequests reports whether InitResreq has CPU, memory, extended resource,
+// or CSI attachment requests. DRA claims are excluded.
 func (ti *TaskInfo) HasInitResourceRequests() bool {
 	return !ti.InitResreq.IsEmpty()
 }
 
-// HasSchedulingResourceRequests reports whether the task requests resources
-// that need allocation, including InitResreq and ResourceClaims. Pending tasks
-// with such requests cannot count toward gang readiness before allocation.
+// HasSchedulingResourceRequests reports whether the task has ordinary resource requests or DRA claims.
 func (ti *TaskInfo) HasSchedulingResourceRequests() bool {
-	return ti.HasInitResourceRequests() || len(ti.Pod.Spec.ResourceClaims) > 0
+	return ti.HasInitResourceRequests() || (ti.Pod != nil && len(ti.Pod.Spec.ResourceClaims) > 0)
 }
 
-// UpdateSchedulingBestEffort refreshes the compatibility BestEffort field after
-// resource requests change. Scheduling decisions use HasSchedulingResourceRequests
-// directly; neither changes the Kubernetes Pod QoS class.
+// UpdateSchedulingBestEffort refreshes BestEffort after resource requests change.
 func (ti *TaskInfo) UpdateSchedulingBestEffort() {
 	ti.BestEffort = !ti.HasSchedulingResourceRequests()
 }

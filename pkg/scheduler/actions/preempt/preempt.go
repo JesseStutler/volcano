@@ -198,9 +198,9 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 					if !api.PreemptableStatus(task.Status) {
 						return false
 					}
-					// Tasks without ordinary resource requests cannot preempt tasks that have them.
-					// This restriction also applies to DRA-only tasks.
-					if !preemptor.HasInitResourceRequests() && task.HasInitResourceRequests() {
+					// Tasks without scheduling resource requests cannot preempt tasks that have them.
+					// DRA claims count as scheduling resource requests.
+					if !preemptor.HasSchedulingResourceRequests() && task.HasSchedulingResourceRequests() {
 						return false
 					}
 					if !task.Preemptable {
@@ -259,9 +259,9 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 					if !api.PreemptableStatus(task.Status) {
 						return false
 					}
-					// Tasks without ordinary resource requests cannot preempt tasks that have them.
-					// This restriction also applies to DRA-only tasks.
-					if !preemptor.HasInitResourceRequests() && task.HasInitResourceRequests() {
+					// Tasks without scheduling resource requests cannot preempt tasks that have them.
+					// DRA claims count as scheduling resource requests.
+					if !preemptor.HasSchedulingResourceRequests() && task.HasSchedulingResourceRequests() {
 						return false
 					}
 					// should skip not preemptable pod
