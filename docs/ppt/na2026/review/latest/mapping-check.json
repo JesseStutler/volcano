@@ -1,0 +1,6 @@
+{
+  "Kthena": "8 Pods = 1 prefill replica \u00d7 2 + 3 decode replicas \u00d7 2; groupPolicy/rolePolicy mapped",
+  "KubeRay": "autoscaling: 2 replicas \u00d7 2 hosts + 1 head; replica-name selector grouping",
+  "Grove": "2 + 4 minimum Pods; one SubGroup per group; grove.io/podclique selector",
+  "scope": "Excerpts and mapping arithmetic checked; not cluster integration tests."
+}

@@ -1,0 +1,7 @@
+roles:
+- name: prefill
+  replicas: 1
+  workerReplicas: 1
+- name: decode
+  replicas: 3
+  workerReplicas: 1

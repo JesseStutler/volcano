@@ -1,0 +1,14 @@
+schedulerName: volcano
+replicas: 1
+template:
+  gangPolicy:
+    minRoleReplicas:
+      prefill: 1
+      decode: 3
+  networkTopology:
+    groupPolicy:
+      mode: hard
+      highestTierName: spine
+    rolePolicy:
+      mode: hard
+      highestTierName: leaf

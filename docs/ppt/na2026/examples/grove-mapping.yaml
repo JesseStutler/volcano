@@ -1,0 +1,25 @@
+podGangSpec:
+  podGroups:
+  - name: prefill
+    minReplicas: 2
+  - name: decode
+    minReplicas: 4
+podGroupSpec:
+  minMember: 6
+  subGroupPolicy:
+  - name: prefill
+    subGroupSize: 2
+    minSubGroups: 1
+    labelSelector:
+      matchLabels:
+        grove.io/podclique: prefill
+    matchLabelKeys:
+    - grove.io/podclique
+  - name: decode
+    subGroupSize: 4
+    minSubGroups: 1
+    labelSelector:
+      matchLabels:
+        grove.io/podclique: decode
+    matchLabelKeys:
+    - grove.io/podclique

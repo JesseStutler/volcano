@@ -8,7 +8,7 @@
       "chapter": 0,
       "svg": null,
       "source": "Native PowerPoint text",
-      "previous_draft_notes_page": null
+      "reference_set": null
     },
     {
       "page": 2,
@@ -17,7 +17,7 @@
       "chapter": 0,
       "svg": null,
       "source": "Native PowerPoint text",
-      "previous_draft_notes_page": null
+      "reference_set": null
     },
     {
       "page": 3,
@@ -26,7 +26,7 @@
       "chapter": 1,
       "svg": null,
       "source": "Native PowerPoint text",
-      "previous_draft_notes_page": null
+      "reference_set": null
     },
     {
       "page": 4,
@@ -35,7 +35,7 @@
       "chapter": 1,
       "svg": "svg/04-workload-demands.svg",
       "source": "",
-      "previous_draft_notes_page": 2
+      "reference_set": 2
     },
     {
       "page": 5,
@@ -44,16 +44,16 @@
       "chapter": 1,
       "svg": "svg/05-unified-architecture.svg",
       "source": "China 2026 slide 7; same architecture family as EU 2026.",
-      "previous_draft_notes_page": 3
+      "reference_set": 3
     },
     {
       "page": 6,
       "source_id": 6,
-      "title": "NodeShard: Desired Nodes and Current Use",
+      "title": "NodeShard: Strategy-Driven Node Allocation",
       "chapter": 1,
       "svg": "svg/06-nodeshard.svg",
       "source": "China 2026 slide 9; docs/design/agent-scheduler.md; shard API types.",
-      "previous_draft_notes_page": 4
+      "reference_set": 4
     },
     {
       "page": 7,
@@ -62,160 +62,178 @@
       "chapter": 2,
       "svg": null,
       "source": "Native PowerPoint text",
-      "previous_draft_notes_page": null
+      "reference_set": null
     },
     {
       "page": 8,
-      "source_id": 8,
-      "title": "PodGroup and SubGroup: Preserve Workload Structure",
+      "source_id": 25,
+      "title": "Whole Workloads, Complete Compute Groups",
       "chapter": 2,
-      "svg": "svg/08-group-structure.svg",
-      "source": "China 2026 slide 14. Figure reused unchanged.",
-      "previous_draft_notes_page": 6
+      "svg": "svg/08-workload-gangs.svg",
+      "source": "Conceptual workload structure. PP/TP training and disaggregated inference examples; no controller API claimed.",
+      "reference_set": null
     },
     {
       "page": 9,
-      "source_id": 9,
-      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
+      "source_id": 8,
+      "title": "PodGroup and SubGroup: Preserve Workload Structure",
       "chapter": 2,
-      "svg": "svg/09-hypernode-api.svg",
-      "source": "China 2026 slide 16 (physical fabric); benchmark/scripts/create-hypernodes.sh.",
-      "previous_draft_notes_page": 7
+      "svg": "svg/09-group-structure.svg",
+      "source": "China 2026 slide 14. Figure reused unchanged.",
+      "reference_set": 6
     },
     {
       "page": 10,
-      "source_id": 10,
-      "title": "Place Groups at Different Topology Levels",
+      "source_id": 9,
+      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
       "chapter": 2,
-      "svg": "svg/10-multilevel-placement.svg",
-      "source": "EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.",
-      "previous_draft_notes_page": 8
+      "svg": "svg/10-hypernode-api.svg",
+      "source": "China 2026 slide 16 (physical fabric); benchmark/scripts/create-hypernodes.sh.",
+      "reference_set": 7
     },
     {
       "page": 11,
-      "source_id": 11,
-      "title": "Keep Each Instance Together, Place Instances Apart",
+      "source_id": 10,
+      "title": "Place Groups at Different Topology Levels",
       "chapter": 2,
-      "svg": "svg/11-instance-isolation.svg",
-      "source": "docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.",
-      "previous_draft_notes_page": 9
+      "svg": "svg/11-multilevel-placement.svg",
+      "source": "EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.",
+      "reference_set": 8
     },
     {
       "page": 12,
-      "source_id": 16,
-      "title": "Next: Relationships Between SubGroups",
+      "source_id": 26,
+      "title": "Gang Preemption Within a HyperNode",
       "chapter": 2,
-      "svg": "svg/12-subgroup-next.svg",
-      "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
-      "previous_draft_notes_page": 12
+      "svg": "svg/12-gang-preemption.svg",
+      "source": "China 2026 slide 12 scenario; pkg/scheduler/actions/gangpreempt/gangpreempt.go; gang-aware-eviction-design.md. One Pod uses one GPU in this illustrative example.",
+      "reference_set": null
     },
     {
       "page": 13,
+      "source_id": 11,
+      "title": "Keep Each Instance Together, Place Instances Apart",
+      "chapter": 2,
+      "svg": "svg/13-instance-isolation.svg",
+      "source": "docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.",
+      "reference_set": 9
+    },
+    {
+      "page": 14,
+      "source_id": 16,
+      "title": "Next: Relationships Between SubGroups",
+      "chapter": 2,
+      "svg": "svg/14-subgroup-next.svg",
+      "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
+      "reference_set": 12
+    },
+    {
+      "page": 15,
       "source_id": 12,
       "title": "Ecosystem",
       "chapter": 3,
       "svg": null,
       "source": "Native PowerPoint text",
-      "previous_draft_notes_page": null
-    },
-    {
-      "page": 14,
-      "source_id": 14,
-      "title": "Kthena: From Serving Roles to Scheduling Groups",
-      "chapter": 3,
-      "svg": "svg/14-kthena-mapping.svg",
-      "source": "China 2026 slide 22; Kthena ModelServing gang scheduling guide.",
-      "previous_draft_notes_page": 6
-    },
-    {
-      "page": 15,
-      "source_id": 15,
-      "title": "KubeRay: A Replica Can Span Multiple Pods",
-      "chapter": 3,
-      "svg": "svg/15-ray-replicas.svg",
-      "source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.",
-      "previous_draft_notes_page": 11
+      "reference_set": null
     },
     {
       "page": 16,
-      "source_id": 23,
-      "title": "Grove: Carry PodGang Structure into Volcano",
+      "source_id": 14,
+      "title": "Kthena: Configure Group and Role Topology",
       "chapter": 3,
-      "svg": "svg/16-grove-mapping.svg",
-      "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected.",
-      "previous_draft_notes_page": null
+      "svg": "svg/16-kthena-mapping.svg",
+      "source": "China 2026 slide 22; Kthena ModelServing gang scheduling guide.",
+      "reference_set": 6
     },
     {
       "page": 17,
-      "source_id": 13,
-      "title": "Next: RBG, Kubeflow, and LWS",
+      "source_id": 27,
+      "title": "Kthena: Carry Role Replicas into PodGroup",
       "chapter": 3,
-      "svg": "svg/17-ecosystem.svg",
-      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
-      "previous_draft_notes_page": 10
+      "svg": "svg/17-kthena-podgroup.svg",
+      "source": "Kthena podgroupmanager/manager.go appendSubGroupPolicy and syncPodGroupNetworkTopology, main checked 2026-10-30.",
+      "reference_set": null
     },
     {
       "page": 18,
+      "source_id": 15,
+      "title": "KubeRay: Map Multi-Host Worker Replicas",
+      "chapter": 3,
+      "svg": "svg/18-ray-replicas.svg",
+      "source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.",
+      "reference_set": 11
+    },
+    {
+      "page": 19,
+      "source_id": 23,
+      "title": "Grove: Map PodGang Groups into Volcano",
+      "chapter": 3,
+      "svg": "svg/19-grove-mapping.svg",
+      "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected.",
+      "reference_set": null
+    },
+    {
+      "page": 20,
+      "source_id": 13,
+      "title": "Next: RBG, Kubeflow, and LWS",
+      "chapter": 3,
+      "svg": "svg/20-ecosystem.svg",
+      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
+      "reference_set": 10
+    },
+    {
+      "page": 21,
       "source_id": 17,
       "title": "Benchmark framework & progress",
       "chapter": 4,
       "svg": null,
       "source": "Native PowerPoint text",
-      "previous_draft_notes_page": null
-    },
-    {
-      "page": 19,
-      "source_id": 18,
-      "title": "A Repeatable Scheduling Benchmark Framework",
-      "chapter": 4,
-      "svg": "svg/19-benchmark-architecture.svg",
-      "source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.",
-      "previous_draft_notes_page": 13
-    },
-    {
-      "page": 20,
-      "source_id": 19,
-      "title": "Next: Cross-Scheduler Comparisons",
-      "chapter": 4,
-      "svg": "svg/20-benchmark-progress.svg",
-      "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
-      "previous_draft_notes_page": 14
-    },
-    {
-      "page": 21,
-      "source_id": 20,
-      "title": "Next: Workload and Topology Test Matrix",
-      "chapter": 4,
-      "svg": "svg/21-benchmark-measurement.svg",
-      "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
-      "previous_draft_notes_page": 15
+      "reference_set": null
     },
     {
       "page": 22,
-      "source_id": 21,
-      "title": "What We Will Work On Next",
+      "source_id": 18,
+      "title": "A Repeatable Scheduling Benchmark Framework",
       "chapter": 4,
-      "svg": "svg/22-takeaways.svg",
-      "source": "",
-      "previous_draft_notes_page": 16
+      "svg": "svg/22-benchmark-architecture.svg",
+      "source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.",
+      "reference_set": 13
     },
     {
       "page": 23,
-      "source_id": 24,
-      "title": "Volcano community",
-      "chapter": 0,
-      "svg": "svg/23-community-users.svg",
-      "source": "China 2026 slide 25. Original user logos, rearranged into eight columns; no new adopter count or partnership claims.",
-      "previous_draft_notes_page": null
+      "source_id": 19,
+      "title": "Next: Cross-Scheduler Comparisons",
+      "chapter": 4,
+      "svg": "svg/23-benchmark-progress.svg",
+      "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
+      "reference_set": 14
     },
     {
       "page": 24,
-      "source_id": 22,
-      "title": "Thank you",
+      "source_id": 20,
+      "title": "Next: Workload and Topology Test Matrix",
+      "chapter": 4,
+      "svg": "svg/24-benchmark-measurement.svg",
+      "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
+      "reference_set": 15
+    },
+    {
+      "page": 25,
+      "source_id": 21,
+      "title": "v1.17: Placement, Preemption, and Performance",
+      "chapter": 4,
+      "svg": "svg/25-takeaways.svg",
+      "source": "v1.17 roadmap #6166 checked 2026-10-30; #5984/#5994/#5946/#5347/#5036/#5921 open; topology-aware reclaim PR #5920 open; #6066 and #6094 merged. Performance umbrella #5494. Benchmark expansion reflects maintainer intent.",
+      "reference_set": 16
+    },
+    {
+      "page": 26,
+      "source_id": 24,
+      "title": "Volcano Community",
       "chapter": 0,
-      "svg": "svg/24-questions.svg",
-      "source": "",
-      "previous_draft_notes_page": 17
+      "svg": "svg/26-community-users.svg",
+      "source": "China slide 25 logos and QR assets. Single community / Q&A ending, consistent frames and gray top strips. Logos remain original image bytes in SVG viewports.",
+      "reference_set": null
     }
   ],
   "examples_are_excerpts": true,

@@ -1,12 +1,14 @@
 {
-  "checked": "2026-10-29",
+  "checked": "2026-10-30",
   "kthena": {
     "gang_and_topology": "available",
     "servinggroup_anti_affinity": "proposal; not implemented in main during review",
     "sources": [
       "https://github.com/volcano-sh/kthena/pull/1478",
       "https://github.com/volcano-sh/kthena/issues/645"
-    ]
+    ],
+    "role_topology": "template.networkTopology.rolePolicy is shared across all generated SubGroup policies",
+    "mapping_source": "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/model-serving-controller/podgroupmanager/manager.go"
   },
   "kuberay": {
     "multi_host_subgroups": "merged #5249",
@@ -14,17 +16,21 @@
     "sources": [
       "https://github.com/ray-project/kuberay/pull/5249",
       "https://github.com/ray-project/kuberay/pull/5369"
-    ]
+    ],
+    "mapping_source": "https://github.com/kuberay-project/kuberay/blob/3ec5cbb8d8d3c6b249eaa06258f1369cf2172dcc/ray-operator/controllers/ray/batchscheduler/volcano/volcano_scheduler.go",
+    "conditions": "RayMultiHostIndexing enabled; old group-wide topology label absent; autoscaling on for the minReplicas example"
   },
   "grove": {
     "podgang_and_subgroups": "implemented in current main; release availability not asserted",
     "topologyConstraint": "explicitly rejected by backend",
-    "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go"
+    "source": "https://github.com/ai-dynamo/grove/blob/214dc1c0e2d8f1abb8f2fc9c1d7fd90539dfcde2/operator/internal/scheduler/volcano/backend.go",
+    "podclique_label": "grove.io/podclique"
   },
   "roadmap": {
     "source": "maintainer instructions in this conversation",
     "rbg": "in progress",
     "kubeflow": "planned deeper group/topology integration",
-    "lws": "planned multi-group support"
+    "lws": "planned multi-group support",
+    "v1.17": "https://github.com/volcano-sh/volcano/issues/6166"
   }
 }

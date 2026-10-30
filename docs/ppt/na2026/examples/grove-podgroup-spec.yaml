@@ -1,0 +1,10 @@
+minMember: 6
+subGroupPolicy:
+- name: decode
+  subGroupSize: 4
+  minSubGroups: 1
+  labelSelector:
+    matchLabels:
+      grove.io/podclique: decode
+  matchLabelKeys:
+  - grove.io/podclique

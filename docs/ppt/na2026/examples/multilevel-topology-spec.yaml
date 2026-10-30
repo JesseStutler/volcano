@@ -1,5 +1,6 @@
 minMember: 8
 networkTopology:
+  mode: hard
   highestTierName: core
 subGroupPolicy:
 - name: prefill

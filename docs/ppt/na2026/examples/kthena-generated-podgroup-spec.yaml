@@ -1,0 +1,11 @@
+minMember: 8
+networkTopology:
+  mode: hard
+  highestTierName: spine
+subGroupPolicy:
+- name: decode
+  minSubGroups: 3
+  subGroupSize: 2
+  networkTopology:
+    mode: hard
+    highestTierName: leaf

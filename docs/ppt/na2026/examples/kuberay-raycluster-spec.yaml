@@ -1,0 +1,7 @@
+enableInTreeAutoscaling: true
+workerGroupSpecs:
+- groupName: worker
+  minReplicas: 2
+  replicas: 2
+  maxReplicas: 4
+  numOfHosts: 2

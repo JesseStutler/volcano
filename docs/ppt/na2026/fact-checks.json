@@ -1,0 +1,110 @@
+{
+  "checked": "2026-10-30",
+  "github": {
+    "volcano-sh/kthena/commits/main": {
+      "sha": "f8672ec9912b641f21b999503a8803cd1c07ab0c",
+      "html_url": "https://github.com/volcano-sh/kthena/commit/f8672ec9912b641f21b999503a8803cd1c07ab0c"
+    },
+    "kuberay-project/kuberay/commits/master": {
+      "sha": "3ec5cbb8d8d3c6b249eaa06258f1369cf2172dcc",
+      "html_url": "https://github.com/kuberay-project/kuberay/commit/3ec5cbb8d8d3c6b249eaa06258f1369cf2172dcc"
+    },
+    "NVIDIA/grove/commits/main": {
+      "sha": "214dc1c0e2d8f1abb8f2fc9c1d7fd90539dfcde2",
+      "html_url": "https://github.com/ai-dynamo/grove/commit/214dc1c0e2d8f1abb8f2fc9c1d7fd90539dfcde2"
+    },
+    "volcano-sh/volcano/commits/master": {
+      "sha": "ac7f6a4dfe30d992c3b293ea5974c646e3da5da7",
+      "html_url": "https://github.com/volcano-sh/volcano/commit/ac7f6a4dfe30d992c3b293ea5974c646e3da5da7"
+    },
+    "kuberay-project/kuberay/pulls/5369": {
+      "number": 5369,
+      "title": "[Volcano] Support worker group network topology in SubGroupPolicy",
+      "state": "open",
+      "merged_at": null,
+      "html_url": "https://github.com/kuberay-project/kuberay/pull/5369"
+    },
+    "volcano-sh/kthena/pulls/1478": {
+      "number": 1478,
+      "title": "Feat: add ModelServing topology affinity proposal",
+      "state": "open",
+      "merged_at": null,
+      "html_url": "https://github.com/volcano-sh/kthena/pull/1478"
+    },
+    "volcano-sh/volcano/issues/5984": {
+      "number": 5984,
+      "title": "gangpreempt: avoid unnecessary evictions when a subset of a SAFE bundle is sufficient",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5984"
+    },
+    "volcano-sh/volcano/issues/5994": {
+      "number": 5994,
+      "title": "gangreclaim: avoid unnecessary evictions when a subset of a SAFE bundle is sufficient",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5994"
+    },
+    "volcano-sh/volcano/issues/5946": {
+      "number": 5946,
+      "title": "[Enhancement] Improve target task selection for gang-aware eviction",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5946"
+    },
+    "volcano-sh/volcano/issues/5945": {
+      "number": 5945,
+      "title": "[Feature] Support configurable safe-first and priority-first victim ordering for gang-aware preemption and reclamation",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5945"
+    },
+    "volcano-sh/volcano/issues/5347": {
+      "number": 5347,
+      "title": "[Feature] PodGroup-level inter-group topology scheduling (group-topology-affinity)",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5347"
+    },
+    "volcano-sh/volcano/issues/5494": {
+      "number": 5494,
+      "title": "[Umbrella] Track Volcano performance and scalability work",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5494"
+    },
+    "volcano-sh/volcano/issues/5036": {
+      "number": 5036,
+      "title": "SchedulerCache uses global mutex across cache.go and event_handlers.go causing contention/race-risk in read-heavy paths",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5036"
+    },
+    "volcano-sh/volcano/issues/5921": {
+      "number": 5921,
+      "title": "Reduce updateQueueStatus latency during CloseSession",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/5921"
+    },
+    "volcano-sh/volcano/issues/6059": {
+      "number": 6059,
+      "title": "[Performance] Prefilter nodegroup candidates once per queue per scheduling round",
+      "state": "open",
+      "html_url": "https://github.com/volcano-sh/volcano/issues/6059"
+    },
+    "volcano-sh/volcano/pulls/5920": {
+      "number": 5920,
+      "title": "feat(scheduler): add topology-aware reclaim",
+      "state": "open",
+      "merged_at": null,
+      "html_url": "https://github.com/volcano-sh/volcano/pull/5920"
+    },
+    "volcano-sh/volcano/pulls/6066": {
+      "number": 6066,
+      "title": "fix(scheduler): correct NominatedNodeName lifecycle and preempt eligibility",
+      "state": "closed",
+      "merged_at": "2026-10-12T09:37:14Z",
+      "html_url": "https://github.com/volcano-sh/volcano/pull/6066"
+    },
+    "volcano-sh/volcano/pulls/6094": {
+      "number": 6094,
+      "title": "fix(scheduler): exclude preemption candidates on any unresolvable pre\u2026",
+      "state": "closed",
+      "merged_at": "2026-10-20T06:52:18Z",
+      "html_url": "https://github.com/volcano-sh/volcano/pull/6094"
+    }
+  }
+}

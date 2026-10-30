@@ -1,0 +1,9 @@
+subGroupPolicy:
+- name: worker
+  minSubGroups: 2
+  subGroupSize: 2
+  labelSelector:
+    matchLabels:
+      ray.io/group: worker
+  matchLabelKeys:
+  - ray.io/worker-group-replica-name

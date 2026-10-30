@@ -1,0 +1,5 @@
+podGroups:
+- name: prefill
+  minReplicas: 2
+- name: decode
+  minReplicas: 4

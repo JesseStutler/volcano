@@ -1,0 +1,52 @@
+modelServingSpec:
+  schedulerName: volcano
+  replicas: 1
+  template:
+    gangPolicy:
+      minRoleReplicas:
+        prefill: 1
+        decode: 3
+    networkTopology:
+      groupPolicy:
+        mode: hard
+        highestTierName: spine
+      rolePolicy:
+        mode: hard
+        highestTierName: leaf
+    roles:
+    - name: prefill
+      replicas: 1
+      workerReplicas: 1
+    - name: decode
+      replicas: 3
+      workerReplicas: 1
+podGroupSpec:
+  minMember: 8
+  networkTopology:
+    mode: hard
+    highestTierName: spine
+  subGroupPolicy:
+  - name: prefill
+    labelSelector:
+      matchLabels:
+        modelserving.volcano.sh/name: sample
+        modelserving.volcano.sh/role: prefill
+    matchLabelKeys:
+    - modelserving.volcano.sh/role-id
+    subGroupSize: 2
+    minSubGroups: 1
+    networkTopology:
+      mode: hard
+      highestTierName: leaf
+  - name: decode
+    labelSelector:
+      matchLabels:
+        modelserving.volcano.sh/name: sample
+        modelserving.volcano.sh/role: decode
+    matchLabelKeys:
+    - modelserving.volcano.sh/role-id
+    subGroupSize: 2
+    minSubGroups: 3
+    networkTopology:
+      mode: hard
+      highestTierName: leaf

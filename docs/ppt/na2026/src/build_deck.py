@@ -302,7 +302,10 @@ layout_grove(arts)
 from community_slides import add_community_slides
 add_community_slides(arts, art, titles, ASSETS)
 subtitles[22]=""
-order=[1,2,3,4,5,6,7,8,9,10,11,16,12,14,15,23,13,17,18,19,20,21,24,22]
+from approved_batch import apply_batch
+order=apply_batch(arts, art, code, original, titles, subtitles, sources, ASSETS)
+from mapping_examples import write_examples
+write_examples(ROOT)
 page_for={source_id:page for page,source_id in enumerate(order,1)}
 for n,a in arts.items():
  a.name=f'{page_for[n]:02d}-'+a.name.split('-',1)[1]
@@ -380,8 +383,9 @@ for page,n in enumerate(order,1):
    24:'0:20。复用 China 第 25 页的 32 个社区用户 logo，保留素材来源，不新增商业伙伴关系或用户数量声明。',
    22:'5:00。问答。优先收集工作负载如何分组、需要哪些拓扑关系，以及可重复的测试场景。'
   }
-  notes=talks[n]
-  if removed_notes.get(n):notes+='\n移入备注的外围说明：\n'+'\n'.join(removed_notes[n])
+  from revision_notes import NOTES
+  notes=NOTES.get(n,talks.get(n,''))
+  if removed_notes.get(n) and n not in NOTES:notes+='\n移入备注的外围说明：\n'+'\n'.join(removed_notes[n])
   if n==22:notes+='\n二维码复用 China 第 25 页，分别指向 https://volcano.sh、https://github.com/volcano-sh/volcano、https://cloud-native.slack.com/archives/C011GJDQS0N。'
   if n in oldnotes:
    links=references.get(str(oldnotes[n]),[])
@@ -390,16 +394,15 @@ for page,n in enumerate(order,1):
   if n==13:notes+='\nhttps://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md\nhttps://github.com/kubernetes-sigs/lws/blob/main/README.md\n右侧为 maintainer 提供的推进方向；RBG 公开文档已有 RoleInstance→SubGroup 基础。LWS 已有副本组，下一步是跨角色 multi-group 调度集成。'
   if n==10:notes+='\n本页三处 networkTopology 均按 mode: hard 讲解，展示片段省略重复字段。图例使用两个固定角色组，各4 Pods。spec 片段省略 labelSelector；实际使用时给两个 policy 配置匹配各自角色的 Pod selector。不是可直接 apply 的完整 manifest。'
   if n==11:notes+='\nhttps://github.com/volcano-sh/kthena/pull/1478\nhttps://github.com/volcano-sh/kthena/issues/645\n启用 group-topology-affinity 与 network-topology-aware；每个 PodGroup 配置相同分离规则。selector 匹配 PodGroup 标签，默认同 namespace。'
-  if n==14:notes+='\n图中每个 role replica 有一个 Entry 和一个 Worker Pod；YAML 保留 gangPolicy、role 副本数与 workerReplicas，省略 entryTemplate、workerTemplate 与 networkTopology。Gang 不表示所有 Pod 原子绑定或同时启动。'
   if n==16:notes+='\n本页为未来方向，不能当作已交付 API。示意同一 PodGroup 内将协作组放近、将副本分开；具体 selector 与亲和关系设计仍需社区讨论。'
   if n==20:notes+='\n口径：scheduledAt−createdAt；binding throughput 为成功 bindings / 首尾成功 bind 时间差。对照时保留原始事件、重复次数与环境配置。命令与完整指标定义见 benchmark/README.md。'
   notes+='\nVisual: na2026/svg/'+arts[n].name+'.svg。PNG 固定几何；复用的旧图原本为位图，新增 YAML 和注释为 SVG 文本。'
  ptext(sl,.52,7.13,11.5,.22,'Volcano  |  KubeCon + CloudNativeCon North America 2026',9,False,'muted')
  ptext(sl,12.05,7.09,.75,.28,f'{page:02d} / {len(order)}',11,False,'muted',PP_ALIGN.RIGHT)
  sl.notes_slide.notes_text_frame.text=notes
- manifest.append({'page':page,'source_id':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'previous_draft_notes_page':oldnotes.get(n)})
+ manifest.append({'page':page,'source_id':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'reference_set':oldnotes.get(n)})
 prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026 — revised technical presentation'
-prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
+prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-30. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print(f'{len(order)} slides; r14 clearer captions and aligned Grove SubGroups; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; latest approved structure, ecosystem mappings, local captions and community close.')

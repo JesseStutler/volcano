@@ -1,0 +1,27 @@
+rayClusterSpec:
+  enableInTreeAutoscaling: true
+  workerGroupSpecs:
+  - groupName: worker
+    minReplicas: 2
+    replicas: 2
+    maxReplicas: 4
+    numOfHosts: 2
+podGroupSpec:
+  minMember: 5
+  subGroupPolicy:
+  - name: headgroup
+    subGroupSize: 1
+    minSubGroups: 1
+    labelSelector:
+      matchLabels:
+        ray.io/group: headgroup
+    matchLabelKeys:
+    - ray.io/group
+  - name: worker
+    minSubGroups: 2
+    subGroupSize: 2
+    labelSelector:
+      matchLabels:
+        ray.io/group: worker
+    matchLabelKeys:
+    - ray.io/worker-group-replica-name
