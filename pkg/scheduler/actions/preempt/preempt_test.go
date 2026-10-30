@@ -110,8 +110,8 @@ func TestPreempt(t *testing.T) {
 	highPrio := util.BuildPriorityClass("high-priority", 100000)
 	lowPrio := util.BuildPriorityClass("low-priority", 10)
 
-	// The occupied Pod slot requires eviction even when the preemptor requests no CPU.
-	// Use an allocated claim so these cases exercise victim policy independently of device allocation.
+	// The node's only Pod slot is occupied, so even a preemptor without CPU requests needs eviction.
+	// Its claim is already allocated: these cases test victim eligibility, not device reallocation.
 	draNode := util.BuildNode("n1", api.BuildResourceList("2", "4Gi", api.ScalarResource{Name: "pods", Value: "1"}), nil)
 	draClass := util.BuildDeviceClass("gpu.example.com", []resourcev1.DeviceSelector{{
 		CEL: &resourcev1.CELDeviceSelector{Expression: `device.driver == 'gpu.example.com'`},
@@ -614,7 +614,7 @@ func TestPreempt(t *testing.T) {
 			},
 		}}
 
-	// DRA cases need device predicates; retain the existing plugin configuration for other cases.
+	// Enable device predicates for the DRA cases; other cases keep their existing plugin setup.
 	draTiers := []conf.Tier{{Plugins: []conf.PluginOption{
 		{
 			Name:                gang.PluginName,

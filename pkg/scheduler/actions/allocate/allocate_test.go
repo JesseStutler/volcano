@@ -2700,7 +2700,7 @@ func TestAllocateWithDRA(t *testing.T) {
 		},
 	}
 
-	// The gang members use independent claims, so each needs a separate device.
+	// Each gang member has its own claim and needs a distinct device.
 	gangClaim1 := util.BuildResourceClaim("c1", "claim1",
 		[]resourcev1.DeviceRequest{util.BuildDeviceRequest("gpu", "gpu.example.com", nil, nil, nil)}, nil, nil)
 	gangClaim1.UID = types.UID("claim1")
@@ -2854,15 +2854,15 @@ func TestAllocateWithDRA(t *testing.T) {
 			action := New()
 			test.Run([]framework.Action{action})
 			if test.checkBackfill {
-				// Verify allocate first: backfill must not mask skipped DRA allocation.
+				// Check allocate before backfill, which could otherwise hide skipped DRA allocation.
 				if err := test.CheckBind(i); err != nil {
 					t.Fatalf("after allocate: %v", err)
 				}
 				if err := test.CheckTaskStatusNums(i); err != nil {
 					t.Fatalf("after allocate: %v", err)
 				}
-				// The binding destinations were checked above and those events consumed.
-				// Backfill must produce no additional binds or task status changes.
+				// CheckBind already verified the destinations and consumed the bind events.
+				// Backfill must neither bind additional tasks nor change their statuses.
 				test.ExpectBindsNum = 0
 				test.MinimalBindCheck = true
 				test.Run([]framework.Action{backfill.New()})

@@ -198,9 +198,9 @@ func (gp *Action) selectDomainBundles(ssn *framework.Session, preemptorJob *api.
 			if !api.PreemptableStatus(task.Status) || !task.Preemptable {
 				continue
 			}
-			// NOTE: legacy preempt filters out victims with ordinary requests when
-			// the preemptor has no ordinary requests. That check is intentionally
-			// removed here; UnifiedEvictableFn plugins handle eligibility.
+			// Legacy preempt prevents tasks without ordinary requests or DRA claims from
+			// preempting tasks that have them. Gang preemption intentionally leaves
+			// this eligibility decision to UnifiedEvictableFn plugins.
 			victimJob, found := ssn.Jobs[task.Job]
 			if !found || victimJob.Queue != preemptorJob.Queue {
 				continue

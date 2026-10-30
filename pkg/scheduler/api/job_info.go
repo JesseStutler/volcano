@@ -142,8 +142,11 @@ type TaskInfo struct {
 	Priority    int32
 	VolumeReady bool
 	Preemptable bool
-	// BestEffort reports whether the task has neither ordinary resource requests nor DRA claims.
-	// It is a scheduling classification, not the Kubernetes Pod QoS class.
+	// BestEffort is true when the task has no ordinary resource requests or DRA claims.
+	// Kept for compatibility, it is the inverse of HasSchedulingResourceRequests.
+	// DRA-only Pods can have Kubernetes BestEffort QoS, but are false here because
+	// they still need device allocation and gang checks. Use HasSchedulingResourceRequests
+	// for scheduling decisions and HasInitResourceRequests for ordinary-resource policies.
 	BestEffort                  bool
 	HasRestartableInitContainer bool
 	SchGated                    bool
@@ -256,18 +259,22 @@ func NewTaskInfo(pod *v1.Pod) *TaskInfo {
 	return ti
 }
 
-// HasInitResourceRequests reports whether InitResreq has CPU, memory, extended resource,
-// or CSI attachment requests. DRA claims are excluded.
+// HasInitResourceRequests checks InitResreq for ordinary requests, including CPU,
+// memory, extended resources, and scheduler-added CSI attachment counts.
+// DRA claims are not included, so DRA-only tasks return false regardless of Pod QoS.
 func (ti *TaskInfo) HasInitResourceRequests() bool {
 	return !ti.InitResreq.IsEmpty()
 }
 
-// HasSchedulingResourceRequests reports whether the task has ordinary resource requests or DRA claims.
+// HasSchedulingResourceRequests checks for ordinary requests or DRA claims that need allocation.
+// Pending tasks with either kind of request cannot count toward gang readiness
+// before allocation, even when their Kubernetes Pod QoS is BestEffort.
 func (ti *TaskInfo) HasSchedulingResourceRequests() bool {
 	return ti.HasInitResourceRequests() || (ti.Pod != nil && len(ti.Pod.Spec.ResourceClaims) > 0)
 }
 
-// UpdateSchedulingBestEffort refreshes BestEffort after resource requests change.
+// UpdateSchedulingBestEffort refreshes the compatibility BestEffort field after requests change.
+// Scheduling decisions use HasSchedulingResourceRequests directly; this does not change Pod QoS.
 func (ti *TaskInfo) UpdateSchedulingBestEffort() {
 	ti.BestEffort = !ti.HasSchedulingResourceRequests()
 }
@@ -1035,7 +1042,8 @@ func (ji *JobInfo) WaitingTaskNum() int32 {
 	return int32(len(ji.TaskStatusIndex[Pipelined]))
 }
 
-// PendingBestEffortTaskNum counts pending tasks without scheduling resource requests.
+// PendingBestEffortTaskNum counts pending tasks with neither ordinary requests nor DRA claims.
+// These tasks can count toward gang readiness without allocation; DRA-only tasks cannot.
 func (ji *JobInfo) PendingBestEffortTaskNum() int32 {
 	count := 0
 	for _, task := range ji.TaskStatusIndex[Pending] {

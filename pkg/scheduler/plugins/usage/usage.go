@@ -436,8 +436,8 @@ func (up *usagePlugin) calcAppliedRiskFactor(node *api.NodeInfo) float64 {
 }
 
 func (up *usagePlugin) estimateTaskResource(task *api.TaskInfo, appliedRiskFactor float64) (estCPU, estMem float64) {
-	// Use the configured fallback for tasks without ordinary requests, including
-	// DRA-only tasks. Device claims do not supply CPU or memory estimates.
+	// Tasks without ordinary requests use the configured be_cpu/be_mem estimates.
+	// This includes DRA-only tasks: their device claims do not provide CPU or memory estimates.
 	if !task.HasInitResourceRequests() {
 		estCPU = EstimateBestEffortResource(up.beCPU, appliedRiskFactor)
 		estMem = EstimateBestEffortResource(up.beMemory, appliedRiskFactor)

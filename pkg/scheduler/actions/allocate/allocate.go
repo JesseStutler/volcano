@@ -312,8 +312,8 @@ func (alloc *Action) organizeJobWorksheet(job *api.JobInfo) *JobWorksheet {
 				continue
 			}
 
-			// Skip tasks without resource requests in allocate and leave them to backfill.
-			// ResourceClaims also require allocation, even when ordinary requests are empty.
+			// Leave tasks without ordinary requests or DRA claims to backfill.
+			// DRA-only tasks still need device allocation and gang checks here.
 			if !task.HasSchedulingResourceRequests() {
 				klog.V(4).Infof("Task <%v/%v> has no resource requests or DRA claims, skip it.",
 					task.Namespace, task.Name)

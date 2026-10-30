@@ -42,8 +42,8 @@ import (
 	e2eutil "volcano.sh/volcano/test/e2e/util"
 )
 
-// DRA scheduling tests adapted from Kubernetes test/e2e/dra/dra.go,
-// with additional coverage for Volcano gang scheduling.
+// Scheduling-related tests adapted from Kubernetes test/e2e/dra/dra.go,
+// plus Volcano gang scheduling scenarios.
 var _ = ginkgo.Describe("DRA E2E Test", func() {
 	f := framework.NewDefaultFramework("dra")
 
@@ -241,9 +241,9 @@ var _ = ginkgo.Describe("DRA E2E Test", func() {
 		})
 	}
 
-	// Each gang has two Pods with separate one-device claims and no CPU/memory
-	// requests or limits. With one device neither Pod may bind; with two devices
-	// both must run. Each test gets its own driver instance.
+	// Two Pods each request one device through separate claims, with no CPU/memory requests or limits.
+	// With minMember=2, one available device must leave both unbound; two must let both run.
+	// Each test uses its own driver instance.
 	ginkgo.Context("gang scheduling with DRA-only Pods", ginkgo.Serial, func() {
 		const gangSize = 2
 		for _, scenario := range []struct {
@@ -298,8 +298,8 @@ var _ = ginkgo.Describe("DRA E2E Test", func() {
 						pods = append(pods, pod)
 					}
 
-					// Wait for template claims to exist before observing scheduling. Direct claims
-					// already exist, but use the same lookup for both forms of the test.
+					// Wait for template-created claims before checking scheduling results.
+					// Direct claims already exist; use the same lookup to verify both forms.
 					claimNames := sets.New[string]()
 					for _, pod := range pods {
 						var claimName string
@@ -332,10 +332,10 @@ var _ = ginkgo.Describe("DRA E2E Test", func() {
 					gomega.Expect(claimNames.Len()).To(gomega.Equal(gangSize), "gang members must use separate claims")
 
 					if !scenario.wantRunning {
-						// One device could run a single member, but gang scheduling must
-						// keep both unbound. This catches DRA-only Pods bypassing allocate.
+						// One device could run one member, but minMember=2 must keep both unbound.
+						// This catches DRA-only Pods skipping allocate and binding through backfill.
 						ginkgo.By("checking that an undersized device pool cannot partially bind the gang")
-						// Wait for a scheduling attempt before checking that neither member binds.
+						// Confirm a scheduling attempt first, so unbound Pods alone cannot make the test pass.
 						gomega.Eventually(ctx, func(ctx context.Context) ([]schedulingv1.PodGroupCondition, error) {
 							current, err := groupsClient.Get(ctx, group.Name, metav1.GetOptions{})
 							if err != nil {
@@ -362,8 +362,7 @@ var _ = ginkgo.Describe("DRA E2E Test", func() {
 						return
 					}
 
-					// With enough devices from the start, the gang must make progress
-					// and each member must receive its own device.
+					// With two devices available from the start, both members must run on distinct devices.
 					ginkgo.By("waiting for both gang members to run on distinct devices")
 					for _, pod := range pods {
 						framework.ExpectNoError(e2epod.WaitForPodRunningInNamespace(ctx, f.ClientSet, pod))

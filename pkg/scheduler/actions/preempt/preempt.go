@@ -198,8 +198,9 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 					if !api.PreemptableStatus(task.Status) {
 						return false
 					}
-					// Tasks without scheduling resource requests cannot preempt tasks that have them.
-					// DRA claims count as scheduling resource requests.
+					// A task with neither ordinary requests nor DRA claims cannot preempt one that has them.
+					// DRA-only tasks compete for devices, so empty ordinary requests do not
+					// disqualify them from preemption.
 					if !preemptor.HasSchedulingResourceRequests() && task.HasSchedulingResourceRequests() {
 						return false
 					}
@@ -259,8 +260,9 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 					if !api.PreemptableStatus(task.Status) {
 						return false
 					}
-					// Tasks without scheduling resource requests cannot preempt tasks that have them.
-					// DRA claims count as scheduling resource requests.
+					// A task with neither ordinary requests nor DRA claims cannot preempt one that has them.
+					// DRA-only tasks compete for devices, so empty ordinary requests do not
+					// disqualify them from preemption.
 					if !preemptor.HasSchedulingResourceRequests() && task.HasSchedulingResourceRequests() {
 						return false
 					}
