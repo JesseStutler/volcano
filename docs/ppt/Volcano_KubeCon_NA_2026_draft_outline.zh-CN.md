@@ -2,7 +2,7 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-Ricardo Aravena · Rainie Li。24 页，约 25 分钟正文 + 5 分钟问答。[PPT](Volcano_KubeCon_NA_2026_r10.pptx) · [PDF](Volcano_KubeCon_NA_2026_r10.pdf)
+Ricardo Aravena · Rainie Li。24 页，约 25 分钟正文 + 5 分钟问答。[PPT](Volcano_KubeCon_NA_2026_r11.pptx) · [PDF](Volcano_KubeCon_NA_2026_r11.pdf)
 
 从不同工作负载的调度诉求切入，讲双路径如何协调资源，再落到完整分组、拓扑和组间关系。通过生态案例说明这些需求怎样传给 Volcano，最后讲 benchmark 已有基础与接下来要验证的问题。
 
