@@ -165,3 +165,69 @@ def speaker_labels(arts, subtitles, removed, C):
         a.text(440,y,step,34,'blue',True,width=590)
         a.text(440,y+54,detail,30,'muted',width=590)
         a.text(1050,y,evidence,30,'ink',width=425)
+
+    # r10: remove redundant annotation layers, not just their sentence grammar.
+    # Keep roles inside the figures and retain explicit delivery status.
+    for n,s in list(subtitles.items()):
+        if s:removed.setdefault(n,[]).append(s)
+        subtitles[n]=''
+    subtitles.update({
+        11:'Kthena anti-affinity integration: proposed',
+        16:'Proposed',
+        19:'Planned comparisons',
+        20:'Planned test matrix',
+        23:'Gang mapping available · topology unsupported',
+    })
+    drop={
+        4:{'ready capacity','pool controller'},
+        5:{'Workload paths','Worker coordination','Shared node access'},
+        6:{'Desired ≠ in use'},
+        8:{'Pod selection + replica identity'},
+        9:{'Physical fabric'},
+        10:{'Core (3) / Spine (2) / Leaf (1)'},
+        11:{'Separate failure domains'},
+        16:{'Prefill + Decode','Decode replicas'},
+        13:{'Gang integration','Volcano plugin','Cross-group placement'},
+        15:{'Replica label → SubGroup','separate group'},
+        23:{'PodGang: 6 Pods','policy'},
+        18:{'Scenario','Cluster under test','Measurements','Workload parameters','Gangs / Pods','Scheduler metrics'},
+        19:{'Fixed workload','Schedulers','One per run','Latency · Throughput · Complete gangs · Placement'},
+    }
+    replace={
+        4:{'TP / PP gangs · locality':('Gang + locality',34,0,280),
+           'P/D groups · locality':('Gang + locality',34,770,280),
+           'Warm pool':('Warm pool',28,772.5,374),
+           'Capacity request':('Capacity request',27,772.5,480)},
+        5:{'Batch · fast path':('Batch / fast path',38,1020,135),
+           'Binder conflict checks':('Binder checks',38,1020,310),
+           'NodeShard':('Shared node pools',38,1020,485)},
+        15:{'Ray head':('Ray head',28,347.5,147)},
+        18:{'Scenario runner':('Scenario runner',28,150,160),
+            'Prometheus':('Prometheus',28,1305,380)},
+        16:{'Affinity':('Affinity',40,958,130),
+            'Same supernode · KV locality':('Supernode · KV locality',34,958,188),
+            'Anti-affinity':('Anti-affinity',40,958,355),
+            'Separate leaves':('Leaf · replica isolation',34,958,413)},
+    }
+    for n,a in arts.items():
+        targets=drop.get(n,set());edits=replace.get(n,{})
+        seen=set();out=[]
+        for fragment in a.front:
+            wrapper=etree.fromstring(('<g>'+fragment+'</g>').encode())
+            for e in list(wrapper):
+                if e.tag!='text':continue
+                label=' '.join(' '.join(e.itertext()).split())
+                if label in targets:
+                    seen.add(label);removed.setdefault(n,[]).append(label);wrapper.remove(e)
+                elif label in edits:
+                    seen.add(label);removed.setdefault(n,[]).append(label)
+                    t,size,x,y=edits[label]
+                    for child in list(e):e.remove(child)
+                    e.text=t;e.set('font-size',str(size));e.set('x',str(x));e.set('y',str(y))
+                    if n==5:e.set('font-weight','700');e.set('fill',C['blue'])
+            out.append(''.join(etree.tostring(e,encoding='unicode') for e in wrapper))
+        a.front=out
+        assert targets|set(edits)==seen,(n,'r10 unmatched labels',(targets|set(edits))-seen)
+        if n==11:
+            a.routes=[r for r in a.routes if not (r['points'][0][0]==0 and r['points'][-1][0]==1480 and r['points'][0][1]>=510)]
+            a.edges=[s for s in a.edges if 'M0,513 L1480,513' not in s]

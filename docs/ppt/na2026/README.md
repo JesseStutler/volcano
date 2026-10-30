@@ -1,6 +1,6 @@
 # Volcano NA 2026 · 素材与制作源文件
 
-24 页，当前为 r9。配图使用短标签，完整解释保留在演讲者备注。放大副标题、图旁要点和 YAML。[与 r8 对照](review/r9/README.md)。
+24 页，当前为 r10。删除重复的注释层，保留图中标签、机制关键词和能力状态。详细说明在演讲者备注中。[与 r9 对照](review/r10/README.md)。
 
 ## 这次实际复用的图
 
@@ -28,7 +28,7 @@
 - `src/polish_figures.py`：KubeRay、benchmark 框架与收尾页。
 - `src/approved_revision.py`：workload、共享拓扑、Grove、社区计划和横向测试图。
 - `src/light_edit.py`：r8 的外围评论清理。
-- `src/speaker_labels.py`：r9 的短标签、图旁文字层级、路线页布局；完整解释移入备注。
+- `src/speaker_labels.py`：r9 的短标签与布局、r10 的重复注释清理；完整解释移入备注。
 - `src/community_slides.py`：沿用社区用户 logo 和二维码页。
 - `src/simplify_deck.py`、`src/diagram_context.py`：历史 r6/r7 处理，不参与当前生成。
 - `integration-status.json`：本轮核查的生态状态及固定版本来源。
