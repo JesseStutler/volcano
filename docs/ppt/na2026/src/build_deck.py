@@ -138,7 +138,7 @@ def code(a,x,y,w,h,label,body,size=25,highlights=(),filename=None):
  a.rect(x,y,w,h,'#f5f7fa','line',3)
  a.rect(x,y,w,47,'white',None,0)
  a.path([(x,y+47),(x+w,y+47)],False,'blue')
- a.text(x+20,y+32,label,21,'blue',True,width=w-40)
+ a.text(x+20,y+32,label,24,'blue',True,width=w-40)
  lh=size*1.19
  for i,line in enumerate(body.strip('\n').splitlines()):
   yy=y+75+i*lh
@@ -180,7 +180,7 @@ note(a,1020,425,'03','Shared node access','NodeShard coordinates candidate-node 
 # 06: original controller plus an actual NodeShard excerpt.
 a=art(6,'nodeshard','NodeShard: Desired Nodes and Current Use','Changing a shard coordinates future placement; it does not migrate running Pods.',1,4,'China 2026 slide 9; docs/design/agent-scheduler.md; shard API types.')
 original(a,'china-09-dynamic-node-sharding.png',0,0,620,545)
-code(a,690,0,790,455,'NodeShard · spec / status excerpt','''spec:
+code(a,690,0,790,500,'NodeShard · spec / status excerpt','''spec:
   nodesDesired:
   - node1
   - node2
@@ -191,7 +191,7 @@ status:
   nodesToRemove:
   - node0
   nodesToAdd:
-  - node2''',27,('nodesDesired','nodesInUse'),filename='nodeshard.yaml')
+  - node2''',29,('nodesDesired','nodesInUse'),filename='nodeshard.yaml')
 a.text(710,500,'Desired membership ≠ immediate use',29,'blue',True,width=740)
 a.text(710,541,'Coordinators reconcile node access.',26,'muted',width=740)
 
@@ -210,7 +210,7 @@ members:
 - type: HyperNode
   selector:
     exactMatch:
-      name: rack-a''',26,('type: HyperNode','name: rack-a'),filename='hypernode-parent-spec.yaml')
+      name: rack-a''',30,('type: HyperNode','name: rack-a'),filename='hypernode-parent-spec.yaml')
 code(a,995,0,485,510,'Leaf · HyperNode.spec','''tier: 1
 tierName: leaf
 members:
@@ -218,12 +218,12 @@ members:
   selector:
     labelMatch:
       matchLabels:
-        rack: rack-a''',26,('type: Node','rack: rack-a'),filename='hypernode-leaf-spec.yaml')
+        rack: rack-a''',30,('type: Node','rack: rack-a'),filename='hypernode-leaf-spec.yaml')
 a.text(0,553,'The same hierarchy is available through the standalone HyperNode component.',26,'blue',True,width=1470)
 
 # 10: reuse the actual network drawing, with the two topology levels in YAML.
 a=art(10,'multilevel-placement','Place Groups at Different Topology Levels','An eight-Pod instance spans a larger domain; Prefill and Decode use different locality constraints.',2,8,'EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts.')
-original(a,'china-17-multilevel-topology.png',0,25,900,510)
+original(a,'china-17-multilevel-topology.png',0,0,900,510)
 code(a,940,0,540,531,'PodGroup.spec · key fields','''minMember: 8
 networkTopology:
   mode: hard
@@ -238,7 +238,7 @@ subGroupPolicy:
   subGroupSize: 4
   networkTopology:
     mode: hard
-    highestTierName: spine''',24,('highestTierName',),filename='multilevel-topology-spec.yaml')
+    highestTierName: spine'''.replace('    mode: hard\n','').replace('  mode: hard\n',''),28,('highestTierName',),filename='multilevel-topology-spec.yaml')
 a.text(0,554,'Named tiers: core (3) · spine (2) · leaf (1)',24,'blue',True,width=910)
 
 # 11: composition in approved_revision.py.
@@ -250,7 +250,7 @@ a=art(13,'ecosystem','Next: RBG, Kubeflow, and LWS','Build on current integratio
 # 14: strong existing Kthena figure, kept in its original form.
 a=art(14,'kthena-mapping','Kthena: From Serving Roles to Scheduling Groups','One ServingGroup maps to one PodGroup; each role replica forms a SubGroup.',3,6,'China 2026 slide 22; Kthena ModelServing gang scheduling guide.')
 original(a,'china-22-kthena-gang.png',0,0,970,545)
-code(a,1010,0,470,495,'ModelServing.spec · excerpt','''schedulerName: volcano
+code(a,1010,0,470,535,'ModelServing.spec · excerpt','''schedulerName: volcano
 replicas: 1
 template:
   gangPolicy:
@@ -263,7 +263,7 @@ template:
     workerReplicas: 1
   - name: decode
     replicas: 3
-    workerReplicas: 1''',24,('minRoleReplicas','workerReplicas'),filename='kthena-modelserving-spec.yaml')
+    workerReplicas: 1''',28,('minRoleReplicas','workerReplicas'),filename='kthena-modelserving-spec.yaml')
 a.text(1025,540,'Pod templates omitted.',23,'muted',width=440)
 
 # 15: composition in polish_figures.py.
@@ -291,6 +291,8 @@ revise(arts, art, code, rawtext, original, C, ASSETS)
 from light_edit import light_edit
 removed_notes=light_edit(arts)
 subtitles={n:re.sub(r";\s+([A-Za-z])",lambda m:". "+m.group(1).upper(),s) for n,s in subtitles.items()}
+from speaker_labels import speaker_labels
+speaker_labels(arts, subtitles, removed_notes, C)
 from community_slides import add_community_slides
 add_community_slides(arts, art, titles, ASSETS)
 subtitles[22]=""
@@ -350,8 +352,8 @@ for page,n in enumerate(order,1):
   notes={3:'0:10。从统一调度框架切入，后面落到工作负载、生态和验证。',7:'0:15。转场：拿到可用节点之后，还要保留完整副本以及它们的通信局部性。',12:'0:10。转场：这些分组和拓扑语义，最终要由用户真正使用的 controller 传进来。',17:'0:10。转场：接入的控制器和约束越多，就越需要可重复的 benchmark。'}[n]
  else:
   ptext(sl,.50,.88,12.30,.70,titles[n],31 if len(titles[n])<52 else 28.5,True)
-  ptext(sl,.52,1.57,12.25,.47,subtitles[n],17,False,'muted')
-  sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.12),width=Inches(12.333333),height=Inches(4.666667))
+  ptext(sl,.52,1.50,12.25,.47,subtitles[n],21,False,'blue')
+  sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.05),width=Inches(12.333333),height=Inches(4.666667))
   talks={
    4:'1:20。训练图展示两个 PP stage，每个 stage 两个 TP ranks，需要完整子组及通信局部性。推理展示 P/D 分离，不同角色及副本的 gang 与 topology 约束。Agent 路径先命中预热池并复用 ready runtime；池子耗尽时由 runtime/pool controller 请求容量，经快速 Pod 调度补池。请求突发图是需求示意，没有测量值。池管理不是 Volcano 自带能力，也不是每次调用创建 Pod。',
    5:'1:30。复用 China 架构图，从左右两条路径讲到中间 NodeShard。worker/Binder 的冲突检查是局部机制；不宣称并行一定带来性能提升。',
@@ -380,7 +382,7 @@ for page,n in enumerate(order,1):
    notes+='\n\n技术来源：\n'+'\n'.join(links)
   notes+='\n\n本页新版素材与说明：'+sources[n]
   if n==13:notes+='\nhttps://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md\nhttps://github.com/kubernetes-sigs/lws/blob/main/README.md\n右侧为 maintainer 提供的推进方向；RBG 公开文档已有 RoleInstance→SubGroup 基础。LWS 已有副本组，下一步是跨角色 multi-group 调度集成。'
-  if n==10:notes+='\n图例使用两个固定角色组，各4 Pods。spec 片段省略 labelSelector；实际使用时给两个 policy 配置匹配各自角色的 Pod selector。不是可直接 apply 的完整 manifest。'
+  if n==10:notes+='\n本页三处 networkTopology 均按 mode: hard 讲解，展示片段省略重复字段。图例使用两个固定角色组，各4 Pods。spec 片段省略 labelSelector；实际使用时给两个 policy 配置匹配各自角色的 Pod selector。不是可直接 apply 的完整 manifest。'
   if n==11:notes+='\nhttps://github.com/volcano-sh/kthena/pull/1478\nhttps://github.com/volcano-sh/kthena/issues/645\n启用 group-topology-affinity 与 network-topology-aware；每个 PodGroup 配置相同分离规则。selector 匹配 PodGroup 标签，默认同 namespace。'
   if n==14:notes+='\n图中每个 role replica 有一个 Entry 和一个 Worker Pod；YAML 保留 gangPolicy、role 副本数与 workerReplicas，省略 entryTemplate、workerTemplate 与 networkTopology。Gang 不表示所有 Pod 原子绑定或同时启动。'
   if n==16:notes+='\n本页为未来方向，不能当作已交付 API。示意同一 PodGroup 内将协作组放近、将副本分开；具体 selector 与亲和关系设计仍需社区讨论。'
@@ -394,4 +396,4 @@ prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026
 prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-29. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
-print(out);print(f'{len(order)} slides; r8 light edit of r5; eight YAML excerpts and chapter dividers.')
+print(out);print(f'{len(order)} slides; r9 speaker labels and clearer hierarchy; eight YAML excerpts and chapter dividers.')

@@ -138,7 +138,7 @@ spec:
             app: model-a
         topologyTierName: supernode
 ''')
-    code(a,940,0,540,461,'PodGroup.spec · key fields','''networkTopology:
+    code(a,920,0,560,461,'PodGroup.spec · key fields','''networkTopology:
   mode: hard
   highestTierName: supernode
 topologyAffinity:
@@ -147,7 +147,7 @@ topologyAffinity:
     - podGroupSelector:
         matchLabels:
           app: model-a
-      topologyTierName: supernode''',23,('highestTierName','topologyTierName'))
+      topologyTierName: supernode''',26,('highestTierName','topologyTierName'))
     a.text(954,499,'Each PodGroup: app=model-a',22,'blue',True,width=515)
     foot(a,'One domain can fail without taking both complete instances with it.')
 

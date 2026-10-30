@@ -133,7 +133,7 @@ def polish(arts, art, code, raw, C, assets):
   matchLabelKeys:
   - ray.io/worker-group-replica-name
   minSubGroups: 2
-  subGroupSize: 2''',25,('matchLabelKeys','minSubGroups','subGroupSize'),filename='ray-subgroup-spec.yaml')
+  subGroupSize: 2''',28,('matchLabelKeys','minSubGroups','subGroupSize'),filename='ray-subgroup-spec.yaml')
     a.text(770,424,'One replica label → one complete SubGroup',26,'ink',True,width=690)
     a.text(770,470,'Two replicas × two hosts = four worker Pods',25,'muted',width=690)
     foot(a,'Grouping view, not a topology guarantee. Gang support is merged; replica topology is still in progress.')
