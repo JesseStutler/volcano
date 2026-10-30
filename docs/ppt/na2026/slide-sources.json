@@ -1,0 +1,232 @@
+{
+  "description": "Technical references kept separate from the short English speaker notes. Status checks are recorded in fact-checks.json.",
+  "slides": [
+    {
+      "page": 1,
+      "title": "Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents",
+      "urls": [],
+      "figure_source": "Native PowerPoint text"
+    },
+    {
+      "page": 2,
+      "title": "Speakers",
+      "urls": [
+        "https://events.linuxfoundation.org/kubecon-cloudnativecon-north-america/program/schedule/?id=1289640",
+        "https://www.cncf.io/people/technical-oversight-committee/",
+        "https://events.linuxfoundation.org/archive/2026/open-source-summit-north-america/program/program-committee/",
+        "https://events.linuxfoundation.org/spinnaker-live/program/featured-speakers/",
+        "https://yunikorn.apache.org/community/people/",
+        "https://www.linkedin.com/in/rainie-li-71b2b146"
+      ],
+      "figure_source": "Native PowerPoint text"
+    },
+    {
+      "page": 3,
+      "title": "Unified scheduling",
+      "urls": [],
+      "figure_source": "Native PowerPoint text"
+    },
+    {
+      "page": 4,
+      "title": "Different Workloads, Shared Infrastructure",
+      "urls": [],
+      "figure_source": ""
+    },
+    {
+      "page": 5,
+      "title": "A Coordinated Scheduling Framework",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/design/agent-scheduler.md"
+      ],
+      "figure_source": "China 2026 slide 7; same architecture family as EU 2026."
+    },
+    {
+      "page": 6,
+      "title": "NodeShard: Strategy-Driven Node Allocation",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/design/agent-scheduler.md"
+      ],
+      "figure_source": "China 2026 slide 9; docs/design/agent-scheduler.md; shard API types."
+    },
+    {
+      "page": 7,
+      "title": "Multi-level gang & network topology",
+      "urls": [],
+      "figure_source": "Native PowerPoint text"
+    },
+    {
+      "page": 8,
+      "title": "Whole Workloads, Complete Compute Groups",
+      "urls": [],
+      "figure_source": "Conceptual workload structure. PP/TP training and disaggregated inference examples; no controller API claimed."
+    },
+    {
+      "page": 9,
+      "title": "PodGroup and SubGroup: Preserve Workload Structure",
+      "urls": [
+        "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/gang-scheduling.md"
+      ],
+      "figure_source": "China 2026 slide 14. Figure reused unchanged."
+    },
+    {
+      "page": 10,
+      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
+      "urls": [
+        "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/network-topology.md",
+        "https://github.com/volcano-sh/volcano/releases/tag/v1.16.0"
+      ],
+      "figure_source": "China 2026 slide 16 (physical fabric); benchmark/scripts/create-hypernodes.sh."
+    },
+    {
+      "page": 11,
+      "title": "Place Groups at Different Topology Levels",
+      "urls": [
+        "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/network-topology.md"
+      ],
+      "figure_source": "EU 2026 slide 16 / China 2026 slide 17; PodGroup API. Selector and Decode fragment below are explanatory excerpts."
+    },
+    {
+      "page": 12,
+      "title": "Gang Preemption Within a HyperNode",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/ac7f6a4dfe30d992c3b293ea5974c646e3da5da7/pkg/scheduler/actions/gangpreempt/gangpreempt.go",
+        "https://github.com/volcano-sh/volcano/pull/5920"
+      ],
+      "figure_source": "China 2026 slide 12 scenario, using the switch symbols and topology vocabulary of EU 16 / China 17. Gang boundaries and before/after placement are authored SVG. gangpreempt implementation reviewed at ac7f6a4dfe30d992c3b293ea5974c646e3da5da7."
+    },
+    {
+      "page": 13,
+      "title": "Keep Each Instance Together, Place Instances Apart",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/user-guide/how_to_use_podgroup_anti_affinity.md",
+        "https://github.com/volcano-sh/volcano/pull/5349",
+        "https://github.com/volcano-sh/kthena/pull/1478",
+        "https://github.com/volcano-sh/kthena/issues/645"
+      ],
+      "figure_source": "docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16."
+    },
+    {
+      "page": 14,
+      "title": "Next: Relationships Between SubGroups",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/releases/tag/v1.16.0",
+        "https://github.com/volcano-sh/volcano/issues/6166",
+        "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/design/group-topology-affinity.md"
+      ],
+      "figure_source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166."
+    },
+    {
+      "page": 15,
+      "title": "Ecosystem",
+      "urls": [],
+      "figure_source": "Native PowerPoint text"
+    },
+    {
+      "page": 16,
+      "title": "Kthena: Configure Group and Role Topology",
+      "urls": [
+        "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/model-serving-controller/podgroupmanager/manager.go",
+        "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/apis/workload/v1alpha1/servinggroup_types.go",
+        "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/gang-scheduling.md"
+      ],
+      "figure_source": "China 2026 slide 22; Kthena ModelServing gang scheduling guide."
+    },
+    {
+      "page": 17,
+      "title": "Kthena: Carry Role Replicas into PodGroup",
+      "urls": [
+        "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/model-serving-controller/podgroupmanager/manager.go"
+      ],
+      "figure_source": "Kthena podgroupmanager/manager.go appendSubGroupPolicy and syncPodGroupNetworkTopology, main checked 2026-10-30."
+    },
+    {
+      "page": 18,
+      "title": "KubeRay: Map Multi-Host Worker Replicas",
+      "urls": [
+        "https://github.com/kuberay-project/kuberay/blob/3ec5cbb8d8d3c6b249eaa06258f1369cf2172dcc/ray-operator/controllers/ray/batchscheduler/volcano/volcano_scheduler.go",
+        "https://github.com/kuberay-project/kuberay/pull/5249",
+        "https://github.com/kuberay-project/kuberay/pull/5369"
+      ],
+      "figure_source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API."
+    },
+    {
+      "page": 19,
+      "title": "Grove: Map PodGang Groups into Volcano",
+      "urls": [
+        "https://github.com/ai-dynamo/grove/blob/214dc1c0e2d8f1abb8f2fc9c1d7fd90539dfcde2/operator/internal/scheduler/volcano/backend.go",
+        "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go"
+      ],
+      "figure_source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected."
+    },
+    {
+      "page": 20,
+      "title": "Next: RBG, Kubeflow, and LWS",
+      "urls": [
+        "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/gang-scheduling.md",
+        "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/network-topology.md",
+        "https://github.com/kuberay-project/kuberay/pull/5249",
+        "https://github.com/kuberay-project/kuberay/pull/5369",
+        "https://github.com/ai-dynamo/grove/pull/516",
+        "https://trainer.kubeflow.org/en/latest/operator-guides/job-scheduling/volcano.html",
+        "https://github.com/kubernetes-sigs/lws/pull/498",
+        "https://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md",
+        "https://github.com/kubernetes-sigs/lws/blob/main/README.md"
+      ],
+      "figure_source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers."
+    },
+    {
+      "page": 21,
+      "title": "Benchmark framework & progress",
+      "urls": [],
+      "figure_source": "Native PowerPoint text"
+    },
+    {
+      "page": 22,
+      "title": "A Repeatable Scheduling Benchmark Framework",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md",
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/README.md"
+      ],
+      "figure_source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases."
+    },
+    {
+      "page": 23,
+      "title": "Next: Cross-Scheduler Comparisons",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/collect-report.sh",
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/manifests/monitoring/grafana-dashboard.json",
+        "https://github.com/volcano-sh/volcano/issues/6166"
+      ],
+      "figure_source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh."
+    },
+    {
+      "page": 24,
+      "title": "Next: Workload and Topology Test Matrix",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md",
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/collect-report.sh"
+      ],
+      "figure_source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected."
+    },
+    {
+      "page": 25,
+      "title": "v1.17: Placement, Preemption, and Performance",
+      "urls": [
+        "https://github.com/volcano-sh/volcano/issues/6166",
+        "https://github.com/volcano-sh/volcano/issues/5494",
+        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md"
+      ],
+      "figure_source": "v1.17 roadmap #6166 checked 2026-10-30; #5984/#5994/#5946/#5347/#5036/#5921 open; topology-aware reclaim PR #5920 open; #6066 and #6094 merged. Performance umbrella #5494. Benchmark expansion reflects maintainer intent."
+    },
+    {
+      "page": 26,
+      "title": "Volcano Community",
+      "urls": [
+        "https://volcano.sh",
+        "https://github.com/volcano-sh/volcano",
+        "https://cloud-native.slack.com/archives/C011GJDQS0N"
+      ],
+      "figure_source": "China slide 25 logos and QR assets. Single community / Q&A ending, consistent frames and gray top strips. Logos remain original image bytes in SVG viewports."
+    }
+  ]
+}

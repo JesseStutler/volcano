@@ -14,7 +14,7 @@ Kthena 使用共享的 `template.networkTopology.rolePolicy`。KubeRay 示例开
 
 屏幕 YAML 是关键字段片段。[Kthena](../../examples/kthena-mapping.yaml)、[KubeRay](../../examples/kuberay-mapping.yaml)、[Grove](../../examples/grove-mapping.yaml) 的配套文件补充省略的 group / selector；包装键用于阅读对照，文件不是可直接 apply 的 manifest。
 
-状态核查到 2026-10-30：[源码版本与 PR 状态](../../fact-checks.json)。相关功能限制和来源在讲者备注中。
+状态核查到 2026-10-30：[源码版本与 PR 状态](../../fact-checks.json)。讲解提示见 [英文 Speaker Notes](../../speaker-notes.md)，技术来源见 [slide-sources.json](../../slide-sources.json)。
 
 ## 检查
 

@@ -1,0 +1,107 @@
+# Speaker notes
+
+Short English prompts for the current 26-slide presentation.
+
+## 01. Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents
+
+Today we will look at how Volcano supports different AI workloads on shared Kubernetes clusters. We will move from scheduling paths to group placement, then show how ecosystem integrations and benchmarks bring these ideas into practice.
+
+## 02. Speakers
+
+Briefly introduce yourselves and your work in cloud native infrastructure. Connect that experience to the challenges of scheduling training, inference, and emerging agent workloads.
+
+## 03. Unified scheduling
+
+Different workloads have different scheduling needs. Start with how Volcano coordinates those needs across a shared cluster.
+
+## 04. Different Workloads, Shared Infrastructure
+
+Training and inference both need complete groups and good network locality. Training groups follow parallelism patterns such as TP and PP, while inference groups follow roles and replicas. Agent workloads add bursts and startup latency concerns. A runtime controller can reuse warm capacity, then request more Pods through a fast scheduling path when the pool needs to grow.
+
+## 05. A Coordinated Scheduling Framework
+
+Different workloads can use different scheduling paths, while sharing the same cluster. The Sharding Controller uses node metrics and scheduling strategies to adjust the node pools. NodeShard carries the desired allocation, and the schedulers coordinate changes with the nodes already in use. This gives each path room to adapt as workload demands change.
+
+## 06. NodeShard: Strategy-Driven Node Allocation
+
+The controller combines node metrics with a sharding strategy to calculate the desired node allocation. In the YAML, nodesDesired is the target set, while nodesInUse records the current set. The difference shows which nodes need to be added or released. The scheduler uses this difference to coordinate changes in its candidate nodes.
+
+## 07. Multi-level gang & network topology
+
+Having available nodes is only part of the problem. We also need to keep workload groups complete and place them within suitable network domains.
+
+## 08. Whole Workloads, Complete Compute Groups
+
+A training job can contain several pipeline stages, with tensor-parallel ranks inside each stage. A serving instance can contain Prefill and Decode roles, each with its own replicas. These structures create requirements at more than one level. We need to admit the overall workload while preserving complete compute groups inside it.
+
+## 09. PodGroup and SubGroup: Preserve Workload Structure
+
+PodGroup expresses admission requirements for the whole job or serving group. SubGroup preserves smaller units, such as a TP group or a role replica. One policy can use replica labels to identify multiple SubGroups. The network hierarchy below provides the domains where those complete groups can be placed.
+
+## 10. HyperNode: From Physical Fabric to Scheduling Domains
+
+HyperNode turns the physical network hierarchy into scheduling domains. A parent HyperNode groups other HyperNodes, while a leaf HyperNode groups Kubernetes nodes. Named tiers such as spine and leaf let workloads express locality requirements. This gives the scheduler a common view of the network at several levels.
+
+## 11. Place Groups at Different Topology Levels
+
+The whole PodGroup can fit within a larger domain while its internal groups use tighter locality. Here, the instance is limited to the core tier, Prefill to a leaf, and Decode to a spine. The PodGroup and each SubGroup have their own constraints. This lets different communication patterns share one workload without requiring identical placement.
+
+## 12. Gang Preemption Within a HyperNode
+
+The incoming gang needs four Pods within one spine HyperNode. Two free slots in HyperNode B are not enough. In HyperNode A, the scheduler selects the complete victim gang and checks whether removing it makes placement feasible. It then evicts gang A and nominates nodes for the incoming gang. Gang B stays in place.
+
+## 13. Keep Each Instance Together, Place Instances Apart
+
+Each serving instance remains a complete PodGroup within its chosen domain. PodGroup anti-affinity places matching instances in separate supernodes, reducing their exposure to the same domain failure. The scheduler provides placement separation. Application health checks and routing still handle service recovery.
+
+## 14. Next: Relationships Between SubGroups
+
+The next step is to express relationships between SubGroups inside one PodGroup. Prefill and Decode groups may benefit from staying in the same supernode, while Decode replicas should use separate leaf domains. These affinity and anti-affinity rules are planned work. They would combine communication locality with replica isolation.
+
+## 15. Ecosystem
+
+Workload controllers know the roles, replicas, and minimum group sizes. The next examples show how they pass that structure to Volcano.
+
+## 16. Kthena: Configure Group and Role Topology
+
+Kthena lets users describe scheduling intent in ModelServing. The groupPolicy applies to the whole ServingGroup, while rolePolicy applies to its role replicas. Here, the whole group stays within a spine domain and each role replica stays within a leaf. The next slide shows how these settings become Volcano PodGroup fields.
+
+## 17. Kthena: Carry Role Replicas into PodGroup
+
+Each role replica has one entry Pod and one worker Pod, so its SubGroup size is two. One Prefill replica and three Decode replicas give a minimum of eight Pods. Kthena generates the PodGroup and the role policies, using role identity labels to keep replicas separate. Users configure serving structure rather than creating these scheduling objects by hand.
+
+## 18. KubeRay: Map Multi-Host Worker Replicas
+
+A Ray worker replica can span multiple hosts. In this autoscaling example, minReplicas becomes the minimum number of SubGroups, and numOfHosts becomes the size of each SubGroup. Replica labels keep the two hosts together as one logical replica. This mapping requires replica grouping to be enabled, and worker-group topology support is still being developed.
+
+## 19. Grove: Map PodGang Groups into Volcano
+
+Grove starts with a PodGang containing named groups. Each group becomes a Volcano SubGroup policy, with its minimum Pod count defining the SubGroup size. The two role groups here contribute two and four Pods, giving a PodGroup minimum of six. Topology constraints are not yet supported by this backend.
+
+## 20. Next: RBG, Kubeflow, and LWS
+
+We want to carry the same group structure into more workload controllers. RBG integration is progressing, while deeper Kubeflow group and topology support is planned. For LWS, the next direction is coordination across roles and multiple groups. The common goal is to preserve workload structure all the way to placement.
+
+## 21. Benchmark framework & progress
+
+More workload shapes and placement rules also mean more behavior to validate. We need repeatable tests that help us compare schedulers and understand where each approach works well.
+
+## 22. A Repeatable Scheduling Benchmark Framework
+
+The framework generates workloads and records what happens through the API and scheduler. Audit events and Prometheus provide measurements for reports, including scheduling latency and binding throughput. Tests can use Kind with KWOK or an existing cluster. These measurements describe scheduling behavior, while GPU execution performance needs separate testing.
+
+## 23. Next: Cross-Scheduler Comparisons
+
+We plan to replay the same workload against different schedulers, one at a time. Each run should start from the same capacity and record the scheduler version and configuration. Compare latency, binding throughput, complete gangs, and placement correctness. Comparisons also need to account for differences in the scheduling features each implementation supports.
+
+## 24. Next: Workload and Topology Test Matrix
+
+The test matrix should cover several kinds of pressure. Bursts test tail latency and backlog recovery, while larger gangs expose resource fragmentation. Topology cases check whether complete groups land in valid domains. The goal is to find the scenarios each scheduler handles well and understand the tradeoffs.
+
+## 25. v1.17: Placement, Preemption, and Performance
+
+For v1.17, the related priorities are fewer unnecessary evictions, SubGroup relationships, and lower scheduling overhead. Topology-aware reclaim is under review, while SubGroup affinity and anti-affinity remain planned work. Benchmark replay and profiling will help evaluate performance changes. We also want broader scheduler comparisons and topology tests to guide that work.
+
+## 26. Volcano Community
+
+Thank the community for its contributions and feedback. Invite people to share workload examples, integration needs, and reproducible test cases. The QR codes lead to the project website, GitHub, and Slack. Open the floor for questions.

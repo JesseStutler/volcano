@@ -23,7 +23,9 @@
 - `svg/`、`png/`：当前配图的源文件和渲染结果。
 - `src/build_deck.py`：生成 PPT，串联素材与版面处理。
 - `src/approved_batch.py`：当前新增页、局部注释、生态映射和社区合页。
-- `src/revision_notes.py`：讲者备注与固定版本来源。
+- `src/revision_notes.py`：26 页简短英文 Speaker Notes。
+- `speaker-notes.md`：英文备注的阅读版。
+- `slide-sources.json`：各页技术来源，与演讲提示分开保存。
 - `src/mapping_examples.py`：生成配套 YAML 映射片段。
 - 其他被 builder 导入的模块：存量图构建、字体、版面及社区素材加载。
 - `examples/`：关键字段片段，省略了 Pod 模板等内容，不是可直接 apply 的 manifest。
@@ -47,7 +49,7 @@ python3 docs/ppt/na2026/src/package_deck.py
 
 ## 讲述口径
 
-Ricardo：Nunchux AI 的 AI Infrastructure Lead、CNCF TOC Alternate (GB)。Rainie：Pinterest、Apache YuniKorn PMC。公开资料来源保存在讲者备注。
+Ricardo：Nunchux AI 的 AI Infrastructure Lead、CNCF TOC Alternate (GB)。Rainie：Pinterest、Apache YuniKorn PMC。公开资料来源保存在 `slide-sources.json`。
 
 Kthena anti-affinity 仍是 proposal；KubeRay worker-group topology 仍在推进；Grove 当前 backend 不支持 topologyConstraint。SubGroup 亲和/反亲和作为下一步讲。Benchmark 展示已有框架和验证计划，不填猜测结果，也不用 KWOK 推导真实 GPU 执行吞吐。
 
