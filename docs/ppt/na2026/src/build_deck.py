@@ -139,10 +139,12 @@ def code(a,x,y,w,h,label,body,size=25,highlights=(),filename=None):
   yy=y+75+i*lh
   if ImageFont.truetype(MONO,size*2).getlength(line)/2>w-36:raise ValueError(f'Code line too wide: {a.name}: {line}')
   if yy>y+h-7:raise ValueError(f'Code overflows {a.name}: {label}')
-  if any(k in line for k in highlights):
-   a.rect(x+3,yy-size+2,w-6,lh,'#dce9f8',None,0)
-   a.rect(x+3,yy-size+2,5,lh,'blue',None,0)
-  rawtext(a,x+20,yy,line,size,'blue' if any(k in line for k in highlights) else 'ink',False,True)
+  match=next((k for k in highlights if k in line),None)
+  ink,fill=highlights[match] if isinstance(highlights,dict) and match is not None else ('blue','#dce9f8')
+  if match is not None:
+   a.rect(x+3,yy-size+2,w-6,lh,fill,None,0)
+   a.rect(x+3,yy-size+2,5,lh,ink,None,0)
+  rawtext(a,x+20,yy,line,size,ink if match is not None else 'ink',False,True)
  if filename:
   examples[filename]=body.strip()+'\n';(ROOT/'examples'/filename).write_text(body.strip()+'\n')
 

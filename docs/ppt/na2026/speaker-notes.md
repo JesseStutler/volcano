@@ -76,19 +76,19 @@ Kthena lets users describe scheduling intent in ModelServing. The groupPolicy ap
 
 ## 17. Kthena: Role Replica Mapping
 
-Read the YAML and group diagrams together. Each role replica has one Entry Pod and one Worker Pod. workerReplicas counts workers only. One Prefill replica and three Decode replicas make four two-Pod SubGroups, so the PodGroup minimum is eight.
+Start with the three count rules below the YAML. Blue marks the minimum number of groups, green marks Pods per group, and purple marks the total. For Kthena, minRoleReplicas sets minSubGroups. workerReplicas excludes the Entry Pod, so add one Entry to each worker count. Here, one Prefill group and three Decode groups each need two Pods, giving eight.
 
-There are two role policies but four SubGroups. Role identity labels distinguish the three Decode replicas. The groupPolicy and rolePolicy from the previous slide also carry into the generated PodGroup. The excerpts here focus on counts, while the companion YAML retains selectors and topology fields.
+There are two role policies but four SubGroups. The example sets desired replicas equal to these gang minimums. Role identity labels distinguish the three Decode replicas. The groupPolicy and rolePolicy from the previous slide also carry into the generated PodGroup. The excerpts here focus on counts, while the companion YAML retains selectors and topology fields.
 
 ## 18. KubeRay: Multi-Host Replica Mapping
 
-The left diagram has one Ray head and two worker replicas, with two hosts per replica. The right diagram shows three SubGroups: one for the head and one for each worker replica. That gives five minimum Pods.
+The Head is a separate one-Pod SubGroup. It is not included in workerGroupSpecs. With autoscaling enabled, minReplicas gives the worker SubGroup count, while numOfHosts gives Pods per worker SubGroup. The total is one Head plus two times two worker Pods. The right diagram shows three SubGroups: one for the head and one for each worker replica. That gives five minimum Pods.
 
-With autoscaling enabled, minReplicas determines the minimum worker SubGroup count, and numOfHosts determines its size. The replica label keeps each pair of hosts together. Replica grouping must be enabled. The YAML now includes both the head and worker policies. The companion example includes the replica-name selector. Worker-group topology support is still in progress.
+The replica label keeps each pair of hosts together. Replica grouping must be enabled. The YAML now includes both the head and worker policies. The companion example includes the replica-name selector. Worker-group topology support is still in progress.
 
 ## 19. Grove: PodGang Mapping
 
-Start with the two named groups in the PodGang: Prefill needs two Pods and Decode needs four. The same names and counts appear inside the Volcano PodGroup. Each group creates one SubGroup policy, giving two SubGroups and six minimum Pods.
+Each named Grove group becomes one SubGroup. Here, minReplicas sets Pods per SubGroup, not the number of SubGroups. Prefill needs two Pods and Decode needs four. The same names and counts appear inside the Volcano PodGroup. Each group creates one SubGroup policy, giving two SubGroups and six minimum Pods.
 
 The backend uses grove.io/podclique labels to select group members. The companion YAML includes those selectors. This mapping preserves gang structure, but this backend does not yet support topologyConstraint.
 

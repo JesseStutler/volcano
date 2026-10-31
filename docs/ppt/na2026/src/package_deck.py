@@ -25,6 +25,12 @@ for role,sg in zip(k['modelServingSpec']['template']['roles'],k['podGroupSpec'][
  assert sg['name']==role['name'] and sg['subGroupSize']==role['workerReplicas']+1
  assert sg['networkTopology']==k['modelServingSpec']['template']['networkTopology']['rolePolicy']
 assert k['podGroupSpec']['networkTopology']==k['modelServingSpec']['template']['networkTopology']['groupPolicy']
+kcounts=read('kthena-counts.yaml')
+assert kcounts['gangPolicy']==k['modelServingSpec']['template']['gangPolicy']
+for role,sg in zip(kcounts['roles'],k['podGroupSpec']['subGroupPolicy']):
+ assert sg['name']==role['name']
+ assert sg['minSubGroups']==kcounts['gangPolicy']['minRoleReplicas'][role['name']]
+ assert sg['subGroupSize']==1+role['workerReplicas']
 assert read('kthena-generated-podgroup-spec.yaml')['subGroupPolicy'][0]['subGroupSize']==2
 assert r['rayClusterSpec']['enableInTreeAutoscaling'] is True
 rw=r['rayClusterSpec']['workerGroupSpecs'][0];rs=r['podGroupSpec']['subGroupPolicy'][1]

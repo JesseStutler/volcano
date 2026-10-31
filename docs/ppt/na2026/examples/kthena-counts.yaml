@@ -1,0 +1,9 @@
+gangPolicy:
+  minRoleReplicas:
+    prefill: 1
+    decode: 3
+roles:
+- name: prefill
+  workerReplicas: 1
+- name: decode
+  workerReplicas: 1

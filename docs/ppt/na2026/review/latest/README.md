@@ -16,7 +16,7 @@ Roadmap 按 [v1.17 跟踪 issue](https://github.com/volcano-sh/volcano/issues/61
 
 ## 技术核对
 
-左右配图和页面 YAML 使用同一组最低 Pod 数量：Kthena 为 1 个 Prefill replica 加 3 个 Decode replicas，每个包含 Entry 和 Worker，共 8 Pods；KubeRay 为 1 个 head 加 2 组双 host worker，共 5 Pods；Grove 为 2 个 Prefill 加 4 个 Decode，共 6 Pods。KubeRay 页面补齐 head policy。
+左右配图和页面 YAML 使用同一组最低 Pod 数量：Kthena 为 1 个 Prefill replica 加 3 个 Decode replicas，每个包含 Entry 和 Worker，共 8 Pods；KubeRay 为 1 个 head 加 2 组双 host worker，共 5 Pods；Grove 为 2 个 Prefill 加 4 个 Decode，共 6 Pods。KubeRay 页面补齐 head policy。蓝色表示最低组数，绿色表示每组 Pod 数，紫色表示总 Pod 数；YAML 下方给出计算规则。Kthena 明确展示 minRoleReplicas 和每组额外的 Entry，KubeRay 明确加上独立的 Head，Grove 的 minReplicas 对应组内 Pod 数。
 
 xPU / DRA 补充 binpack、DRA-backed extended resources、ResourceClaim 抢占与回收。Extended resources 是已有上游路径，备注说明后续集成与验证。
 

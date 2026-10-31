@@ -146,7 +146,7 @@
       "urls": [
         "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/model-serving-controller/podgroupmanager/manager.go"
       ],
-      "figure_source": "Kthena podgroupmanager/manager.go appendSubGroupPolicy and syncPodGroupNetworkTopology, main checked 2026-10-30."
+      "figure_source": "Kthena podgroupmanager/manager.go appendSubGroupPolicy and syncPodGroupNetworkTopology, main checked 2026-10-30. Count rules shown explicitly: gangPolicy.minRoleReplicas sets minSubGroups; subGroupSize adds one Entry to workerReplicas; minMember sums all minimum groups."
     },
     {
       "page": 18,
@@ -156,7 +156,7 @@
         "https://github.com/kuberay-project/kuberay/pull/5249",
         "https://github.com/kuberay-project/kuberay/pull/5369"
       ],
-      "figure_source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API."
+      "figure_source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API. Count rules shown explicitly: one Head SubGroup plus minReplicas worker SubGroups of numOfHosts Pods with autoscaling enabled."
     },
     {
       "page": 19,
@@ -165,7 +165,7 @@
         "https://github.com/ai-dynamo/grove/blob/214dc1c0e2d8f1abb8f2fc9c1d7fd90539dfcde2/operator/internal/scheduler/volcano/backend.go",
         "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go"
       ],
-      "figure_source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected."
+      "figure_source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected. Count rules shown explicitly: one SubGroup per named group, with minReplicas Pods in this example."
     },
     {
       "page": 20,

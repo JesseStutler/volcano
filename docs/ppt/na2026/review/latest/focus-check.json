@@ -2,8 +2,7 @@
   "rendered_pages_changed": [
     17,
     18,
-    19,
-    25
+    19
   ],
   "test_matrix_page_24_unchanged": true,
   "preemption_example": {
@@ -33,5 +32,5 @@
     "scope": "Diagram arithmetic and topology membership checks, not a cluster simulation test."
   },
   "roadmap": "Selected directions from issue 6166, not an official priority ranking.",
-  "mapping_scope": "Both sides of the three mapping diagrams contain the same Pod counts. On-slide YAML includes all policies, including the Ray head."
+  "mapping_scope": "Blue: minimum SubGroup count. Green: Pods per SubGroup. Purple: PodGroup minimum. Kthena adds one Entry per replica; Ray adds one Head separately; Grove minReplicas sets SubGroup size. On-slide calculation rules and full YAML agree."
 }

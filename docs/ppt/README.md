@@ -16,12 +16,12 @@ Ricardo Aravena · Rainie Li。26 页，更新于 2026-10-31。
 
 RBG 明确列出 PodGroup、SubGroup 与 HyperNode 树查询集成。横向 benchmark 页讲实验流程，下一页讲测试场景。v1.17 Roadmap 聚焦资源碎片整理、HyperNode/SubGroup、xPU/DRA 和生态扩展。
 
-生态映射统一标注 Pod 数量，KubeRay 页面补齐 head policy。xPU/DRA 补充 binpack、DRA-backed extended resources 和 ResourceClaim 抢占及回收。
+生态映射按组数、每组 Pod 数、总 Pod 数分别高亮。YAML 下方直接列出 Entry、Head 和 worker 的计数规则。xPU/DRA 补充 binpack、DRA-backed extended resources 和 ResourceClaim 抢占及回收。
 
 [本轮重点页面预览](na2026/review/latest/refinement.png)
 
 26 页均有英文 Speaker Notes，使用无圆点的普通段落，不标时长。NodeShard、拓扑示例和生态映射的备注已补充说明。NA 材料只保留当前版本。
 
-[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=dda65e487dda)
+[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=5a0970d61957)
 
-![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=dda65e487dda)
+![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=5a0970d61957)

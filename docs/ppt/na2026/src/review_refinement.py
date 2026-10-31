@@ -115,88 +115,107 @@ subGroupPolicy:
     a.text(1310,31,'Planned',27,'amber',True,width=320,anchor='middle')
 
     def mapping_badges(a, project, logo):
-        badge(a, 0, 0, 700, project, logo)
-        badge(a, 780, 0, 700, 'Volcano', 'volcano-icon.svg', 'mint')
+        for x,name,icon,fill in [(0,project,logo,'prefill'),(780,'Volcano','volcano-icon.svg','mint')]:
+            a.rect(x,0,700,48,fill,None,5)
+            a.image(x+12,4,58,40,assets/icon)
+            a.text(x+85,35,name,31,'blue',True,width=600)
+
+    count_style=('blue','prefill')
+    size_style=('green','mint')
+    total_style=('purple','lav')
+    policy_styles={'minSubGroups':count_style,'subGroupSize':size_style,'minMember':total_style}
+
+    def mapping_rules(a,count,size,total):
+        for x,field,rule,color in [(0,'minSubGroups',count,'blue'),
+                                  (500,'subGroupSize',size,'green'),
+                                  (1000,'minMember',total,'purple')]:
+            a.text(x+10,386,field,24,color,True,width=470)
+            a.text(x+10,415,rule,24,'ink',width=470)
 
     def group_shell(a, x, title):
-        a.rect(x, 382, 700, 176, 'white', 'blue', 7, layer='bg')
-        a.text(x+18, 412, title, 27, 'blue', True, width=664)
+        a.rect(x, 434, 700, 124, 'white', 'blue', 7, layer='bg')
+        a.text(x+18, 460, title, 26, 'blue', True, width=664)
 
     def small_group(a, x, w, name, pods, color='blue', subgroup=False):
-        a.rect(x, 429, w, 116, 'white', color, 5, dash=subgroup)
-        a.text(x+w/2, 456, name, 25, color, True, width=w-10, anchor='middle')
+        a.rect(x, 474, w, 75, 'white', color, 5, dash=subgroup)
+        a.text(x+w/2, 498, name, 24, color, True, width=w-10, anchor='middle')
         pw=(w-22-(len(pods)-1)*6)/len(pods)
         for j,t in enumerate(pods):
             px=x+11+j*(pw+6)
-            a.rect(px, 478, pw, 43, 'prefill' if color=='blue' else 'mint', color, 3)
-            a.text(px+pw/2, 507, t, 18 if t=='Worker' else 21, color, True, width=pw-3, anchor='middle')
+            a.rect(px, 508, pw, 32, 'prefill' if color=='blue' else 'mint', color, 3)
+            a.text(px+pw/2, 532, t, 18 if t=='Worker' else 21, color, True, width=pw-3, anchor='middle')
 
     # Kthena: four role replicas are visible as four complete SubGroups.
     a=renew(27);mapping_badges(a, 'Kthena', 'kthena.svg')
-    code(a,0,80,700,280,'ModelServing.spec.template', '''roles:
+    code(a,0,64,700,296,'ModelServing.spec.template (excerpt)', '''gangPolicy:
+  minRoleReplicas:
+    prefill: 1
+    decode: 3
+roles:
 - name: prefill
-  replicas: 1
   workerReplicas: 1
 - name: decode
-  replicas: 3
-  workerReplicas: 1''',26,('replicas:','workerReplicas:'),filename='kthena-roles.yaml')
-    code(a,780,80,700,288,'PodGroup.spec (role policies)', '''minMember: 8
+  workerReplicas: 1''',22,{'prefill:':count_style,'decode:':count_style,'workerReplicas:':size_style},filename='kthena-counts.yaml')
+    code(a,780,64,700,296,'PodGroup.spec (role policies)', '''minMember: 8
 subGroupPolicy:
 - name: prefill
   minSubGroups: 1
   subGroupSize: 2
 - name: decode
   minSubGroups: 3
-  subGroupSize: 2''',24,('minMember','minSubGroups','subGroupSize'),filename='kthena-podgroup-overview.yaml')
+  subGroupSize: 2''',24,policy_styles,filename='kthena-podgroup-overview.yaml')
+    mapping_rules(a,'minRoleReplicas: 1 prefill, 3 decode','1 Entry + 1 Worker = 2 Pods','1 × 2 + 3 × 2 = 8 Pods')
     for ox,heading in [(0,'ServingGroup: 4 replicas, 8 Pods'),(780,'PodGroup: 4 SubGroups, 8 Pods')]:
         group_shell(a,ox,heading)
         for j,name in enumerate(['prefill-0','decode-0','decode-1','decode-2']):
             small_group(a,ox+12+j*172,160,name,['Entry','Worker'],'green' if j==0 else 'blue',subgroup=ox>0)
-    a.path([(706,487),(774,487)], True, 'blue')
+    a.path([(706,520),(774,520)], True, 'blue')
 
     # KubeRay: include the head SubGroup as well as both worker replicas.
     a=renew(15);mapping_badges(a,'KubeRay','kuberay.png')
-    code(a,0,80,700,280,'RayCluster.spec', '''enableInTreeAutoscaling: true
+    code(a,0,64,700,296,'RayCluster.spec (excerpt)', '''enableInTreeAutoscaling: true
 workerGroupSpecs:
 - groupName: worker
   minReplicas: 2
   replicas: 2
   maxReplicas: 4
-  numOfHosts: 2''',26,('minReplicas','numOfHosts'),filename='kuberay-raycluster-spec.yaml')
-    code(a,780,80,700,288,'PodGroup.spec (head and workers)', '''minMember: 5
+  numOfHosts: 2''',26,{'minReplicas':count_style,'numOfHosts':size_style},filename='kuberay-raycluster-spec.yaml')
+    code(a,780,64,700,296,'PodGroup.spec (head and workers)', '''minMember: 5
 subGroupPolicy:
 - name: headgroup
   minSubGroups: 1
   subGroupSize: 1
 - name: worker
   minSubGroups: 2
-  subGroupSize: 2''',24,('minMember','minSubGroups','subGroupSize'),filename='kuberay-podgroup-overview.yaml')
+  subGroupSize: 2''',24,policy_styles,filename='kuberay-podgroup-overview.yaml')
+    mapping_rules(a,'Head 1, workers minReplicas = 2','Head 1, workers numOfHosts = 2','1 Head + 2 × 2 = 5 Pods')
     for ox,heading in [(0,'RayCluster: 1 head + 4 worker Pods'),(780,'PodGroup: 3 SubGroups, 5 Pods')]:
         group_shell(a,ox,heading)
         small_group(a,ox+12,154,'headgroup',['Head'],'green',ox>0)
         small_group(a,ox+182,247,'worker 0',['Host 0','Host 1'],subgroup=ox>0)
         small_group(a,ox+445,243,'worker 1',['Host 0','Host 1'],subgroup=ox>0)
-    a.path([(706,487),(774,487)], True, 'blue')
+    a.path([(706,520),(774,520)], True, 'blue')
 
     a=renew(23);mapping_badges(a,'Grove','dynamo-grove.svg')
-    code(a,0,80,700,280,'PodGang.spec', '''podGroups:
+    code(a,0,64,700,296,'PodGang.spec', '''podGroups:
 - name: prefill
   minReplicas: 2
 - name: decode
-  minReplicas: 4''',28,('minReplicas',),filename='grove-podgang-spec.yaml')
-    code(a,780,80,700,288,'PodGroup.spec (group policies)', '''minMember: 6
+  minReplicas: 4''',28,{'minReplicas':size_style},filename='grove-podgang-spec.yaml')
+    code(a,780,64,700,296,'PodGroup.spec (group policies)', '''minMember: 6
 subGroupPolicy:
 - name: prefill
   minSubGroups: 1
   subGroupSize: 2
 - name: decode
   minSubGroups: 1
-  subGroupSize: 4''',24,('minMember','minSubGroups','subGroupSize'),filename='grove-podgroup-overview.yaml')
+  subGroupSize: 4''',24,policy_styles,filename='grove-podgroup-overview.yaml')
+    mapping_rules(a,'1 SubGroup per named group','minReplicas: 2 prefill, 4 decode','2 + 4 = 6 Pods')
     for ox,heading in [(0,'PodGang: 2 groups, 6 Pods'),(780,'PodGroup: 2 SubGroups, 6 Pods')]:
         group_shell(a,ox,heading)
         small_group(a,ox+12,238,'prefill',['P0','P1'],'green',ox>0)
         small_group(a,ox+266,422,'decode',['D0','D1','D2','D3'],subgroup=ox>0)
-    a.path([(706,487),(774,487)],True,'blue')
+    a.path([(706,520),(774,520)],True,'blue')
 
     a=renew(13)
     rows=[('RoleBasedGroup (RBG)','rbg.svg','Integration in progress','PodGroup and SubGroup integration','HyperNode tree queries'),
