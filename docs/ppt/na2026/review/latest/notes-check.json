@@ -3,7 +3,7 @@
   "language": "English",
   "timings": false,
   "notes_match_source": true,
-  "slide_visual_parts_unchanged": true,
+  "notes_unchanged_after_template": true,
   "word_counts": [
     {
       "page": 1,

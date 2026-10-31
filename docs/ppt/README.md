@@ -2,7 +2,7 @@
 
 **Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents**
 
-Ricardo Aravena · Rainie Li。26 页，更新于 2026-10-30。
+Ricardo Aravena · Rainie Li。26 页，更新于 2026-10-31。
 
 - [PDF 预览](Volcano_KubeCon_NA_2026.pdf)
 - [PowerPoint](Volcano_KubeCon_NA_2026.pptx?raw=true)
@@ -12,12 +12,12 @@ Ricardo Aravena · Rainie Li。26 页，更新于 2026-10-30。
 - [制作源文件](na2026/)
 - [下载源文件包](Volcano_KubeCon_NA_2026_sources.zip?raw=true)
 
-本轮调整第 4、5、6、9、12 页：统一 Training / Inference 的注释表达，移除外拉注释线，NodeShard 说明就近对应 YAML；抢占页沿用第 11 页的拓扑符号，分别展示完整 preemptor / victim gang 及其 HyperNode 范围。
+已使用收到的 **KubeCon + CloudNativeCon North America 2026 官方模板**：封面和章节页沿用蓝色山景，正文使用蓝色标题栏。现有技术图、YAML 和英文 Speaker Notes 继续沿用。
 
-[查看本轮五页](na2026/review/latest/refinement.png)
+[模板效果预览](na2026/review/latest/refinement.png)
 
 26 页均已加入简短的英文 Speaker Notes，不标时长。NA 材料只保留当前版本。
 
-[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=6cf2afc8ab38)
+[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=de98173b18fc)
 
-![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=6cf2afc8ab38)
+![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=de98173b18fc)

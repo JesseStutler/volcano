@@ -6,9 +6,9 @@ root=Path(__file__).resolve().parents[1];ppt=root.parent;review=root/'review/lat
 doc=fitz.open(ppt/'Volcano_KubeCon_NA_2026.pdf')
 assert len(doc)==26
 for n,page in enumerate(doc,1):page.get_pixmap(matrix=fitz.Matrix(1.5,1.5),alpha=False).save(review/f'slide-{n:02d}.png')
-# Current review focus: four caption pages and the revised gang-preemption page.
+# Current review focus: official cover, chapter, content layouts and gang preemption.
 focus=Image.new('RGB',(1480,1740),'#e8edf2')
-for i,n in enumerate([4,5,6,9]):
+for i,n in enumerate([1,3,4,9]):
  page=doc[n-1];pix=page.get_pixmap(matrix=fitz.Matrix(715/page.rect.width,715/page.rect.width),alpha=False)
  focus.paste(Image.frombytes('RGB',(pix.width,pix.height),pix.samples),(20+(i%2)*735,20+(i//2)*435))
 page=doc[11];pix=page.get_pixmap(matrix=fitz.Matrix(1440/page.rect.width,1440/page.rect.width),alpha=False)

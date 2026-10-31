@@ -38,4 +38,4 @@ Kthena 的 rolePolicy 当前统一作用于各角色的 SubGroup；anti-affinity
 
 Benchmark 不填猜测结果。横向比较匹配各调度器支持的语义，寻找适用场景；KWOK 调度测试与真实 GPU 执行性能分开验证。
 
-保留 Volcano 背景及好的 China/EU 原图。新增内容保存 SVG，并将 PNG 固定嵌入 PPT；官方模板到手后再套版。
+已使用 NA 2026 官方模板背景。China/EU 原图、SVG 配图及固定 PNG 沿用，26 页英文 Speaker Notes 保留。

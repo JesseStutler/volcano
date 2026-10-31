@@ -16,12 +16,15 @@
 
 第 13、14 页沿用原拓扑的交换机符号和 fabric 布局。第 12 页参考 China 的 gang 抢占场景重新绘制。
 
-原始图是 PNG，保存在 `assets/reused/`，来源见 `assets/provenance.json`。新增文字、YAML、分组与连线是 SVG；PNG 固定图形后嵌入 PPT，避免箭头漂移。标题、讲者和章节页使用 PowerPoint 原生文本。官方模板到手后再套版。
+原始图是 PNG，保存在 `assets/reused/`，来源见 `assets/provenance.json`。新增文字、YAML、分组与连线是 SVG；PNG 固定图形后嵌入 PPT，避免箭头漂移。标题、讲者和章节页使用 PowerPoint 原生文本。已套用收到的 NA 2026 官方 PowerPoint 模板：保留原生母版、背景图和会议 logo，调整版式尺寸以适配当前内容。
 
 ## 文件
 
 - `svg/`、`png/`：当前配图的源文件和渲染结果。
 - `src/build_deck.py`：生成 PPT，串联素材与版面处理。
+- `src/conference_template.py`：加载并缩放官方母版及版式，选择封面、章节和正文布局。
+- `assets/kubecon-na-2026-template.pptx`：收到的原始模板，文件内容未改动。
+- `template-provenance.json`：模板来源、校验值和使用的版式。
 - `src/approved_batch.py`：当前新增页、局部注释、生态映射和社区合页。
 - `src/revision_notes.py`：26 页简短英文 Speaker Notes。
 - `speaker-notes.md`：英文备注的阅读版。

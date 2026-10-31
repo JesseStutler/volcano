@@ -2,11 +2,13 @@
 
 [PDF](../../../Volcano_KubeCon_NA_2026.pdf) · [PPT](../../../Volcano_KubeCon_NA_2026.pptx?raw=true) · [大纲](../../../Volcano_KubeCon_NA_2026_outline.zh-CN.md)
 
-26 页。架构、NodeShard、PG/SG、HyperNode、拓扑及 Kthena 图继续复用 China/EU 素材。
+26 页，已使用 NA 2026 官方模板。封面与章节使用山景，正文使用蓝色标题栏；技术图和英文备注保留。
 
 重点页面：[工作负载](slide-04.png) · [协同框架](slide-05.png) · [NodeShard](slide-06.png) · [组结构引入](slide-08.png) · [Gang 抢占](slide-12.png) · [Kthena 配置](slide-16.png) / [映射](slide-17.png) · [KubeRay](slide-18.png) · [Grove](slide-19.png) · [社区](slide-26.png)。
 
-[本轮五页集中预览](refinement.png)：第 4、5、6、9、12 页。
+[模板效果集中预览](refinement.png)：封面、章节、工作负载、PG/SG 和 gang 抢占页。
+
+[模板与内容保留检查](template-check.json)。
 
 ## 技术核对
 

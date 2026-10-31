@@ -1,4 +1,4 @@
-"""Build Volcano's template-independent presentation.
+"""Build Volcano's presentation with the official KubeCon NA 2026 template.
 SVG is the editable diagram source; PNGs freeze diagram geometry in PowerPoint.
 Dependencies: python-pptx, cairosvg, Pillow. Fonts: Liberation Sans / Mono.
 """
@@ -115,12 +115,6 @@ for e in r.xpath('.//s:linearGradient',namespaces=ns):icon.append(deepcopy(e))
 for e in r.xpath('.//s:path[@class="st0"]',namespaces=ns):
  e=deepcopy(e);e.set('fill','url(#SVGID_1_)');icon.append(e)
 (ASSETS/'volcano-icon.svg').write_text('\n'.join(line.rstrip() for line in etree.tostring(icon).decode().splitlines())+'\n')
-for name,large in [('background',False),('cover-background',True)]:
- b=Art(name,1600,900);b.rect(0,0,1600,900,'white',None,0,'bg')
- if large:b.image(1000,225,560,340,ASSETS/'volcano-icon.svg',.085)
- else:b.image(1170,660,365,178,ASSETS/'volcano-icon.svg',.035)
- b.save()
-
 # Technical diagrams: retain original EU / China figures where they carry the
 # explanation, then add readable API excerpts as separate SVG text.
 arts={};titles={};subtitles={};sources={};oldnotes={};chapters={};examples={}
@@ -311,14 +305,15 @@ for n,a in arts.items():
  a.name=f'{page_for[n]:02d}-'+a.name.split('-',1)[1]
  a.save()
 # Remove only stale generated body images after a page-order change.
-valid={a.name for a in arts.values()}|{'background','cover-background'}
+valid={a.name for a in arts.values()}
 for folder in [SVG,PNG]:
  for path in folder.iterdir():
   if path.suffix in ['.svg','.png'] and path.stem not in valid:path.unlink()
 (ROOT/'geometry-audit.json').write_text(json.dumps({str(page_for[n]):a.routes for n,a in arts.items()},indent=2)+'\n')
 
 # Native PowerPoint title/profile/divider text. Source notes follow the remapped pages.
-prs=Presentation();prs.slide_width=Inches(13.333333);prs.slide_height=Inches(7.5)
+from conference_template import create_presentation, add_slide
+prs=create_presentation(ASSETS)
 def ptext(sl,x,y,w,h,text,size=26,bold=False,c='ink',align=None):
  sh=sl.shapes.add_textbox(Inches(x),Inches(y),Inches(w),Inches(h));tf=sh.text_frame;tf.clear();tf.word_wrap=True
  tf.margin_left=tf.margin_right=0;tf.margin_top=0;tf.margin_bottom=0
@@ -332,18 +327,22 @@ from revision_notes import NOTES, write_notes_markdown
 assert set(order) == set(NOTES)
 manifest=[]
 for page,n in enumerate(order,1):
- sl=prs.slides.add_slide(prs.slide_layouts[6]);special=n==1 or n in dividers
- sl.shapes.add_picture(str(PNG/('cover-background.png' if special else 'background.png')),0,0,width=prs.slide_width,height=prs.slide_height)
- sl.shapes.add_picture(str(ASSETS/'volcano-logo.png'),Inches(10.85),Inches(.32),width=Inches(1.9))
+ special=n==1 or n in dividers
+ sl=add_slide(prs,cover=n==1,section=n in dividers)
+ # The official title bar reserves its right side for the conference logo.
+ if not special:
+  heading='Speakers' if n==2 else titles[n]
+  lines=wrap(heading,10.0*72,28,True)
+  heading_h=.49*len(lines)
+  ptext(sl,.455,(1.528-heading_h)/2,10.0,heading_h,'\n'.join(lines),28,True,'white')
  if n==1:
   titles[n]='Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents'
-  ptext(sl,.62,1.35,11.55,1.52,'Volcano for the\nAgentic AI Era:',43,True)
-  ptext(sl,.66,3.10,10.80,1.30,'Unified Scheduling Across Training,\nInference, and Agents',31,False,'blue')
-  ptext(sl,.68,5.02,11.6,.45,'Ricardo Aravena  ·  Rainie Li',25,True)
-  ptext(sl,.68,5.69,11.8,.65,'KubeCon + CloudNativeCon North America 2026\nSalt Lake City · November 9–12',18,False,'muted')
+  ptext(sl,.50,1.79,12.15,.66,'Volcano for the Agentic AI Era:',40,True,'white')
+  ptext(sl,.52,2.57,11.95,1.08,'Unified Scheduling Across Training,\nInference, and Agents',29,False,'white')
+  ptext(sl,.52,3.80,11.6,.41,'Ricardo Aravena  ·  Rainie Li',23,True,'white')
+  ptext(sl,.52,4.20,11.8,.29,'Salt Lake City · November 9–12, 2026',15,False,'white')
  elif n==2:
   titles[n]='Speakers'
-  ptext(sl,.50,.95,12,.65,'Speakers',33,True)
   for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)\nCloud native and AI infrastructure','nunchux.ai · CNCF TOC'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
    sl.shapes.add_picture(str(ASSETS/photo),Inches(x),Inches(2.00),width=Inches(1.75),height=Inches(1.75))
    ptext(sl,x,4.02,5.4,.5,person,30,True)
@@ -352,21 +351,21 @@ for page,n in enumerate(order,1):
    ptext(sl,x,6.35,5.3,.30,link,15,False,'blue')
  elif n in dividers:
   c,title,bridge,question=dividers[n];titles[n]=title.replace('\n',' ');chapters[n]=c
-  ptext(sl,.65,1.42,2,.70,f'{c:02d}',38,True,'blue')
-  ptext(sl,.65,2.28,8.6,1.65,title,41,True)
-  ptext(sl,.68,4.42,10.9,.60,bridge,24,False,'blue')
-  for i,t in enumerate(agenda,1):ptext(sl,9.30,1.7+(i-1)*.76,3.45,.68,f'{i:02d}  {t}',15,i==c,'blue' if i==c else 'muted')
+  ptext(sl,.65,1.58,2,.56,f'{c:02d}',31,True,'white')
+  ptext(sl,.65,2.20,8.45,1.40,title,38,True,'white')
+  ptext(sl,.68,3.78,8.35,.60,bridge,22,False,'white')
+  for i,t in enumerate(agenda,1):ptext(sl,9.35,1.72+(i-1)*.64,3.30,.63,f'{i:02d}  {t}',15,i==c,'white' if i==c else '#bed1ed')
  else:
-  ptext(sl,.50,.88,12.30,.70,titles[n],30,True)
-  if subtitles[n]:ptext(sl,.52,1.50,12.25,.47,subtitles[n],20,False,'blue')
-  sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.05 if subtitles[n] else 1.80),width=Inches(12.333333),height=Inches(4.666667))
- ptext(sl,.52,7.13,11.5,.22,'Volcano  |  KubeCon + CloudNativeCon North America 2026',9,False,'muted')
- ptext(sl,12.05,7.09,.75,.28,f'{page:02d} / {len(order)}',11,False,'muted',PP_ALIGN.RIGHT)
+  if subtitles[n]:ptext(sl,.52,1.64,12.25,.39,subtitles[n],19,False,'blue')
+  sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.10 if subtitles[n] else 1.80),width=Inches(12.333333),height=Inches(4.666667))
+ if not special:
+  ptext(sl,.52,7.13,11.5,.22,'Volcano  |  KubeCon + CloudNativeCon North America 2026',9,False,'muted')
+  ptext(sl,12.05,7.09,.75,.28,f'{page:02d} / {len(order)}',11,False,'muted',PP_ALIGN.RIGHT)
  sl.notes_slide.notes_text_frame.text=NOTES[n]
  manifest.append({'page':page,'source_id':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'reference_set':oldnotes.get(n)})
 prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026 — revised technical presentation'
-prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='2026-10-30. Retained China/EU figures; API excerpts; 4 chapter dividers. No invented benchmark results.'
+prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='Official KubeCon NA 2026 template applied 2026-10-31. Retained China/EU figures and all English speaker notes.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 write_notes_markdown(ROOT, order, titles)
-(ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.'},ensure_ascii=False,indent=2)+'\n')
+(ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.','template':'template-provenance.json'},ensure_ascii=False,indent=2)+'\n')
 print(out);print(f'{len(order)} slides; latest approved structure, ecosystem mappings, local captions and community close.')

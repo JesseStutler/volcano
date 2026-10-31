@@ -1,0 +1,20 @@
+{
+  "source": "kubecon-na-2026-template.pptx",
+  "source_sha256": "5713709ed9aa8a397127060d0e4d0bede61ade1b6df2b8ed131e6080185183c9",
+  "source_url": "https://github.com/JesseStutler/volcano/blob/docs/kubecon-na-2026-assets/docs/ppt/KubeCon%20CloudNativeCon%20North%20America%202026%20-%20Branded%20PowerPoint.pptx",
+  "source_commit": "91168f97d6508109cab64e160e1981d913498ec5",
+  "original_inches": [
+    10.0,
+    5.625
+  ],
+  "output_inches": [
+    13.333332239720034,
+    7.5
+  ],
+  "layouts": {
+    "cover": "TITLE",
+    "section": "SECTION_HEADER",
+    "content": "1_Title and body"
+  },
+  "method": "Native template masters, layout artwork and images retained; outer layout transforms scaled uniformly. Original template file unchanged."
+}

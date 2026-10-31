@@ -237,5 +237,6 @@
     }
   ],
   "examples_are_excerpts": true,
-  "benchmark": "Framework and ongoing validation; no invented results."
+  "benchmark": "Framework and ongoing validation; no invented results.",
+  "template": "template-provenance.json"
 }
