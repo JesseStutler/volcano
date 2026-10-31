@@ -223,7 +223,7 @@
       "title": "v1.17 Roadmap",
       "chapter": 4,
       "svg": "svg/25-takeaways.svg",
-      "source": "v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751 and DRA/DRANET integration; ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked.",
+      "source": "v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751, DRA binpack #5713, ResourceClaim preemption/reclaim #6079 and DRANET integration; continued validation of DRA-backed extended resources (existing feature-gate wiring, not a new upstream feature); ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked.",
       "reference_set": 16
     },
     {

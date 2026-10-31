@@ -101,7 +101,7 @@
     },
     "volcano-sh/volcano/pulls/6094": {
       "number": 6094,
-      "title": "fix(scheduler): exclude preemption candidates on any unresolvable pre…",
+      "title": "fix(scheduler): exclude preemption candidates on any unresolvable pre\u2026",
       "state": "closed",
       "merged_at": "2026-10-20T06:52:18Z",
       "html_url": "https://github.com/volcano-sh/volcano/pull/6094"
@@ -121,6 +121,18 @@
       "Gang preemption and reclaim",
       "Tenant queue fairness",
       "Performance and scalability"
+    ]
+  },
+  "dra_roadmap_detail": {
+    "checked": "2026-10-31",
+    "binpack": "Planned device bin-packing extension, #5713. Upstream DRA Score integration is a separate existing capability.",
+    "preemption": "ResourceClaim preemption and reclaim support tracked in #6079.",
+    "extended_resources": "DRA-backed extended resources are an existing upstream capability. Volcano predicates already wires EnableDRAExtendedResource. Presented as continuing integration and validation, not a newly invented v1.17 feature.",
+    "sources": [
+      "https://github.com/volcano-sh/volcano/issues/5713",
+      "https://github.com/volcano-sh/volcano/issues/6079",
+      "https://kubernetes.io/docs/concepts/resource-management/dynamic-resource-allocation/dra-api/",
+      "https://github.com/volcano-sh/volcano/blob/master/pkg/scheduler/plugins/predicates/predicates.go"
     ]
   }
 }

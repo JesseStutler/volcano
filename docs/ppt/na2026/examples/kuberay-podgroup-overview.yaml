@@ -1,7 +1,8 @@
 minMember: 5
 subGroupPolicy:
+- name: headgroup
+  minSubGroups: 1
+  subGroupSize: 1
 - name: worker
   minSubGroups: 2
   subGroupSize: 2
-  matchLabelKeys:
-  - ray.io/worker-group-replica-name

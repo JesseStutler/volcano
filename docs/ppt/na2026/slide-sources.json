@@ -228,9 +228,11 @@
         "https://github.com/volcano-sh/volcano/issues/5751",
         "https://github.com/volcano-sh/volcano/issues/5713",
         "https://github.com/volcano-sh/volcano/issues/6079",
-        "https://github.com/volcano-sh/volcano/issues/5494"
+        "https://github.com/volcano-sh/volcano/issues/5494",
+        "https://kubernetes.io/docs/concepts/resource-management/dynamic-resource-allocation/dra-api/",
+        "https://github.com/volcano-sh/volcano/blob/master/pkg/scheduler/plugins/predicates/predicates.go"
       ],
-      "figure_source": "v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751 and DRA/DRANET integration; ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked."
+      "figure_source": "v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751, DRA binpack #5713, ResourceClaim preemption/reclaim #6079 and DRANET integration; continued validation of DRA-backed extended resources (existing feature-gate wiring, not a new upstream feature); ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked."
     },
     {
       "page": 26,

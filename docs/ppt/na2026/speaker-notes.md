@@ -76,7 +76,7 @@ Kthena lets users describe scheduling intent in ModelServing. The groupPolicy ap
 
 ## 17. Kthena: Role Replica Mapping
 
-Read the YAML and group diagrams together. E is the entry Pod and W is its worker. One Prefill replica and three Decode replicas make four two-Pod SubGroups, so the PodGroup minimum is eight.
+Read the YAML and group diagrams together. Each role replica has one Entry Pod and one Worker Pod. workerReplicas counts workers only. One Prefill replica and three Decode replicas make four two-Pod SubGroups, so the PodGroup minimum is eight.
 
 There are two role policies but four SubGroups. Role identity labels distinguish the three Decode replicas. The groupPolicy and rolePolicy from the previous slide also carry into the generated PodGroup. The excerpts here focus on counts, while the companion YAML retains selectors and topology fields.
 
@@ -84,7 +84,7 @@ There are two role policies but four SubGroups. Role identity labels distinguish
 
 The left diagram has one Ray head and two worker replicas, with two hosts per replica. The right diagram shows three SubGroups: one for the head and one for each worker replica. That gives five minimum Pods.
 
-With autoscaling enabled, minReplicas determines the minimum worker SubGroup count, and numOfHosts determines its size. The replica label keeps each pair of hosts together. Replica grouping must be enabled. The YAML focuses on workers; the head policy is included in the companion example. Worker-group topology support is still in progress.
+With autoscaling enabled, minReplicas determines the minimum worker SubGroup count, and numOfHosts determines its size. The replica label keeps each pair of hosts together. Replica grouping must be enabled. The YAML now includes both the head and worker policies. The companion example includes the replica-name selector. Worker-group topology support is still in progress.
 
 ## 19. Grove: PodGang Mapping
 
@@ -120,7 +120,7 @@ The test matrix should cover several kinds of pressure. Bursts test tail latency
 
 These are roadmap directions selected for this talk, not an official priority ranking. Resource defragmentation would relocate workloads at PodGroup granularity to consolidate GPU capacity. HyperNode work includes a kube-scheduler extender and SubGroup affinity and anti-affinity.
 
-Accelerator work covers generic xPU topology and DRA, including DRANET for network-device allocation and GPU/NIC locality. Ecosystem work extends group and topology support in Kubeflow, KubeRay, and LWS. The roadmap also tracks gang preemption and reclaim, tenant queue fairness, and performance improvements backed by benchmarks.
+Accelerator work covers generic xPU topology, DRA binpack, and ResourceClaim preemption and reclaim. DRA-backed extended resources let workloads keep familiar resource requests; continue validating that integration rather than presenting the upstream feature as new. DRANET adds network-device allocation and GPU/NIC locality. Ecosystem work extends group and topology support in Kubeflow, KubeRay, and LWS. The roadmap also tracks gang preemption and reclaim, tenant queue fairness, and performance improvements backed by benchmarks.
 
 ## 26. Volcano Users
 

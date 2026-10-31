@@ -1,8 +1,8 @@
 {
   "rendered_pages_changed": [
-    12,
-    20,
-    23,
+    17,
+    18,
+    19,
     25
   ],
   "test_matrix_page_24_unchanged": true,
@@ -32,5 +32,6 @@
     ],
     "scope": "Diagram arithmetic and topology membership checks, not a cluster simulation test."
   },
-  "roadmap": "Selected directions from issue 6166, not an official priority ranking."
+  "roadmap": "Selected directions from issue 6166, not an official priority ranking.",
+  "mapping_scope": "Both sides of the three mapping diagrams contain the same Pod counts. On-slide YAML includes all policies, including the Ray head."
 }

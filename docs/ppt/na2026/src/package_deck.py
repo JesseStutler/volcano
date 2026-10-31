@@ -2,13 +2,15 @@
 from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
 import fitz,shutil,json,hashlib,zipfile,zxingcpp,yaml
+from collections import Counter
+import xml.etree.ElementTree as ET
 root=Path(__file__).resolve().parents[1];ppt=root.parent;review=root/'review/latest';review.mkdir(parents=True,exist_ok=True)
 doc=fitz.open(ppt/'Volcano_KubeCon_NA_2026.pdf')
 assert len(doc)==26
 for n,page in enumerate(doc,1):page.get_pixmap(matrix=fitz.Matrix(1.5,1.5),alpha=False).save(review/f'slide-{n:02d}.png')
-# Current review focus: victim selection, RBG scope, comparisons and roadmap.
+# Current review focus: complete ecosystem count mappings and DRA roadmap.
 focus=Image.new('RGB',(2000,1155),'#e8edf2')
-for i,n in enumerate([12,20,23,25]):
+for i,n in enumerate([17,18,19,25]):
  page=doc[n-1];pix=page.get_pixmap(matrix=fitz.Matrix(970/page.rect.width,970/page.rect.width),alpha=False)
  focus.paste(Image.frombytes('RGB',(pix.width,pix.height),pix.samples),(20+(i%2)*990,20+(i//2)*575))
 focus.save(review/'refinement.png')
@@ -38,9 +40,26 @@ assert read('grove-podgroup-spec.yaml')['subGroupPolicy'][0]==g['podGroupSpec'][
 for filename,full in [('kthena-podgroup-overview.yaml',k['podGroupSpec']),('kuberay-podgroup-overview.yaml',r['podGroupSpec']),('grove-podgroup-overview.yaml',g['podGroupSpec'])]:
  overview=read(filename)
  assert overview['minMember']==full['minMember']
+ assert {p['name'] for p in overview['subGroupPolicy']}=={p['name'] for p in full['subGroupPolicy']}
+ assert sum(p['minSubGroups']*p['subGroupSize'] for p in overview['subGroupPolicy'])==overview['minMember']
  policies={p['name']:p for p in full['subGroupPolicy']}
  for p in overview['subGroupPolicy']:
   assert all(policies[p['name']][key]==value for key,value in p.items()),(filename,p)
+# Count the actual Pod labels on each side of the exported SVG, not just YAML.
+visual_counts={}
+for filename,expected in [
+ ('17-kthena-podgroup.svg',{'Entry':4,'Worker':4}),
+ ('18-ray-replicas.svg',{'Head':1,'Host 0':2,'Host 1':2}),
+ ('19-grove-mapping.svg',{'P0':1,'P1':1,'D0':1,'D1':1,'D2':1,'D3':1}),
+]:
+ sides={'workload':Counter(),'podgroup':Counter()}
+ for t in ET.parse(root/'svg'/filename).iter('{http://www.w3.org/2000/svg}text'):
+  label=''.join(t.itertext())
+  if label in expected:
+   sides['workload' if float(t.attrib['x'])<750 else 'podgroup'][label]+=1
+ assert sides['workload']==sides['podgroup']==Counter(expected),(filename,sides)
+ visual_counts[filename]={side:dict(counts) for side,counts in sides.items()}
+(review/'mapping-diagram-check.json').write_text(json.dumps(visual_counts,indent=2)+'\n')
 (report:=review/'mapping-check.json').write_text(json.dumps({'Kthena':'8 Pods = 1 prefill replica × 2 + 3 decode replicas × 2; groupPolicy/rolePolicy mapped','KubeRay':'autoscaling: 2 replicas × 2 hosts + 1 head; replica-name selector grouping','Grove':'2 + 4 minimum Pods; one SubGroup per group; grove.io/podclique selector','scope':'Excerpts and mapping arithmetic checked; not cluster integration tests.'},indent=2)+'\n')
 checks={}
 for ext in ['pptx','pdf']:

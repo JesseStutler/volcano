@@ -129,7 +129,7 @@ subGroupPolicy:
         for j,t in enumerate(pods):
             px=x+11+j*(pw+6)
             a.rect(px, 478, pw, 43, 'prefill' if color=='blue' else 'mint', color, 3)
-            a.text(px+pw/2, 507, t, 21, color, True, width=pw-3, anchor='middle')
+            a.text(px+pw/2, 507, t, 18 if t=='Worker' else 21, color, True, width=pw-3, anchor='middle')
 
     # Kthena: four role replicas are visible as four complete SubGroups.
     a=renew(27);mapping_badges(a, 'Kthena', 'kthena.svg')
@@ -148,10 +148,10 @@ subGroupPolicy:
 - name: decode
   minSubGroups: 3
   subGroupSize: 2''',24,('minMember','minSubGroups','subGroupSize'),filename='kthena-podgroup-overview.yaml')
-    for ox,heading in [(0,'ServingGroup: 4 role replicas'),(780,'PodGroup: 4 SubGroups, 8 Pods')]:
+    for ox,heading in [(0,'ServingGroup: 4 replicas, 8 Pods'),(780,'PodGroup: 4 SubGroups, 8 Pods')]:
         group_shell(a,ox,heading)
         for j,name in enumerate(['prefill-0','decode-0','decode-1','decode-2']):
-            small_group(a,ox+12+j*172,160,name,['E','W'],'green' if j==0 else 'blue',subgroup=ox>0)
+            small_group(a,ox+12+j*172,160,name,['Entry','Worker'],'green' if j==0 else 'blue',subgroup=ox>0)
     a.path([(706,487),(774,487)], True, 'blue')
 
     # KubeRay: include the head SubGroup as well as both worker replicas.
@@ -163,14 +163,15 @@ workerGroupSpecs:
   replicas: 2
   maxReplicas: 4
   numOfHosts: 2''',26,('minReplicas','numOfHosts'),filename='kuberay-raycluster-spec.yaml')
-    code(a,780,80,700,280,'PodGroup.spec (worker policy)', '''minMember: 5
+    code(a,780,80,700,288,'PodGroup.spec (head and workers)', '''minMember: 5
 subGroupPolicy:
+- name: headgroup
+  minSubGroups: 1
+  subGroupSize: 1
 - name: worker
   minSubGroups: 2
-  subGroupSize: 2
-  matchLabelKeys:
-  - ray.io/worker-group-replica-name''',25,('minMember','minSubGroups','subGroupSize'),filename='kuberay-podgroup-overview.yaml')
-    for ox,heading in [(0,'RayCluster: head and worker replicas'),(780,'PodGroup: 3 SubGroups, 5 Pods')]:
+  subGroupSize: 2''',24,('minMember','minSubGroups','subGroupSize'),filename='kuberay-podgroup-overview.yaml')
+    for ox,heading in [(0,'RayCluster: 1 head + 4 worker Pods'),(780,'PodGroup: 3 SubGroups, 5 Pods')]:
         group_shell(a,ox,heading)
         small_group(a,ox+12,154,'headgroup',['Head'],'green',ox>0)
         small_group(a,ox+182,247,'worker 0',['Host 0','Host 1'],subgroup=ox>0)
@@ -191,7 +192,7 @@ subGroupPolicy:
 - name: decode
   minSubGroups: 1
   subGroupSize: 4''',24,('minMember','minSubGroups','subGroupSize'),filename='grove-podgroup-overview.yaml')
-    for ox,heading in [(0,'PodGang: 2 named groups'),(780,'PodGroup: 2 SubGroups, 6 Pods')]:
+    for ox,heading in [(0,'PodGang: 2 groups, 6 Pods'),(780,'PodGroup: 2 SubGroups, 6 Pods')]:
         group_shell(a,ox,heading)
         small_group(a,ox+12,238,'prefill',['P0','P1'],'green',ox>0)
         small_group(a,ox+266,422,'decode',['D0','D1','D2','D3'],subgroup=ox>0)
@@ -217,7 +218,7 @@ subGroupPolicy:
     sources[19]='Maintainer comparison plan: replay one workload definition in reset, isolated runs with one scheduler at a time; record versions, configuration and common measurements. Planned comparisons, no invented results.'
     a=renew(21)
     draw_roadmap(a, assets)
-    sources[21]='v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751 and DRA/DRANET integration; ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked.'
+    sources[21]='v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751, DRA binpack #5713, ResourceClaim preemption/reclaim #6079 and DRANET integration; continued validation of DRA-backed extended resources (existing feature-gate wiring, not a new upstream feature); ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked.'
 
     titles.update({
         5:'Unified Scheduling Framework',

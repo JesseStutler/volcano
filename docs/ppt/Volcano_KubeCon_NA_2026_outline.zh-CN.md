@@ -31,7 +31,7 @@ Ricardo Aravena 和 Rainie Li。Latest，共 26 页。[PPT](Volcano_KubeCon_NA_2
 | 22 | 已有框架 | 场景、API 事件、指标和报告 |
 | 23 | 横向比较流程 | 固定输入、逐个运行、统一报告、重置重放 |
 | 24 | 场景矩阵 | 突发、gang 大小与碎片、网络拓扑 |
-| 25 | v1.17 Roadmap | 资源碎片整理、HyperNode/SubGroup、xPU/DRA、生态扩展 |
+| 25 | v1.17 Roadmap | 资源碎片整理、HyperNode/SubGroup、xPU/DRA（binpack、扩展资源、抢占回收）、生态扩展 |
 | 26 | Volcano Users / Q&A | 用户与平台 logo，官网、GitHub、Slack 二维码 |
 
 Kthena 的 rolePolicy 当前统一作用于各角色的 SubGroup；anti-affinity 接入仍是 proposal。KubeRay 的 worker-group topology 仍在推进，Grove 当前 backend 不支持 topologyConstraint。状态按 2026-10-30 源码核对，技术来源在 slide-sources.json。

@@ -134,13 +134,22 @@ def draw_roadmap(a, assets):
     entries=[
         (0,0,'Resource defragmentation','PodGroup-level relocation','Consolidate GPU capacity'),
         (780,0,'HyperNode and SubGroups','kube-scheduler extender','SubGroup affinity / anti-affinity'),
-        (0,267,'xPU Topology and DRA','Generic device topology','DRANET network allocation'),
         (780,267,'Ecosystem integration','Kubeflow, KubeRay, LWS','Gang and topology support'),
     ]
     for x,y,head,first,second in entries:
         a.text(x+234,y+42,head,31,'blue',True,width=466)
         a.text(x+234,y+113,first,28,'ink',width=466)
         a.text(x+234,y+157,second,28,'ink',width=466)
+
+    a.text(234,309,'xPU Topology and DRA',31,'blue',True,width=466)
+    for y,label in zip([346,381,416,451,486],[
+        'Generic xPU topology',
+        'DRA binpack',
+        'DRA-backed extended resources',
+        'DRA preemption and reclaim',
+        'DRANET network allocation',
+    ]):
+        a.text(234,y,label,27,'ink',width=466)
 
     # Equal GPU slots before and after moving complete two-Pod groups.
     for row,occupancy in enumerate([[2,2,2],[4,2,0]]):

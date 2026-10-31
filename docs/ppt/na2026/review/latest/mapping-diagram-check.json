@@ -1,0 +1,42 @@
+{
+  "17-kthena-podgroup.svg": {
+    "workload": {
+      "Entry": 4,
+      "Worker": 4
+    },
+    "podgroup": {
+      "Entry": 4,
+      "Worker": 4
+    }
+  },
+  "18-ray-replicas.svg": {
+    "workload": {
+      "Head": 1,
+      "Host 0": 2,
+      "Host 1": 2
+    },
+    "podgroup": {
+      "Head": 1,
+      "Host 0": 2,
+      "Host 1": 2
+    }
+  },
+  "19-grove-mapping.svg": {
+    "workload": {
+      "P0": 1,
+      "P1": 1,
+      "D0": 1,
+      "D1": 1,
+      "D2": 1,
+      "D3": 1
+    },
+    "podgroup": {
+      "P0": 1,
+      "P1": 1,
+      "D0": 1,
+      "D1": 1,
+      "D2": 1,
+      "D3": 1
+    }
+  }
+}
