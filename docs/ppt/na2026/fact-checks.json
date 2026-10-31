@@ -101,10 +101,26 @@
     },
     "volcano-sh/volcano/pulls/6094": {
       "number": 6094,
-      "title": "fix(scheduler): exclude preemption candidates on any unresolvable pre\u2026",
+      "title": "fix(scheduler): exclude preemption candidates on any unresolvable pre…",
       "state": "closed",
       "merged_at": "2026-10-20T06:52:18Z",
       "html_url": "https://github.com/volcano-sh/volcano/pull/6094"
     }
+  },
+  "roadmap_presentation_review": {
+    "checked": "2026-10-31",
+    "source": "https://github.com/volcano-sh/volcano/issues/6166",
+    "scope": "Selected directions for this talk, not an official priority ranking",
+    "directions": [
+      "PodGroup-level resource defragmentation",
+      "HyperNode extender and SubGroup affinity / anti-affinity",
+      "Generic xPU topology, DRA and DRANET",
+      "Ecosystem group and topology integrations"
+    ],
+    "also_tracked": [
+      "Gang preemption and reclaim",
+      "Tenant queue fairness",
+      "Performance and scalability"
+    ]
   }
 }

@@ -6,9 +6,13 @@
 
 重点页面：[工作负载](slide-04.png) · [协同框架](slide-05.png) · [NodeShard](slide-06.png) · [组结构引入](slide-08.png) · [Gang 抢占](slide-12.png) · [Kthena 配置](slide-16.png) / [映射](slide-17.png) · [KubeRay](slide-18.png) · [Grove](slide-19.png) · [社区](slide-26.png)。
 
-[本轮重点预览](refinement.png)：封面、多级 gang、拓扑示例、gang 抢占痛点，Kthena / KubeRay / Grove 映射、生态路线、横向 benchmark 和 Users 页。
+[本轮重点预览](refinement.png)：第 12 页 gang 抢占、第 20 页 RBG 集成范围、第 23 页横向 benchmark 实验流程、第 25 页 v1.17 Roadmap。
 
 [模板和文字检查](template-check.json)。[英文备注格式检查](notes-check.json)。
+
+第 12 页的训练 gang 均需要两个 Pod，且各自留在一个 HyperNode 内。分散抢占四个 job 各一个 Pod 会打断四个 gang；按优先级选择 A、B 两组后，在 West 内模拟四个新 Pod 的放置，可行才提交。[示例数量与范围核对](focus-check.json)。
+
+Roadmap 按 [v1.17 跟踪 issue](https://github.com/volcano-sh/volcano/issues/6166) 选取与本场相关的方向，不表示官方优先级排序。
 
 ## 技术核对
 

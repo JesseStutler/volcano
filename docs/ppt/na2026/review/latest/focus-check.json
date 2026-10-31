@@ -1,0 +1,36 @@
+{
+  "rendered_pages_changed": [
+    12,
+    20,
+    23,
+    25
+  ],
+  "test_matrix_page_24_unchanged": true,
+  "preemption_example": {
+    "training_jobs": 6,
+    "pods_per_gang": 2,
+    "every_job_assigned_to_one_hypernode": true,
+    "scattered_victims": [
+      "A0",
+      "B0",
+      "C0",
+      "D0"
+    ],
+    "training_jobs_interrupted_by_scattered_choice": 4,
+    "priority_ordered_selected_gangs": [
+      "A",
+      "B"
+    ],
+    "selected_victim_pods": 4,
+    "preemptor_pods": 4,
+    "placement_domain": "West",
+    "untouched_training_jobs": [
+      "C",
+      "D",
+      "E",
+      "F"
+    ],
+    "scope": "Diagram arithmetic and topology membership checks, not a cluster simulation test."
+  },
+  "roadmap": "Selected directions from issue 6166, not an official priority ranking."
+}

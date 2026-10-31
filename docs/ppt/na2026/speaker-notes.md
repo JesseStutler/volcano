@@ -52,9 +52,11 @@ For example, one SubGroup may need tight communication within a leaf, while anot
 
 ## 12. Gang-Aware Preemption
 
-Start with two complete training gangs. A has four Pods in HyperNode A. B has two Pods in A and two in B. The incoming gang S needs four slots within one spine HyperNode.
+Each training gang needs both of its Pods and stays inside one HyperNode. Taking one Pod from each of A, B, C and D interrupts four training jobs and can lose work since their last checkpoint.
 
-Pod-level selection can take two Pods from each training job. S fits, but both training gangs become incomplete. They may need to restart from checkpoints and lose work since the last checkpoint. Gang-aware selection instead checks the complete victim gang A and the preemptor's topology constraints. In this example, evicting A admits S while B stays complete.
+Within HyperNode West, consider victim gangs in priority order. A and B together release four slots. Simulate the complete incoming gang, including its topology constraints. Commit only a feasible plan. A failed trial causes no eviction.
+
+These training jobs have no surplus Pods, so this example uses whole-gang victims. C, D and the jobs in HyperNode East keep running.
 
 ## 13. PodGroup Anti-Affinity
 
@@ -92,9 +94,9 @@ The backend uses grove.io/podclique labels to select group members. The companio
 
 ## 20. Ecosystem Roadmap
 
-RBG integration is in progress, including RoleInstance grouping and support for querying the HyperNode tree. That gives the controller access to the topology hierarchy as the integration develops.
+RBG integration is in progress at both the PodGroup and SubGroup levels. HyperNode tree query support is another part of that work, giving the controller access to the topology hierarchy.
 
-For Kubeflow, the planned work extends group structure and topology support. For LWS, it includes coordination across roles and multiple groups. These are integration directions, not a claim that all capabilities are available today.
+For Kubeflow, the planned work extends group structure and topology support. For LWS, it includes coordination across roles and multiple groups. These are ongoing and planned integrations, not a claim that every capability is already available.
 
 ## 21. Benchmark framework & progress
 
@@ -106,17 +108,19 @@ The framework generates workloads and records what happens through the API and s
 
 ## 23. Cross-Scheduler Benchmarks
 
-This is a comparison plan, not a results table. Replay the same workloads against Volcano and a Kubernetes scheduler baseline, with additional schedulers to follow. Reset cluster state between runs and record versions, settings, and resource requests.
+This page shows how we plan to compare schedulers. Keep the workload definition, arrivals, and resource requests fixed. Run one scheduler at a time, reset cluster state, and replay the same inputs for the next scheduler. Repeat runs and retain versions, configuration, and measurements.
 
-Bursts and mixed workloads give us common starting points. For gang and topology cases, check feature support and match semantics before comparing results. We want to find each scheduler's best scenarios, not rank implementations using workloads they cannot represent.
+Check that compared schedulers support equivalent scheduling semantics, especially for gangs and topology. This is an experiment design, not a performance result. The next slide covers which workload and topology scenarios to test.
 
 ## 24. Workload and Topology Test Matrix
 
 The test matrix should cover several kinds of pressure. Bursts test tail latency and backlog recovery, while larger gangs expose resource fragmentation. Topology cases check whether complete groups land in valid domains. The goal is to find the scenarios each scheduler handles well and understand the tradeoffs.
 
-## 25. v1.17 Priorities
+## 25. v1.17 Roadmap
 
-For v1.17, the related priorities are fewer unnecessary evictions, SubGroup relationships, and lower scheduling overhead. Topology-aware reclaim is under review, while SubGroup affinity and anti-affinity remain planned work. Benchmark replay and profiling will help evaluate performance changes. We also want broader scheduler comparisons and topology tests to guide that work.
+These are roadmap directions selected for this talk, not an official priority ranking. Resource defragmentation would relocate workloads at PodGroup granularity to consolidate GPU capacity. HyperNode work includes a kube-scheduler extender and SubGroup affinity and anti-affinity.
+
+Accelerator work covers generic xPU topology and DRA, including DRANET for network-device allocation and GPU/NIC locality. Ecosystem work extends group and topology support in Kubeflow, KubeRay, and LWS. The roadmap also tracks gang preemption and reclaim, tenant queue fairness, and performance improvements backed by benchmarks.
 
 ## 26. Volcano Users
 

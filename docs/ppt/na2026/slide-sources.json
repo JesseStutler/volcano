@@ -97,9 +97,11 @@
       "title": "Gang-Aware Preemption",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/ac7f6a4dfe30d992c3b293ea5974c646e3da5da7/pkg/scheduler/actions/gangpreempt/gangpreempt.go",
-        "https://github.com/volcano-sh/volcano/pull/5920"
+        "https://github.com/volcano-sh/volcano/pull/5920",
+        "https://github.com/volcano-sh/volcano/blob/master/pkg/scheduler/actions/utils/bundle.go",
+        "https://github.com/volcano-sh/volcano/blob/master/pkg/scheduler/actions/utils/simulate.go"
       ],
-      "figure_source": "China 2026 gang-preemption motivation. Authored comparison with identical initial capacity: gang A has 4 Pods in HyperNode A; gang B has 2 Pods in each domain. Pod-level victims interrupt both jobs, whole-gang victims preserve B. Illustration, not a measured optimality claim."
+      "figure_source": "Illustrative six-job scenario. Each two-Pod training gang stays inside one HyperNode. Four scattered victim Pods interrupt four West jobs; gangs A and B release the same four slots. Priority-ordered gang candidates are simulated within the preemptor domain before committing. Based on gangpreempt.go and actions/utils/bundle.go and simulate.go; not a scheduler benchmark result."
     },
     {
       "page": 13,
@@ -179,7 +181,7 @@
         "https://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md",
         "https://github.com/kubernetes-sigs/lws/blob/main/README.md"
       ],
-      "figure_source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers. RBG integration including HyperNode tree queries is ongoing, as confirmed by the maintainer in this review."
+      "figure_source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers. RBG PodGroup and SubGroup integration, including HyperNode tree queries, is ongoing, as confirmed by the maintainer in this review."
     },
     {
       "page": 21,
@@ -204,7 +206,7 @@
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/manifests/monitoring/grafana-dashboard.json",
         "https://github.com/volcano-sh/volcano/issues/6166"
       ],
-      "figure_source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh."
+      "figure_source": "Maintainer comparison plan: replay one workload definition in reset, isolated runs with one scheduler at a time; record versions, configuration and common measurements. Planned comparisons, no invented results."
     },
     {
       "page": 24,
@@ -217,13 +219,18 @@
     },
     {
       "page": 25,
-      "title": "v1.17 Priorities",
+      "title": "v1.17 Roadmap",
       "urls": [
         "https://github.com/volcano-sh/volcano/issues/6166",
-        "https://github.com/volcano-sh/volcano/issues/5494",
-        "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md"
+        "https://github.com/volcano-sh/volcano/issues/3948",
+        "https://github.com/volcano-sh/volcano/issues/6028",
+        "https://github.com/volcano-sh/volcano/issues/5347",
+        "https://github.com/volcano-sh/volcano/issues/5751",
+        "https://github.com/volcano-sh/volcano/issues/5713",
+        "https://github.com/volcano-sh/volcano/issues/6079",
+        "https://github.com/volcano-sh/volcano/issues/5494"
       ],
-      "figure_source": "v1.17 roadmap #6166 checked 2026-10-30; #5984/#5994/#5946/#5347/#5036/#5921 open; topology-aware reclaim PR #5920 open; #6066 and #6094 merged. Performance umbrella #5494. Benchmark expansion reflects maintainer intent."
+      "figure_source": "v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751 and DRA/DRANET integration; ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked."
     },
     {
       "page": 26,

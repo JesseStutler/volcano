@@ -106,7 +106,7 @@
       "title": "Gang-Aware Preemption",
       "chapter": 2,
       "svg": "svg/12-gang-preemption.svg",
-      "source": "China 2026 gang-preemption motivation. Authored comparison with identical initial capacity: gang A has 4 Pods in HyperNode A; gang B has 2 Pods in each domain. Pod-level victims interrupt both jobs, whole-gang victims preserve B. Illustration, not a measured optimality claim.",
+      "source": "Illustrative six-job scenario. Each two-Pod training gang stays inside one HyperNode. Four scattered victim Pods interrupt four West jobs; gangs A and B release the same four slots. Priority-ordered gang candidates are simulated within the preemptor domain before committing. Based on gangpreempt.go and actions/utils/bundle.go and simulate.go; not a scheduler benchmark result.",
       "reference_set": null
     },
     {
@@ -178,7 +178,7 @@
       "title": "Ecosystem Roadmap",
       "chapter": 3,
       "svg": "svg/20-ecosystem.svg",
-      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers. RBG integration including HyperNode tree queries is ongoing, as confirmed by the maintainer in this review.",
+      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers. RBG PodGroup and SubGroup integration, including HyperNode tree queries, is ongoing, as confirmed by the maintainer in this review.",
       "reference_set": 10
     },
     {
@@ -205,7 +205,7 @@
       "title": "Cross-Scheduler Benchmarks",
       "chapter": 4,
       "svg": "svg/23-benchmark-progress.svg",
-      "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
+      "source": "Maintainer comparison plan: replay one workload definition in reset, isolated runs with one scheduler at a time; record versions, configuration and common measurements. Planned comparisons, no invented results.",
       "reference_set": 14
     },
     {
@@ -220,10 +220,10 @@
     {
       "page": 25,
       "source_id": 21,
-      "title": "v1.17 Priorities",
+      "title": "v1.17 Roadmap",
       "chapter": 4,
       "svg": "svg/25-takeaways.svg",
-      "source": "v1.17 roadmap #6166 checked 2026-10-30; #5984/#5994/#5946/#5347/#5036/#5921 open; topology-aware reclaim PR #5920 open; #6066 and #6094 merged. Performance umbrella #5494. Benchmark expansion reflects maintainer intent.",
+      "source": "v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751 and DRA/DRANET integration; ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked.",
       "reference_set": 16
     },
     {

@@ -6,9 +6,9 @@ root=Path(__file__).resolve().parents[1];ppt=root.parent;review=root/'review/lat
 doc=fitz.open(ppt/'Volcano_KubeCon_NA_2026.pdf')
 assert len(doc)==26
 for n,page in enumerate(doc,1):page.get_pixmap(matrix=fitz.Matrix(1.5,1.5),alpha=False).save(review/f'slide-{n:02d}.png')
-# Current review focus: the approved layout, topology and ecosystem refinements.
-focus=Image.new('RGB',(2000,2895),'#e8edf2')
-for i,n in enumerate([1,9,11,12,17,18,19,20,23,26]):
+# Current review focus: victim selection, RBG scope, comparisons and roadmap.
+focus=Image.new('RGB',(2000,1155),'#e8edf2')
+for i,n in enumerate([12,20,23,25]):
  page=doc[n-1];pix=page.get_pixmap(matrix=fitz.Matrix(970/page.rect.width,970/page.rect.width),alpha=False)
  focus.paste(Image.frombytes('RGB',(pix.width,pix.height),pix.samples),(20+(i%2)*990,20+(i//2)*575))
 focus.save(review/'refinement.png')

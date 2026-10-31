@@ -81,65 +81,10 @@ subGroupPolicy:
   networkTopology:
     highestTierName: spine''', 28, ('highestTierName',), filename='multilevel-topology-spec.yaml')
 
-    # The identical initial resources support either choice of four victims.
-    # A has four Pods in HyperNode A. B has two Pods in each HyperNode.
-    a = renew(26)
-    a.rect(0, 0, 1480, 80, 'prefill', None, 5)
-    a.text(20, 32, 'Incoming gang S', 31, 'blue', True, width=360)
-    a.text(20, 65, 'minMember: 4', 25, 'blue', width=320, mono=True)
-    for j in range(4):
-        compact_pod(a, 380+j*83, 21, 69, 'S'+str(j))
-    a.text(760, 32, 'Four Pods in one spine HyperNode', 29, 'blue', True, width=700)
-    a.text(760, 65, 'highestTierName: spine', 25, 'blue', width=700, mono=True)
-
-    def cable(points):
-        a.path(points, False, 'light')
-        a.routes[-1]['kind'] = 'fabric'
-
-    def switch(cx, y):
-        original(a, 'china-17-multilevel-topology.png', cx-21, y, 42, 30, (818,110,158,114))
-        symbol=a.front.pop(); clip=f'victim-switch-{cx}-{y}'
-        scale=42/158; left=cx-21; top=y+(30-114*scale)/2
-        pts=' '.join(f'{left+px*scale},{top+py*scale}' for px,py in [(48,0),(158,0),(158,52),(118,114),(0,114),(0,56)])
-        a.front.append(f'<defs><clipPath id="{clip}"><polygon points="{pts}"/></clipPath></defs><g clip-path="url(#{clip})">{symbol}</g>')
-
-    cases = [
-        ('Before', ['A0','A1','A2','A3','B0','B1'], ['B2','B3','free','free'],
-         'Two complete training gangs', 'A: 4 Pods     B: 4 Pods'),
-        ('Pod-level victims', ['S0','S1','A2','A3','S2','S3'], ['B2','B3','free','free'],
-         'Two training jobs interrupted', 'Evict 2 Pods from A and 2 from B'),
-        ('Gang-aware victims', ['S0','S1','S2','S3','B0','B1'], ['B2','B3','free','free'],
-         'Training gang B stays complete', 'Evict the complete 4-Pod gang A'),
-    ]
-    for i,(heading,slots_a,slots_b,outcome,detail) in enumerate(cases):
-        x=i*505; w=470; c='orange' if i==1 else 'blue'
-        a.text(x+w/2, 127, heading, 32, c, True, width=w-10, anchor='middle')
-        a.rect(x, 155, w, 190, 'white', 'line', 7, layer='bg')
-        a.text(x+18, 186, 'HyperNode A (spine)', 25, 'ink', True, width=430)
-        switch(x+235, 200)
-        for leaf in (x+78, x+235, x+392):
-            cable([(x+235,230),(leaf,244)]);switch(leaf,244)
-        for j,t in enumerate(slots_a):
-            px=x+13+j*75
-            cable([(x+78+(j//2)*157,274),(px+34,292)])
-            if t.startswith('S'):color='blue'
-            elif t.startswith('A'):color='orange'
-            else:color='green'
-            compact_pod(a, px, 292, 68, t, color, faded=(i==1 and t.startswith('A')))
-        # A complete gang is outlined as one victim/admission unit.
-        if i in (0,2):
-            a.rect(x+8, 285, 299, 51, 'none', 'orange' if i==0 else 'blue', 5, dash=True)
-        a.rect(x, 367, w, 111, 'white', 'line', 7, layer='bg')
-        a.text(x+18, 397, 'HyperNode B (spine)', 25, 'ink', True, width=430)
-        for j,t in enumerate(slots_b):
-            px=x+23+j*111
-            if t=='free':
-                a.rect(px, 421, 92, 38, 'white', 'light', 3)
-                a.text(px+46, 448, t, 23, 'muted', width=85, anchor='middle')
-            else:compact_pod(a, px, 421, 92, t, 'green', faded=i==1)
-        a.text(x+w/2, 516, outcome, 28, c, True, width=w-12, anchor='middle')
-        a.text(x+w/2, 554, detail, 24, 'ink', width=w-12, anchor='middle')
-    sources[26] = 'China 2026 gang-preemption motivation. Authored comparison with identical initial capacity: gang A has 4 Pods in HyperNode A; gang B has 2 Pods in each domain. Pod-level victims interrupt both jobs, whole-gang victims preserve B. Illustration, not a measured optimality claim.'
+    from review_focus import draw_preemption, draw_comparison, draw_roadmap
+    a=renew(26)
+    draw_preemption(a, original)
+    sources[26]='Illustrative six-job scenario. Each two-Pod training gang stays inside one HyperNode. Four scattered victim Pods interrupt four West jobs; gangs A and B release the same four slots. Priority-ordered gang candidates are simulated within the preemptor domain before committing. Based on gangpreempt.go and actions/utils/bundle.go and simulate.go; not a scheduler benchmark result.'
 
     # A project badge separates each controller's identity from the diagrams.
     a=arts[14]
@@ -253,7 +198,7 @@ subGroupPolicy:
     a.path([(706,487),(774,487)],True,'blue')
 
     a=renew(13)
-    rows=[('RoleBasedGroup (RBG)','rbg.svg','Integration in progress','RoleInstance gang mapping','HyperNode tree queries'),
+    rows=[('RoleBasedGroup (RBG)','rbg.svg','Integration in progress','PodGroup and SubGroup integration','HyperNode tree queries'),
           ('Kubeflow','kubeflow.svg','Planned','Training group structure','Network topology constraints'),
           ('LeaderWorkerSet (LWS)','leaderworkerset.svg','Planned','Multi-role and multi-group support','Relationships across groups')]
     for i,(name,logo,status,head,detail) in enumerate(rows):
@@ -265,44 +210,14 @@ subGroupPolicy:
         a.text(555,y+54,head,32,'ink',True,width=915)
         a.text(555,y+113,detail,30,'blue',width=915)
         if i<2:a.path([(555,y+166),(1480,y+166)],False,'light')
-    sources[13] += ' RBG integration including HyperNode tree queries is ongoing, as confirmed by the maintainer in this review.'
+    sources[13] += ' RBG PodGroup and SubGroup integration, including HyperNode tree queries, is ongoing, as confirmed by the maintainer in this review.'
 
-    # A comparison plan, not a fabricated results chart.
     a=renew(19)
-    a.text(0,34,'Matched workloads and cluster capacity',32,'blue',True,width=1000)
-    a.rect(1140,0,340,50,'sand',None,5)
-    a.text(1310,34,'Comparisons planned',28,'amber',True,width=320,anchor='middle')
-    xcols=[0,500,750,1080,1480]
-    for x,w,head in [(0,500,'Scenario'),(500,250,'Volcano'),(750,330,'Kubernetes scheduler'),(1080,400,'Measurements')]:
-        a.rect(x,77,w,61,'prefill',None,0)
-        a.text(x+16,116,head,27,'blue',True,width=w-28)
-    rows=[('Bursty arrivals','Planned','Planned','Tail latency\nBacklog recovery'),
-          ('Mixed workloads','Planned','Planned','Binding throughput\nWait time by workload'),
-          ('Complete gangs','Planned','Capability check','Gang completion\nPartial placement'),
-          ('Network topology','Planned','Capability check','Placement validity\nGang admission latency')]
-    for i,(name,v,k,metrics) in enumerate(rows):
-        y=138+i*89
-        a.rect(0,y,1480,89,'white' if i%2 else 'pale',None,0,layer='bg')
-        for x in xcols[1:-1]:a.path([(x,y),(x,y+89)],False,'light')
-        a.text(157,y+52,name,29,'ink',True,width=325)
-        a.text(625,y+52,v,27,'blue',True,width=230,anchor='middle')
-        a.text(915,y+52,k,26,'muted',width=310,anchor='middle')
-        a.text(1100,y+35,metrics,25,'ink',width=365)
-        if i==0:
-            a.path([(18,y+65),(37,y+65),(37,y+47),(57,y+47),(57,y+24),(78,y+24),(78,y+57),(101,y+57),(101,y+65),(130,y+65)],False,'blue')
-        elif i==1:
-            for j,(ww,c) in enumerate([(95,'blue'),(52,'green'),(75,'orange')]):
-                a.rect(23,y+17+j*22,ww,13,c,None,2)
-        elif i==2:
-            a.rect(17,y+15,114,62,'white','blue',4,dash=True)
-            for j in range(3):a.rect(27+j*33,y+33,25,27,'prefill','blue',2)
-        else:
-            a.rect(64,y+15,22,15,'blue',None,2)
-            a.path([(75,y+30),(75,y+45),(34,y+45),(34,y+57)],False,'blue')
-            a.path([(75,y+45),(115,y+45),(115,y+57)],False,'blue')
-            for xx in (23,104):a.rect(xx,y+57,22,15,'prefill','blue',2)
-    a.text(0,546,'Find the scenarios each scheduler handles well',29,'blue',True,width=1000)
-    a.text(1480,546,'More schedulers to follow',25,'muted',width=460,anchor='end')
+    draw_comparison(a)
+    sources[19]='Maintainer comparison plan: replay one workload definition in reset, isolated runs with one scheduler at a time; record versions, configuration and common measurements. Planned comparisons, no invented results.'
+    a=renew(21)
+    draw_roadmap(a, assets)
+    sources[21]='v1.17 roadmap #6166. Selected directions for this session, not an official priority ranking: PodGroup-level resource defragmentation #3948; HyperNode extender #6028 and SubGroup affinity #5347; generic xPU topology #5751 and DRA/DRANET integration; ecosystem expansion. Preemption/reclaim, queue fairness and performance are also tracked.'
 
     titles.update({
         5:'Unified Scheduling Framework',
@@ -321,7 +236,7 @@ subGroupPolicy:
         18:'Scheduling Benchmark Framework',
         19:'Cross-Scheduler Benchmarks',
         20:'Workload and Topology Test Matrix',
-        21:'v1.17 Priorities',
+        21:'v1.17 Roadmap',
         24:'Volcano Users',
     })
     # Edit wording at text nodes so neither arrow symbols nor dot separators

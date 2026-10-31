@@ -26,7 +26,8 @@
 - `assets/kubecon-na-2026-template.pptx`：收到的原始模板，文件内容未改动。
 - `template-provenance.json`：模板来源、校验值和使用的版式。
 - `src/approved_batch.py`：当前新增页、局部注释、生态映射和社区合页。
-- `src/review_refinement.py`：最终标题、无分隔符注释、生态分组映射、gang 抢占痛点和测试对比矩阵。
+- `src/review_refinement.py`：最终标题、无分隔符注释和生态分组映射。
+- `src/review_focus.py`：gang victim 选择与模拟、横向比较实验流程、v1.17 Roadmap 配图。
 - `src/revision_notes.py`：26 页简短英文 Speaker Notes。
 - `speaker-notes.md`：英文备注的阅读版。
 - `slide-sources.json`：各页技术来源，与演讲提示分开保存。

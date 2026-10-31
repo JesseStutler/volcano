@@ -28,7 +28,7 @@
   },
   "roadmap": {
     "source": "maintainer instructions in this conversation",
-    "rbg": "integration in progress, including HyperNode tree query support",
+    "rbg": "PodGroup and SubGroup integration in progress, including HyperNode tree query support",
     "kubeflow": "planned deeper group/topology integration",
     "lws": "planned multi-group support",
     "v1.17": "https://github.com/volcano-sh/volcano/issues/6166"
