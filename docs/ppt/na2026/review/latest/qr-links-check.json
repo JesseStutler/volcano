@@ -1,0 +1,40 @@
+{
+  "checked": "2026-10-31",
+  "destinations": [
+    {
+      "url": "https://volcano.sh",
+      "status": 200,
+      "final_url": "https://volcano.sh/",
+      "redirects": [],
+      "title": [
+        "Volcano"
+      ]
+    },
+    {
+      "url": "https://github.com/volcano-sh/volcano",
+      "status": 200,
+      "final_url": "https://github.com/volcano-sh/volcano",
+      "redirects": [],
+      "title": [
+        "GitHub - volcano-sh/volcano: A Cloud Native Batch System (Project under CNCF) \u00b7 GitHub"
+      ]
+    },
+    {
+      "url": "https://cloud-native.slack.com/archives/C011GJDQS0N",
+      "status": 403,
+      "final_url": "https://cloud-native.slack.com/?redir=%2Farchives%2FC011GJDQS0N%3Fname%3DC011GJDQS0N",
+      "redirects": [
+        {
+          "status": 302,
+          "url": "https://cloud-native.slack.com/archives/C011GJDQS0N"
+        }
+      ],
+      "title": [
+        "Slack"
+      ]
+    }
+  ],
+  "slack_channel_matches_official_readme": true,
+  "slack_reference": "https://github.com/volcano-sh/volcano#contact",
+  "slack_access": "Redirects to workspace entry. Unauthenticated response was HTTP 403. Channel contents not verified without workspace login."
+}

@@ -26,6 +26,7 @@
 - `assets/kubecon-na-2026-template.pptx`：收到的原始模板，文件内容未改动。
 - `template-provenance.json`：模板来源、校验值和使用的版式。
 - `src/approved_batch.py`：当前新增页、局部注释、生态映射和社区合页。
+- `src/review_refinement.py`：最终标题、无分隔符注释、生态分组映射、gang 抢占痛点和测试对比矩阵。
 - `src/revision_notes.py`：26 页简短英文 Speaker Notes。
 - `speaker-notes.md`：英文备注的阅读版。
 - `slide-sources.json`：各页技术来源，与演讲提示分开保存。
@@ -56,4 +57,4 @@ Ricardo：Nunchux AI 的 AI Infrastructure Lead、CNCF TOC Alternate (GB)。Rain
 
 Kthena anti-affinity 仍是 proposal；KubeRay worker-group topology 仍在推进；Grove 当前 backend 不支持 topologyConstraint。SubGroup 亲和/反亲和作为下一步讲。Benchmark 展示已有框架和验证计划，不填猜测结果，也不用 KWOK 推导真实 GPU 执行吞吐。
 
-社区页保留 32 个原始 logo，统一 viewport、边框与灰条；官网、GitHub、Slack 二维码沿用原素材。未新增商业伙伴关系或生产用户数量声明。
+末页标题为 Volcano Users，保留 32 个原始 logo，统一 viewport、边框与灰条。它们的使用及平台集成方式不同，不统一称作商业伙伴或 adopters。官网、GitHub、Slack 二维码沿用原素材，并从最终导出页实际解码核对。Slack 地址与上游 README 一致，访问频道需要工作区登录。

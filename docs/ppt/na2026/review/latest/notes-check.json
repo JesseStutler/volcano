@@ -3,112 +3,138 @@
   "language": "English",
   "timings": false,
   "notes_match_source": true,
-  "notes_unchanged_after_template": true,
+  "paragraph_bullets_explicitly_disabled": true,
+  "paragraph_indents_removed": true,
   "word_counts": [
     {
       "page": 1,
+      "paragraphs": 1,
       "words": 36
     },
     {
       "page": 2,
+      "paragraphs": 1,
       "words": 24
     },
     {
       "page": 3,
+      "paragraphs": 1,
       "words": 17
     },
     {
       "page": 4,
+      "paragraphs": 1,
       "words": 58
     },
     {
       "page": 5,
+      "paragraphs": 1,
       "words": 53
     },
     {
       "page": 6,
-      "words": 52
+      "paragraphs": 3,
+      "words": 80
     },
     {
       "page": 7,
+      "paragraphs": 1,
       "words": 24
     },
     {
       "page": 8,
+      "paragraphs": 1,
       "words": 51
     },
     {
       "page": 9,
+      "paragraphs": 1,
       "words": 48
     },
     {
       "page": 10,
+      "paragraphs": 1,
       "words": 47
     },
     {
       "page": 11,
-      "words": 55
+      "paragraphs": 3,
+      "words": 72
     },
     {
       "page": 12,
-      "words": 54
+      "paragraphs": 3,
+      "words": 91
     },
     {
       "page": 13,
+      "paragraphs": 1,
       "words": 41
     },
     {
       "page": 14,
+      "paragraphs": 1,
       "words": 48
     },
     {
       "page": 15,
+      "paragraphs": 1,
       "words": 21
     },
     {
       "page": 16,
+      "paragraphs": 1,
       "words": 50
     },
     {
       "page": 17,
-      "words": 58
+      "paragraphs": 3,
+      "words": 79
     },
     {
       "page": 18,
-      "words": 54
+      "paragraphs": 3,
+      "words": 87
     },
     {
       "page": 19,
-      "words": 49
+      "paragraphs": 3,
+      "words": 68
     },
     {
       "page": 20,
-      "words": 50
+      "paragraphs": 3,
+      "words": 62
     },
     {
       "page": 21,
+      "paragraphs": 1,
       "words": 28
     },
     {
       "page": 22,
+      "paragraphs": 1,
       "words": 49
     },
     {
       "page": 23,
-      "words": 52
+      "paragraphs": 3,
+      "words": 76
     },
     {
       "page": 24,
+      "paragraphs": 1,
       "words": 47
     },
     {
       "page": 25,
+      "paragraphs": 1,
       "words": 50
     },
     {
       "page": 26,
-      "words": 36
+      "paragraphs": 3,
+      "words": 61
     }
-  ],
-  "notes_unchanged_after_cover_and_chapter_layout": true
+  ]
 }

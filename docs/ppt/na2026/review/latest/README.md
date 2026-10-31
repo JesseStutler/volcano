@@ -2,13 +2,13 @@
 
 [PDF](../../../Volcano_KubeCon_NA_2026.pdf) · [PPT](../../../Volcano_KubeCon_NA_2026.pptx?raw=true) · [大纲](../../../Volcano_KubeCon_NA_2026_outline.zh-CN.md)
 
-26 页，已使用 NA 2026 官方模板。封面与章节使用山景，正文使用蓝色标题栏；技术图和英文备注保留。
+26 页，使用 NA 2026 官方模板。封面留白和标题已调整，文字分隔符已清理，英文备注改成无圆点段落并补充讲解例子。
 
 重点页面：[工作负载](slide-04.png) · [协同框架](slide-05.png) · [NodeShard](slide-06.png) · [组结构引入](slide-08.png) · [Gang 抢占](slide-12.png) · [Kthena 配置](slide-16.png) / [映射](slide-17.png) · [KubeRay](slide-18.png) · [Grove](slide-19.png) · [社区](slide-26.png)。
 
-[封面与章节页集中预览](refinement.png)：封面，以及第 3、7、15、21 页的四张章节页。封面补充公司与职务、移除日期；章节编号放大至 52 pt，与标题首行对齐。
+[本轮重点预览](refinement.png)：封面、多级 gang、拓扑示例、gang 抢占痛点，Kthena / KubeRay / Grove 映射、生态路线、横向 benchmark 和 Users 页。
 
-[模板与内容保留检查](template-check.json)。
+[模板和文字检查](template-check.json)。[英文备注格式检查](notes-check.json)。
 
 ## 技术核对
 
@@ -22,4 +22,6 @@ Kthena 使用共享的 `template.networkTopology.rolePolicy`。KubeRay 示例开
 
 检查全部 26 页导出结果、文字边界、流程箭头、连线文字避让、PPT 内嵌 PNG、YAML 块格式和映射数值。物理网络连线保留原 fabric 风格。
 
-[二维码解码](qr-check.json) · [映射核对](mapping-check.json) · [PDF/PPT 校验值](checksums.json)。
+[二维码解码](qr-check.json) · [链接核对](qr-links-check.json) · [映射核对](mapping-check.json) · [PDF/PPT 校验值](checksums.json)。
+
+官网和 GitHub 返回正常页面。Slack 二维码与项目 README 的 `#volcano` 频道地址一致；未登录访问会跳到工作区入口，本次未验证登录后的频道内容。

@@ -37,6 +37,7 @@ for slide in manifest:
         if not parts:parts=[el]
         for t in parts:
             text=t.text or '';x=float(t.get('x',el.get('x')))
+            assert not any(c in text for c in '→·•|'),(slide['page'],'text separator',text)
             if t is not el:y+=float(t.get('dy',0))
             w=font.getlength(text)/4
             if el.get('text-anchor')=='middle':x-=w/2
@@ -72,12 +73,18 @@ prs=Presentation(ROOT.parent/'Volcano_KubeCon_NA_2026.pptx')
 assert len(prs.slides)==len(manifest)
 for i,s in enumerate(prs.slides,1):
     assert s.notes_slide.notes_text_frame.text.strip(),i
+    for paragraph in s.notes_slide.notes_text_frame.paragraphs:
+        props=paragraph._p.get_or_add_pPr()
+        assert props.find('{http://schemas.openxmlformats.org/drawingml/2006/main}buNone') is not None,(i,'inherited notes bullet')
+        assert not re.match(r'^\s*[.•·]',paragraph.text),(i,'leading notes bullet')
+        assert not any(c in paragraph.text for c in '→·•|'),(i,'notes separator')
     svg=manifest[i-1]['svg']
     if svg:
         expected=(ROOT/'png'/(Path(svg).stem+'.png')).read_bytes()
         assert any(getattr(sh,'shape_type',None)==13 and sh.image.blob==expected for sh in s.shapes),(i,'PPT does not embed the current PNG')
     for shape in s.shapes:
         assert shape.left>=0 and shape.top>=0 and shape.left+shape.width<=prs.slide_width+1 and shape.top+shape.height<=prs.slide_height+1,(i,shape.name)
+        if shape.has_text_frame:assert not any(c in shape.text for c in '→·•|'),(i,'native text separator',shape.text)
 if errors:
     print(json.dumps(errors,ensure_ascii=False,indent=2));raise SystemExit(1)
 print(f'{len(manifest)} slides: text bounds, notes, image paths, route/text clearance, orthogonal arrows and symmetric arrowheads passed.')

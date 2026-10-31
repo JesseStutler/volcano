@@ -1,0 +1,8 @@
+minMember: 6
+subGroupPolicy:
+- name: prefill
+  minSubGroups: 1
+  subGroupSize: 2
+- name: decode
+  minSubGroups: 1
+  subGroupSize: 4

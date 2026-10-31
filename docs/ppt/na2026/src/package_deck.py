@@ -6,13 +6,11 @@ root=Path(__file__).resolve().parents[1];ppt=root.parent;review=root/'review/lat
 doc=fitz.open(ppt/'Volcano_KubeCon_NA_2026.pdf')
 assert len(doc)==26
 for n,page in enumerate(doc,1):page.get_pixmap(matrix=fitz.Matrix(1.5,1.5),alpha=False).save(review/f'slide-{n:02d}.png')
-# Current review focus: speaker affiliations on the cover and four chapter dividers.
-focus=Image.new('RGB',(1480,1740),'#e8edf2')
-for i,n in enumerate([1,3,7,15]):
- page=doc[n-1];pix=page.get_pixmap(matrix=fitz.Matrix(715/page.rect.width,715/page.rect.width),alpha=False)
- focus.paste(Image.frombytes('RGB',(pix.width,pix.height),pix.samples),(20+(i%2)*735,20+(i//2)*435))
-page=doc[20];pix=page.get_pixmap(matrix=fitz.Matrix(1440/page.rect.width,1440/page.rect.width),alpha=False)
-focus.paste(Image.frombytes('RGB',(pix.width,pix.height),pix.samples),(20,900))
+# Current review focus: the approved layout, topology and ecosystem refinements.
+focus=Image.new('RGB',(2000,2895),'#e8edf2')
+for i,n in enumerate([1,9,11,12,17,18,19,20,23,26]):
+ page=doc[n-1];pix=page.get_pixmap(matrix=fitz.Matrix(970/page.rect.width,970/page.rect.width),alpha=False)
+ focus.paste(Image.frombytes('RGB',(pix.width,pix.height),pix.samples),(20+(i%2)*990,20+(i//2)*575))
 focus.save(review/'refinement.png')
 qr_im=Image.open(review/'slide-26.png');urls=sorted(b.text for b in zxingcpp.read_barcodes(qr_im))
 assert urls==sorted(['https://volcano.sh','https://github.com/volcano-sh/volcano','https://cloud-native.slack.com/archives/C011GJDQS0N']),urls
@@ -36,6 +34,13 @@ for gg,gs in zip(g['podGangSpec']['podGroups'],g['podGroupSpec']['subGroupPolicy
  assert gs['name']==gg['name'] and gs['subGroupSize']==max(gg['minReplicas'],1) and gs['minSubGroups']==1
  assert gs['labelSelector']['matchLabels']=={'grove.io/podclique':gg['name']}
 assert read('grove-podgroup-spec.yaml')['subGroupPolicy'][0]==g['podGroupSpec']['subGroupPolicy'][1]
+# The new on-slide summaries must agree with the full selector/topology mappings.
+for filename,full in [('kthena-podgroup-overview.yaml',k['podGroupSpec']),('kuberay-podgroup-overview.yaml',r['podGroupSpec']),('grove-podgroup-overview.yaml',g['podGroupSpec'])]:
+ overview=read(filename)
+ assert overview['minMember']==full['minMember']
+ policies={p['name']:p for p in full['subGroupPolicy']}
+ for p in overview['subGroupPolicy']:
+  assert all(policies[p['name']][key]==value for key,value in p.items()),(filename,p)
 (report:=review/'mapping-check.json').write_text(json.dumps({'Kthena':'8 Pods = 1 prefill replica × 2 + 3 decode replicas × 2; groupPolicy/rolePolicy mapped','KubeRay':'autoscaling: 2 replicas × 2 hosts + 1 head; replica-name selector grouping','Grove':'2 + 4 minimum Pods; one SubGroup per group; grove.io/podclique selector','scope':'Excerpts and mapping arithmetic checked; not cluster integration tests.'},indent=2)+'\n')
 checks={}
 for ext in ['pptx','pdf']:

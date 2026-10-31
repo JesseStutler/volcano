@@ -13,6 +13,7 @@ from pptx import Presentation
 from pptx.util import Inches,Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
+from pptx.oxml.xmlchemy import OxmlElement
 
 ROOT=Path(__file__).resolve().parents[1]; PPT=ROOT.parent; REPO=PPT.parents[1]
 ASSETS=ROOT/'assets'; SVG=ROOT/'svg'; PNG=ROOT/'png'
@@ -298,6 +299,8 @@ add_community_slides(arts, art, titles, ASSETS)
 subtitles[22]=""
 from approved_batch import apply_batch
 order=apply_batch(arts, art, code, original, titles, subtitles, sources, ASSETS)
+from review_refinement import refine
+refine(arts, code, original, titles, subtitles, sources, ASSETS)
 from mapping_examples import write_examples
 write_examples(ROOT)
 page_for={source_id:page for page,source_id in enumerate(order,1)}
@@ -337,18 +340,18 @@ for page,n in enumerate(order,1):
   ptext(sl,.455,(1.528-heading_h)/2,10.0,heading_h,'\n'.join(lines),28,True,'white')
  if n==1:
   titles[n]='Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents'
-  ptext(sl,.50,1.73,12.15,.66,'Volcano for the Agentic AI Era:',40,True,'white')
-  ptext(sl,.52,2.45,11.95,1.08,'Unified Scheduling Across Training,\nInference, and Agents',29,False,'white')
+  ptext(sl,.52,1.85,12.15,.64,'Volcano for the Agentic AI Era:',36,True,'white')
+  ptext(sl,.52,2.65,12.15,.53,'Unified Scheduling Across Training, Inference, and Agents',26,False,'white')
   for x,person,role,community in [
-   (.52,'Ricardo Aravena','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)'),
-   (6.85,'Rainie Li','Engineering Manager · Pinterest','Apache YuniKorn PMC member')
+   (.52,'Ricardo Aravena','AI Infrastructure Lead at Nunchux AI','CNCF TOC Alternate (GB)'),
+   (6.85,'Rainie Li','Engineering Manager at Pinterest','Apache YuniKorn PMC member')
   ]:
-   ptext(sl,x,3.49,5.95,.40,person,23,True,'white')
-   ptext(sl,x,3.87,5.95,.32,role,18,False,'white')
-   ptext(sl,x,4.13,5.95,.30,community,17,False,'white')
+   ptext(sl,x,3.50,5.95,.40,person,22,True,'white')
+   ptext(sl,x,3.93,5.95,.30,role,17,False,'white')
+   ptext(sl,x,4.22,5.95,.28,community,16,False,'white')
  elif n==2:
   titles[n]='Speakers'
-  for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)\nCloud native and AI infrastructure','nunchux.ai · CNCF TOC'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
+  for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead, Nunchux AI','CNCF TOC Alternate (GB)\nCloud native and AI infrastructure','nunchux.ai'),(7.05,'Rainie Li','rainie.jpeg','Engineering Manager, Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','yunikorn.apache.org')]:
    sl.shapes.add_picture(str(ASSETS/photo),Inches(x),Inches(2.00),width=Inches(1.75),height=Inches(1.75))
    ptext(sl,x,4.02,5.4,.5,person,30,True)
    ptext(sl,x,4.68,5.3,.43,role,22,False,'blue')
@@ -365,12 +368,19 @@ for page,n in enumerate(order,1):
   if subtitles[n]:ptext(sl,.52,1.64,12.25,.39,subtitles[n],19,False,'blue')
   sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.10 if subtitles[n] else 1.80),width=Inches(12.333333),height=Inches(4.666667))
  if not special:
-  ptext(sl,.52,7.13,11.5,.22,'Volcano  |  KubeCon + CloudNativeCon North America 2026',9,False,'muted')
+  ptext(sl,.52,7.13,11.5,.22,'Volcano at KubeCon + CloudNativeCon North America 2026',9,False,'muted')
   ptext(sl,12.05,7.09,.75,.28,f'{page:02d} / {len(order)}',11,False,'muted',PP_ALIGN.RIGHT)
  sl.notes_slide.notes_text_frame.text=NOTES[n]
+ # Explicitly override the notes master's inherited bullet and indentation.
+ for paragraph in sl.notes_slide.notes_text_frame.paragraphs:
+  props=paragraph._p.get_or_add_pPr();props.set('marL','0');props.set('indent','0')
+  for element in list(props):
+   if etree.QName(element).localname.startswith('bu'):props.remove(element)
+  props.append(OxmlElement('a:buNone'))
+  paragraph.font.size=Pt(14);paragraph.space_after=Pt(8)
  manifest.append({'page':page,'source_id':n,'title':titles[n],'chapter':chapters.get(n,0),'svg':f'svg/{arts[n].name}.svg' if n in arts else None,'source':sources.get(n,'Native PowerPoint text'),'reference_set':oldnotes.get(n)})
 prs.core_properties.title=titles[1];prs.core_properties.subject='KubeCon NA 2026 — revised technical presentation'
-prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='Official KubeCon NA 2026 template applied 2026-10-31. Retained China/EU figures and all English speaker notes.'
+prs.core_properties.author='Ricardo Aravena; Rainie Li';prs.core_properties.comments='Official KubeCon NA 2026 template. Approved refinements to mappings, gang-preemption motivation, benchmarks and plain-paragraph speaker notes.'
 out=PPT/'Volcano_KubeCon_NA_2026.pptx';prs.save(out)
 write_notes_markdown(ROOT, order, titles)
 (ROOT/'manifest.json').write_text(json.dumps({'deck':out.name,'slides':manifest,'examples_are_excerpts':True,'benchmark':'Framework and ongoing validation; no invented results.','template':'template-provenance.json'},ensure_ascii=False,indent=2)+'\n')

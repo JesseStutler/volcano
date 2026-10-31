@@ -40,7 +40,7 @@
     {
       "page": 5,
       "source_id": 5,
-      "title": "A Coordinated Scheduling Framework",
+      "title": "Unified Scheduling Framework",
       "chapter": 1,
       "svg": "svg/05-unified-architecture.svg",
       "source": "China 2026 slide 7; same architecture family as EU 2026.",
@@ -49,7 +49,7 @@
     {
       "page": 6,
       "source_id": 6,
-      "title": "NodeShard: Strategy-Driven Node Allocation",
+      "title": "Dynamic Node Sharding",
       "chapter": 1,
       "svg": "svg/06-nodeshard.svg",
       "source": "China 2026 slide 9; docs/design/agent-scheduler.md; shard API types.",
@@ -67,7 +67,7 @@
     {
       "page": 8,
       "source_id": 25,
-      "title": "Whole Workloads, Complete Compute Groups",
+      "title": "Training and Inference Groups",
       "chapter": 2,
       "svg": "svg/08-workload-gangs.svg",
       "source": "Conceptual workload structure. PP/TP training and disaggregated inference examples; no controller API claimed.",
@@ -76,7 +76,7 @@
     {
       "page": 9,
       "source_id": 8,
-      "title": "PodGroup and SubGroup: Preserve Workload Structure",
+      "title": "Multi-Level Gang Scheduling",
       "chapter": 2,
       "svg": "svg/09-group-structure.svg",
       "source": "China 2026 slide 14. Figure reused unchanged.",
@@ -85,7 +85,7 @@
     {
       "page": 10,
       "source_id": 9,
-      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
+      "title": "HyperNode: Network Topology",
       "chapter": 2,
       "svg": "svg/10-hypernode-api.svg",
       "source": "China 2026 slide 16 (physical fabric); benchmark/scripts/create-hypernodes.sh.",
@@ -103,16 +103,16 @@
     {
       "page": 12,
       "source_id": 26,
-      "title": "Gang Preemption Within a HyperNode",
+      "title": "Gang-Aware Preemption",
       "chapter": 2,
       "svg": "svg/12-gang-preemption.svg",
-      "source": "China 2026 slide 12 scenario, using the switch symbols and topology vocabulary of EU 16 / China 17. Gang boundaries and before/after placement are authored SVG. gangpreempt implementation reviewed at ac7f6a4dfe30d992c3b293ea5974c646e3da5da7.",
+      "source": "China 2026 gang-preemption motivation. Authored comparison with identical initial capacity: gang A has 4 Pods in HyperNode A; gang B has 2 Pods in each domain. Pod-level victims interrupt both jobs, whole-gang victims preserve B. Illustration, not a measured optimality claim.",
       "reference_set": null
     },
     {
       "page": 13,
       "source_id": 11,
-      "title": "Keep Each Instance Together, Place Instances Apart",
+      "title": "PodGroup Anti-Affinity",
       "chapter": 2,
       "svg": "svg/13-instance-isolation.svg",
       "source": "docs/user-guide/how_to_use_podgroup_anti_affinity.md; group-topology-affinity plugin, v1.16.",
@@ -121,7 +121,7 @@
     {
       "page": 14,
       "source_id": 16,
-      "title": "Next: Relationships Between SubGroups",
+      "title": "SubGroup Affinity and Anti-Affinity",
       "chapter": 2,
       "svg": "svg/14-subgroup-next.svg",
       "source": "docs/design/group-topology-affinity.md (proposed SubGroup relationships); roadmap #6166.",
@@ -139,7 +139,7 @@
     {
       "page": 16,
       "source_id": 14,
-      "title": "Kthena: Configure Group and Role Topology",
+      "title": "Kthena: Group and Role Topology",
       "chapter": 3,
       "svg": "svg/16-kthena-mapping.svg",
       "source": "China 2026 slide 22; Kthena ModelServing gang scheduling guide.",
@@ -148,7 +148,7 @@
     {
       "page": 17,
       "source_id": 27,
-      "title": "Kthena: Carry Role Replicas into PodGroup",
+      "title": "Kthena: Role Replica Mapping",
       "chapter": 3,
       "svg": "svg/17-kthena-podgroup.svg",
       "source": "Kthena podgroupmanager/manager.go appendSubGroupPolicy and syncPodGroupNetworkTopology, main checked 2026-10-30.",
@@ -157,7 +157,7 @@
     {
       "page": 18,
       "source_id": 15,
-      "title": "KubeRay: Map Multi-Host Worker Replicas",
+      "title": "KubeRay: Multi-Host Replica Mapping",
       "chapter": 3,
       "svg": "svg/18-ray-replicas.svg",
       "source": "KubeRay #5249; #5369 open as of 2026-10-29. Volcano SubGroup API.",
@@ -166,7 +166,7 @@
     {
       "page": 19,
       "source_id": 23,
-      "title": "Grove: Map PodGang Groups into Volcano",
+      "title": "Grove: PodGang Mapping",
       "chapter": 3,
       "svg": "svg/19-grove-mapping.svg",
       "source": "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go (reviewed 2026-10-29); #516 merged. topologyConstraint is currently rejected.",
@@ -175,10 +175,10 @@
     {
       "page": 20,
       "source_id": 13,
-      "title": "Next: RBG, Kubeflow, and LWS",
+      "title": "Ecosystem Roadmap",
       "chapter": 3,
       "svg": "svg/20-ecosystem.svg",
-      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers.",
+      "source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers. RBG integration including HyperNode tree queries is ongoing, as confirmed by the maintainer in this review.",
       "reference_set": 10
     },
     {
@@ -193,7 +193,7 @@
     {
       "page": 22,
       "source_id": 18,
-      "title": "A Repeatable Scheduling Benchmark Framework",
+      "title": "Scheduling Benchmark Framework",
       "chapter": 4,
       "svg": "svg/22-benchmark-architecture.svg",
       "source": "benchmark/README.md; benchmark/scripts; benchmark/config; benchmark/testcases.",
@@ -202,7 +202,7 @@
     {
       "page": 23,
       "source_id": 19,
-      "title": "Next: Cross-Scheduler Comparisons",
+      "title": "Cross-Scheduler Benchmarks",
       "chapter": 4,
       "svg": "svg/23-benchmark-progress.svg",
       "source": "benchmark/README.md; benchmark/Makefile; benchmark/scripts/collect-report.sh.",
@@ -211,7 +211,7 @@
     {
       "page": 24,
       "source_id": 20,
-      "title": "Next: Workload and Topology Test Matrix",
+      "title": "Workload and Topology Test Matrix",
       "chapter": 4,
       "svg": "svg/24-benchmark-measurement.svg",
       "source": "benchmark/scripts/collect-report.sh and audit-exporter event definitions. No performance results selected.",
@@ -220,7 +220,7 @@
     {
       "page": 25,
       "source_id": 21,
-      "title": "v1.17: Placement, Preemption, and Performance",
+      "title": "v1.17 Priorities",
       "chapter": 4,
       "svg": "svg/25-takeaways.svg",
       "source": "v1.17 roadmap #6166 checked 2026-10-30; #5984/#5994/#5946/#5347/#5036/#5921 open; topology-aware reclaim PR #5920 open; #6066 and #6094 merged. Performance umbrella #5494. Benchmark expansion reflects maintainer intent.",
@@ -229,7 +229,7 @@
     {
       "page": 26,
       "source_id": 24,
-      "title": "Volcano Community",
+      "title": "Volcano Users",
       "chapter": 0,
       "svg": "svg/26-community-users.svg",
       "source": "China slide 25 logos and QR assets. Single community / Q&A ending, consistent frames and gray top strips. Logos remain original image bytes in SVG viewports.",

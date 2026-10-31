@@ -39,7 +39,7 @@
     },
     {
       "page": 5,
-      "title": "A Coordinated Scheduling Framework",
+      "title": "Unified Scheduling Framework",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/design/agent-scheduler.md"
       ],
@@ -47,9 +47,11 @@
     },
     {
       "page": 6,
-      "title": "NodeShard: Strategy-Driven Node Allocation",
+      "title": "Dynamic Node Sharding",
       "urls": [
-        "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/design/agent-scheduler.md"
+        "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/design/agent-scheduler.md",
+        "https://github.com/volcano-sh/volcano/blob/master/docs/design/sharding_controller.md",
+        "https://github.com/volcano-sh/volcano/blob/master/pkg/controllers/sharding/policy/README.md"
       ],
       "figure_source": "China 2026 slide 9; docs/design/agent-scheduler.md; shard API types."
     },
@@ -61,13 +63,13 @@
     },
     {
       "page": 8,
-      "title": "Whole Workloads, Complete Compute Groups",
+      "title": "Training and Inference Groups",
       "urls": [],
       "figure_source": "Conceptual workload structure. PP/TP training and disaggregated inference examples; no controller API claimed."
     },
     {
       "page": 9,
-      "title": "PodGroup and SubGroup: Preserve Workload Structure",
+      "title": "Multi-Level Gang Scheduling",
       "urls": [
         "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/gang-scheduling.md"
       ],
@@ -75,7 +77,7 @@
     },
     {
       "page": 10,
-      "title": "HyperNode: From Physical Fabric to Scheduling Domains",
+      "title": "HyperNode: Network Topology",
       "urls": [
         "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/network-topology.md",
         "https://github.com/volcano-sh/volcano/releases/tag/v1.16.0"
@@ -92,16 +94,16 @@
     },
     {
       "page": 12,
-      "title": "Gang Preemption Within a HyperNode",
+      "title": "Gang-Aware Preemption",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/ac7f6a4dfe30d992c3b293ea5974c646e3da5da7/pkg/scheduler/actions/gangpreempt/gangpreempt.go",
         "https://github.com/volcano-sh/volcano/pull/5920"
       ],
-      "figure_source": "China 2026 slide 12 scenario, using the switch symbols and topology vocabulary of EU 16 / China 17. Gang boundaries and before/after placement are authored SVG. gangpreempt implementation reviewed at ac7f6a4dfe30d992c3b293ea5974c646e3da5da7."
+      "figure_source": "China 2026 gang-preemption motivation. Authored comparison with identical initial capacity: gang A has 4 Pods in HyperNode A; gang B has 2 Pods in each domain. Pod-level victims interrupt both jobs, whole-gang victims preserve B. Illustration, not a measured optimality claim."
     },
     {
       "page": 13,
-      "title": "Keep Each Instance Together, Place Instances Apart",
+      "title": "PodGroup Anti-Affinity",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/v1.16.0/docs/user-guide/how_to_use_podgroup_anti_affinity.md",
         "https://github.com/volcano-sh/volcano/pull/5349",
@@ -112,7 +114,7 @@
     },
     {
       "page": 14,
-      "title": "Next: Relationships Between SubGroups",
+      "title": "SubGroup Affinity and Anti-Affinity",
       "urls": [
         "https://github.com/volcano-sh/volcano/releases/tag/v1.16.0",
         "https://github.com/volcano-sh/volcano/issues/6166",
@@ -128,7 +130,7 @@
     },
     {
       "page": 16,
-      "title": "Kthena: Configure Group and Role Topology",
+      "title": "Kthena: Group and Role Topology",
       "urls": [
         "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/model-serving-controller/podgroupmanager/manager.go",
         "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/apis/workload/v1alpha1/servinggroup_types.go",
@@ -138,7 +140,7 @@
     },
     {
       "page": 17,
-      "title": "Kthena: Carry Role Replicas into PodGroup",
+      "title": "Kthena: Role Replica Mapping",
       "urls": [
         "https://github.com/volcano-sh/kthena/blob/f8672ec9912b641f21b999503a8803cd1c07ab0c/pkg/model-serving-controller/podgroupmanager/manager.go"
       ],
@@ -146,7 +148,7 @@
     },
     {
       "page": 18,
-      "title": "KubeRay: Map Multi-Host Worker Replicas",
+      "title": "KubeRay: Multi-Host Replica Mapping",
       "urls": [
         "https://github.com/kuberay-project/kuberay/blob/3ec5cbb8d8d3c6b249eaa06258f1369cf2172dcc/ray-operator/controllers/ray/batchscheduler/volcano/volcano_scheduler.go",
         "https://github.com/kuberay-project/kuberay/pull/5249",
@@ -156,7 +158,7 @@
     },
     {
       "page": 19,
-      "title": "Grove: Map PodGang Groups into Volcano",
+      "title": "Grove: PodGang Mapping",
       "urls": [
         "https://github.com/ai-dynamo/grove/blob/214dc1c0e2d8f1abb8f2fc9c1d7fd90539dfcde2/operator/internal/scheduler/volcano/backend.go",
         "https://github.com/NVIDIA/grove/blob/1d8f83b38a3f54d9827bb579a68c0315ed54ce91/operator/internal/scheduler/volcano/backend.go"
@@ -165,7 +167,7 @@
     },
     {
       "page": 20,
-      "title": "Next: RBG, Kubeflow, and LWS",
+      "title": "Ecosystem Roadmap",
       "urls": [
         "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/gang-scheduling.md",
         "https://github.com/volcano-sh/kthena/blob/main/docs/kthena/versioned_docs/version-v1.0.0/user-guide/network-topology.md",
@@ -177,7 +179,7 @@
         "https://github.com/sgl-project/rbg/blob/main/doc/features/gang-scheduling.md",
         "https://github.com/kubernetes-sigs/lws/blob/main/README.md"
       ],
-      "figure_source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers."
+      "figure_source": "Kthena docs; KubeRay #5249 / #5369; Grove #516; RBG gang-scheduling docs; Kubeflow Trainer Volcano plugin; LWS README / DisaggregatedSet. Roadmap intent supplied by maintainers. RBG integration including HyperNode tree queries is ongoing, as confirmed by the maintainer in this review."
     },
     {
       "page": 21,
@@ -187,7 +189,7 @@
     },
     {
       "page": 22,
-      "title": "A Repeatable Scheduling Benchmark Framework",
+      "title": "Scheduling Benchmark Framework",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md",
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/README.md"
@@ -196,7 +198,7 @@
     },
     {
       "page": 23,
-      "title": "Next: Cross-Scheduler Comparisons",
+      "title": "Cross-Scheduler Benchmarks",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/collect-report.sh",
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/manifests/monitoring/grafana-dashboard.json",
@@ -206,7 +208,7 @@
     },
     {
       "page": 24,
-      "title": "Next: Workload and Topology Test Matrix",
+      "title": "Workload and Topology Test Matrix",
       "urls": [
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/README.md",
         "https://github.com/volcano-sh/volcano/blob/a3d50b503/benchmark/scripts/collect-report.sh"
@@ -215,7 +217,7 @@
     },
     {
       "page": 25,
-      "title": "v1.17: Placement, Preemption, and Performance",
+      "title": "v1.17 Priorities",
       "urls": [
         "https://github.com/volcano-sh/volcano/issues/6166",
         "https://github.com/volcano-sh/volcano/issues/5494",
@@ -225,7 +227,7 @@
     },
     {
       "page": 26,
-      "title": "Volcano Community",
+      "title": "Volcano Users",
       "urls": [
         "https://volcano.sh",
         "https://github.com/volcano-sh/volcano",

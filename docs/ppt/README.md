@@ -12,14 +12,14 @@ Ricardo Aravena · Rainie Li。26 页，更新于 2026-10-31。
 - [制作源文件](na2026/)
 - [下载源文件包](Volcano_KubeCon_NA_2026_sources.zip?raw=true)
 
-已使用收到的 **KubeCon + CloudNativeCon North America 2026 官方模板**：封面和章节页沿用蓝色山景，正文使用蓝色标题栏。现有技术图、YAML 和英文 Speaker Notes 继续沿用。
+使用 **KubeCon + CloudNativeCon North America 2026 官方模板**。本轮调整封面留白、精简标题、清理文字分隔符；补齐 Kthena、KubeRay、Grove 的分组图与 YAML 对照，以及 gang 抢占的痛点对比。
 
-封面已补上两位讲者的公司与职务，移除日期；四张章节页的编号放大，与标题首行对齐并整体下移。
+生态页标明 RBG 与 HyperNode 树查询正在集成，benchmark 页增加横向测试矩阵，末页改为 Volcano Users。
 
-[封面与章节页预览](na2026/review/latest/refinement.png)
+[本轮重点页面预览](na2026/review/latest/refinement.png)
 
-26 页均已加入简短的英文 Speaker Notes，不标时长。NA 材料只保留当前版本。
+26 页均有英文 Speaker Notes，使用无圆点的普通段落，不标时长。NodeShard、拓扑示例和生态映射的备注已补充说明。NA 材料只保留当前版本。
 
-[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=23b8df63e57d)
+[打开全尺寸预览](Volcano_KubeCon_NA_2026_preview.png?v=708ba3f02e91)
 
-![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=23b8df63e57d)
+![Latest 全页预览](Volcano_KubeCon_NA_2026_preview.png?v=708ba3f02e91)
