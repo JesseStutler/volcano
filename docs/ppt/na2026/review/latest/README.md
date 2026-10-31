@@ -6,7 +6,7 @@
 
 重点页面：[工作负载](slide-04.png) · [协同框架](slide-05.png) · [NodeShard](slide-06.png) · [组结构引入](slide-08.png) · [Gang 抢占](slide-12.png) · [Kthena 配置](slide-16.png) / [映射](slide-17.png) · [KubeRay](slide-18.png) · [Grove](slide-19.png) · [社区](slide-26.png)。
 
-[模板效果集中预览](refinement.png)：封面、章节、工作负载、PG/SG 和 gang 抢占页。
+[封面与章节页集中预览](refinement.png)：封面，以及第 3、7、15、21 页的四张章节页。封面补充公司与职务、移除日期；章节编号放大至 52 pt，与标题首行对齐。
 
 [模板与内容保留检查](template-check.json)。
 

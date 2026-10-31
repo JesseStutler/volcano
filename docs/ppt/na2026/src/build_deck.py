@@ -337,10 +337,15 @@ for page,n in enumerate(order,1):
   ptext(sl,.455,(1.528-heading_h)/2,10.0,heading_h,'\n'.join(lines),28,True,'white')
  if n==1:
   titles[n]='Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents'
-  ptext(sl,.50,1.79,12.15,.66,'Volcano for the Agentic AI Era:',40,True,'white')
-  ptext(sl,.52,2.57,11.95,1.08,'Unified Scheduling Across Training,\nInference, and Agents',29,False,'white')
-  ptext(sl,.52,3.80,11.6,.41,'Ricardo Aravena  ·  Rainie Li',23,True,'white')
-  ptext(sl,.52,4.20,11.8,.29,'Salt Lake City · November 9–12, 2026',15,False,'white')
+  ptext(sl,.50,1.73,12.15,.66,'Volcano for the Agentic AI Era:',40,True,'white')
+  ptext(sl,.52,2.45,11.95,1.08,'Unified Scheduling Across Training,\nInference, and Agents',29,False,'white')
+  for x,person,role,community in [
+   (.52,'Ricardo Aravena','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)'),
+   (6.85,'Rainie Li','Engineering Manager · Pinterest','Apache YuniKorn PMC member')
+  ]:
+   ptext(sl,x,3.49,5.95,.40,person,23,True,'white')
+   ptext(sl,x,3.87,5.95,.32,role,18,False,'white')
+   ptext(sl,x,4.13,5.95,.30,community,17,False,'white')
  elif n==2:
   titles[n]='Speakers'
   for x,person,photo,role,detail,link in [(.80,'Ricardo Aravena','ricardo.jpeg','AI Infrastructure Lead · Nunchux AI','CNCF TOC Alternate (GB)\nCloud native and AI infrastructure','nunchux.ai · CNCF TOC'),(7.05,'Rainie Li','rainie.jpeg','Pinterest','Data processing infrastructure\nApache YuniKorn PMC member','Apache YuniKorn · rainieli')]:
@@ -351,10 +356,11 @@ for page,n in enumerate(order,1):
    ptext(sl,x,6.35,5.3,.30,link,15,False,'blue')
  elif n in dividers:
   c,title,bridge,question=dividers[n];titles[n]=title.replace('\n',' ');chapters[n]=c
-  ptext(sl,.65,1.58,2,.56,f'{c:02d}',31,True,'white')
-  ptext(sl,.65,2.20,8.45,1.40,title,38,True,'white')
-  ptext(sl,.68,3.78,8.35,.60,bridge,22,False,'white')
-  for i,t in enumerate(agenda,1):ptext(sl,9.35,1.72+(i-1)*.64,3.30,.63,f'{i:02d}  {t}',15,i==c,'white' if i==c else '#bed1ed')
+  # The larger number and first title line share a baseline.
+  ptext(sl,.65,2.25,1.12,.85,f'{c:02d}',52,True,'white')
+  ptext(sl,2.00,2.43,7.10,1.40,title,38,True,'white')
+  ptext(sl,2.03,3.94,7.05,.75,bridge,22,False,'white')
+  for i,t in enumerate(agenda,1):ptext(sl,9.35,2.15+(i-1)*.64,3.30,.63,f'{i:02d}  {t}',15,i==c,'white' if i==c else '#bed1ed')
  else:
   if subtitles[n]:ptext(sl,.52,1.64,12.25,.39,subtitles[n],19,False,'blue')
   sl.shapes.add_picture(str(PNG/(arts[n].name+'.png')),Inches(.50),Inches(2.10 if subtitles[n] else 1.80),width=Inches(12.333333),height=Inches(4.666667))

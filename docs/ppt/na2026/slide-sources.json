@@ -4,7 +4,12 @@
     {
       "page": 1,
       "title": "Volcano for the Agentic AI Era: Unified Scheduling Across Training, Inference, and Agents",
-      "urls": [],
+      "urls": [
+        "https://events.linuxfoundation.org/pytorch-conference-north-america/program/meet-the-committees/",
+        "https://www.linkedin.com/in/rainie-li-71b2b146",
+        "https://www.cncf.io/people/technical-oversight-committee/",
+        "https://yunikorn.apache.org/community/people/"
+      ],
       "figure_source": "Native PowerPoint text"
     },
     {

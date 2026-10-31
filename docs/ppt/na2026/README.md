@@ -52,7 +52,7 @@ python3 docs/ppt/na2026/src/package_deck.py
 
 ## 讲述口径
 
-Ricardo：Nunchux AI 的 AI Infrastructure Lead、CNCF TOC Alternate (GB)。Rainie：Pinterest、Apache YuniKorn PMC。公开资料来源保存在 `slide-sources.json`。
+Ricardo：Nunchux AI 的 AI Infrastructure Lead、CNCF TOC Alternate (GB)。Rainie：Pinterest 的 Engineering Manager、Apache YuniKorn PMC。公开资料来源保存在 `slide-sources.json`。
 
 Kthena anti-affinity 仍是 proposal；KubeRay worker-group topology 仍在推进；Grove 当前 backend 不支持 topologyConstraint。SubGroup 亲和/反亲和作为下一步讲。Benchmark 展示已有框架和验证计划，不填猜测结果，也不用 KWOK 推导真实 GPU 执行吞吐。
 
