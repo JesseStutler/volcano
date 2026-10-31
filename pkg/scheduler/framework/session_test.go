@@ -2,17 +2,129 @@ package framework
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 
 	"volcano.sh/apis/pkg/apis/scheduling"
+	schedulingv1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	topologyv1alpha1 "volcano.sh/apis/pkg/apis/topology/v1alpha1"
 	"volcano.sh/volcano/pkg/scheduler/api"
+	"volcano.sh/volcano/pkg/scheduler/cache"
+	"volcano.sh/volcano/pkg/scheduler/util"
 )
+
+func TestRecordPodGroupEvent(t *testing.T) {
+	type event struct {
+		eventType string
+		reason    string
+		message   string
+		source    string
+	}
+	cpuFailure := event{v1.EventTypeNormal, "Unschedulable", "resource in cluster is overused: overused cpu", ""}
+	memoryFailure := event{v1.EventTypeNormal, "Unschedulable", "resource in cluster is overused: overused memory", ""}
+	tests := []struct {
+		name     string
+		legacy   bool
+		events   []event
+		expected []string
+	}{
+		{
+			name:     "unchanged across sessions",
+			events:   []event{cpuFailure, cpuFailure},
+			expected: []string{"Normal Unschedulable resource in cluster is overused: overused cpu"},
+		},
+		{
+			name:   "message changes and returns to a previous failure",
+			events: []event{cpuFailure, memoryFailure, cpuFailure},
+			expected: []string{
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+				"Normal Unschedulable resource in cluster is overused: overused memory",
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+			},
+		},
+		{
+			name:   "event type changes",
+			events: []event{cpuFailure, {v1.EventTypeWarning, cpuFailure.reason, cpuFailure.message, ""}},
+			expected: []string{
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+				"Warning Unschedulable resource in cluster is overused: overused cpu",
+			},
+		},
+		{
+			name:   "event reason changes",
+			events: []event{cpuFailure, {cpuFailure.eventType, "ResourceUnavailable", cpuFailure.message, ""}},
+			expected: []string{
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+				"Normal ResourceUnavailable resource in cluster is overused: overused cpu",
+			},
+		},
+		{
+			name: "plugins retain independent diagnostics across sessions",
+			events: []event{
+				{cpuFailure.eventType, cpuFailure.reason, cpuFailure.message, "overcommit"},
+				{memoryFailure.eventType, memoryFailure.reason, memoryFailure.message, "capacity"},
+				{cpuFailure.eventType, cpuFailure.reason, cpuFailure.message, "overcommit"},
+				{memoryFailure.eventType, memoryFailure.reason, memoryFailure.message, "capacity"},
+			},
+			expected: []string{
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+				"Normal Unschedulable resource in cluster is overused: overused memory",
+			},
+		},
+		{
+			name:   "legacy callers retain event delivery without source attribution",
+			legacy: true,
+			events: []event{cpuFailure, cpuFailure},
+			expected: []string{
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+				"Normal Unschedulable resource in cluster is overused: overused cpu",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := record.NewFakeRecorder(len(tt.events) * 2)
+			sc := cache.NewCustomMockSchedulerCache("volcano", nil, nil, &util.FakeStatusUpdater{}, nil, recorder)
+			t.Cleanup(func() { cache.ShutdownMockSchedulerCache(sc) })
+			pg := util.BuildPodGroup("job", "test", "default", 1, nil, schedulingv1.PodGroupPending)
+			pg.UID = "job-uid"
+			sc.AddPodGroupV1beta1(pg)
+			sc.AddQueueV1beta1(util.BuildQueue("default", 1, nil))
+			for _, event := range tt.events {
+				ssn := OpenSession(sc, nil, nil)
+				job := ssn.Jobs[api.JobID("test/job")]
+				require.NotNil(t, job)
+				if tt.legacy {
+					ssn.RecordPodGroupEvent(job.PodGroup, event.eventType, event.reason, event.message)
+				} else {
+					source := event.source
+					if source == "" {
+						source = "overcommit"
+					}
+					ssn.RecordPodGroupEventForPlugin(source, job.PodGroup, event.eventType, event.reason, event.message)
+				}
+				CloseSession(ssn)
+			}
+			var actual []string
+			for len(recorder.Events) > 0 {
+				event := <-recorder.Events
+				// CloseSession also records the cache's independent gang summary.
+				if !strings.Contains(event, "tasks in gang unschedulable:") {
+					actual = append(actual, event)
+				}
+			}
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
 
 func TestRefreshAllocatedHyperNodeOnTopologyGenerationChange(t *testing.T) {
 	root := api.NewHyperNodeInfo(&topologyv1alpha1.HyperNode{

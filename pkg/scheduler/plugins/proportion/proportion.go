@@ -439,7 +439,7 @@ func (pp *proportionPlugin) OnSessionOpen(ssn *framework.Session) {
 		if inqueue {
 			return util.Permit
 		}
-		ssn.RecordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), util.FormatResourceNames("queue resource quota insufficient", "insufficient", resourceNames))
+		ssn.RecordPodGroupEventForPlugin(pp.Name(), job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupUnschedulableType), util.FormatResourceNames("queue resource quota insufficient", "insufficient", resourceNames))
 		return util.Reject
 	})
 
