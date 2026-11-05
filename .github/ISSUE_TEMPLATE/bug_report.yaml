@@ -11,7 +11,7 @@ body:
         to the existing issue instead.
 
         Before submitting, reproduce the bug on a real Kubernetes cluster with
-        Volcano deployed. Local kind or minikube clusters count. Reports without
+        Volcano deployed. Local kind or minikube clusters also count. Reports without
         cluster reproduction steps and actual evidence will be closed. Unit tests,
         mocks, static analysis, and AI output cannot replace cluster reproduction.
         See "Evidence" below. A suggested fix is optional.
@@ -44,8 +44,7 @@ body:
     attributes:
       label: Evidence
       description: |
-        Provide actual output from the cluster reproduction. Choose the evidence
-        relevant to your issue; you do not need to provide every type below:
+        Provide actual output from the cluster reproduction relevant to your issue:
         1. Component logs, Kubernetes events, or resource status showing the failure.
         2. A panic stack, race report, or diagnostic trace for a crash, race, or hang.
         3. Cluster measurements or profiles for a performance problem, including the
@@ -53,11 +52,8 @@ body:
         4. Rejected input and the resulting error for a validation problem, explaining
            why that input should be accepted.
 
-        If you have already identified a likely root cause, you may also explain it
-        and link to the relevant code using exact-commit permalinks. Explain how that
-        code causes the observed failure. This source analysis is optional and
-        supplements the cluster evidence; it does not replace it. Unit tests and
-        standalone benchmarks alone are not sufficient.
+        If you have identified the root cause, include links to the relevant code
+        to help reviewers analyze the issue.
       placeholder: |
         Add the actual cluster output and how it was collected; code links are optional.
     validations:
