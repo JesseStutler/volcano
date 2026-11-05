@@ -51,11 +51,14 @@ body:
            workload scale and how the measurements were collected.
         4. Rejected input and the resulting error for a validation problem, explaining
            why that input should be accepted.
-
-        If you have identified the root cause, include links to the relevant code
-        to help reviewers analyze the issue.
       placeholder: |
-        Add the actual cluster output and how it was collected; code links are optional.
+        Cluster evidence (required):
+        Paste the actual logs, traces, or other output from your cluster reproduction.
+        Include the commands or steps used to collect it.
+
+        Root cause and code location (optional):
+        If you have identified the root cause, describe it here and link to the
+        relevant code to help reviewers analyze the issue.
     validations:
       required: true
 
