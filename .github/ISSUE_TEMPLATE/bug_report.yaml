@@ -10,17 +10,19 @@ body:
         repository. If there is a duplicate, please close your issue and add a comment
         to the existing issue instead.
 
-        Every bug report must include evidence. See "Evidence and production path"
-        below. A suggested fix is optional.
+        Before submitting, reproduce the bug on a real Kubernetes cluster with
+        Volcano deployed. Local kind or minikube clusters count. Reports without
+        cluster reproduction steps and actual evidence will be closed. Unit tests,
+        mocks, static analysis, and AI output cannot replace cluster reproduction.
+        See "Evidence" below. A suggested fix is optional.
 
-        If you're looking for a help then check our [Slack Channel](https://cloud-native.slack.com/messages/volcano) or have a look at our [dev mailing](https://groups.google.com/forum/#!forum/volcano-sh) 
+        If you're looking for help then check our [Slack Channel](https://cloud-native.slack.com/messages/volcano) or have a look at our [dev mailing](https://groups.google.com/forum/#!forum/volcano-sh)
 
   - type: textarea
     attributes:
       label: Description
       description: |
-        Describe the user scenario, observed behavior, and impact. State whether the
-        problem was observed in a cluster or found through source review.
+        Describe the user scenario, behavior observed in your cluster, and impact.
     validations:
       required: true
 
@@ -28,9 +30,10 @@ body:
     attributes:
       label: Steps to reproduce the issue
       description: |
-        Provide a minimal reproduction or exact event sequence. Include the relevant
-        configuration or workload.
-      value: |
+        Provide minimal workload manifests, relevant Volcano configuration, and exact
+        commands to reproduce on a real cluster through normal user operations.
+        For intermittent failures, include the frequency and test duration or attempt count.
+      placeholder: |
         1.
         2.
         3.
@@ -39,26 +42,24 @@ body:
 
   - type: textarea
     attributes:
-      label: Evidence and production path
+      label: Evidence
       description: |
-        1. For a bug observed in a cluster, include relevant logs, events, or a stack
-           trace.
-        2. For a race, panic, or deadlock, include a race report, panic stack,
-           reproducer, or complete concurrent execution path.
-        3. For a performance problem, include a profile or representative benchmark.
-           State the tested scale.
-        4. For validation or hardening, explain why the input is valid or expected in
-           normal use. Describe the failure it causes.
+        Provide actual output from the cluster reproduction. Choose the evidence
+        relevant to your issue; you do not need to provide every type below:
+        1. Component logs, Kubernetes events, or resource status showing the failure.
+        2. A panic stack, race report, or diagnostic trace for a crash, race, or hang.
+        3. Cluster measurements or profiles for a performance problem, including the
+           workload scale and how the measurements were collected.
+        4. Rejected input and the resulting error for a validation problem, explaining
+           why that input should be accepted.
 
-        If the report cites source code, use permalinks that point to the exact
-        commit. A copied code block is not sufficient. If the problem has not been
-        reproduced, state that clearly. Trace the complete path from a user action or
-        cluster event to the failure.
-
-        AI-generated analysis, a static scan, or a unit test that only calls an
-        internal function does not prove a bug on its own.
+        If you have already identified a likely root cause, you may also explain it
+        and link to the relevant code using exact-commit permalinks. Explain how that
+        code causes the observed failure. This source analysis is optional and
+        supplements the cluster evidence; it does not replace it. Unit tests and
+        standalone benchmarks alone are not sufficient.
       placeholder: |
-        Add the relevant evidence and code links.
+        Add the actual cluster output and how it was collected; code links are optional.
     validations:
       required: true
 
@@ -71,7 +72,11 @@ body:
   - type: input
     attributes:
       label: What version of Volcano are you using?
-      placeholder: Volcano image tag
+      description: |
+        Specify a release version (vX.Y.Z) or master. A commit ID alone is not
+        sufficient. You may include the tested commit or image digest as additional
+        information, especially when using master.
+      placeholder: vX.Y.Z or master
     validations:
       required: true
 
@@ -79,8 +84,11 @@ body:
     attributes:
       label: Any other relevant information
       description: |
-        Kubernetes version, OS configuration, OS/Kernel version, etc.
+        Include the Kubernetes version and cluster setup (e.g. kind, node count
+        and resources). Add OS configuration and OS/Kernel version if relevant.
         Use the following commands:
         $ kubectl version
         $ cat /etc/os-release
         $ uname -a
+    validations:
+      required: true
