@@ -149,8 +149,18 @@ Reviewers may ask you to explain the analysis or code. The issue or PR may be
 closed if you cannot support its claims or explain its changes. Opening a PR
 does not prove that the linked issue is valid.
 
-Do not rely on AI tools when responding to review comments. Reviewers want to
-engage with you directly, not with generated responses.
+These responsibilities apply to reviewers as well as contributors. Read the
+repository's [agent instructions](AGENTS.md) before using AI for implementation
+or review. Understand the affected user workflow and inspect the code and
+verification evidence before making claims about correctness. Reviewers must
+distinguish author-provided results from checks they personally ran; passing
+unit tests or another AI review is not enough to approve a runtime change.
+
+AI may assist investigation, but authors and reviewers must write substantive
+review comments and replies themselves. Do not delegate review discussions to
+AI or run automated exchanges between reviewer and contributor agents. Address
+the specific question with evidence, and state plainly when something has not
+been verified.
 
 Disclose the use of AI tools in the issue or in the PR's "Special notes for your
 reviewer" section. All contributions must follow the contribution policies and
