@@ -79,8 +79,9 @@ operations.
 Keep the report focused on four things:
 
 1. **Behavior:** the user scenario, actual result, and expected result.
-2. **Environment:** exact Volcano image tag or commit, Kubernetes version, cluster
-   setup, and relevant Volcano configuration.
+2. **Environment:** Volcano release version or `master`, Kubernetes version,
+   cluster setup, and relevant Volcano configuration. A commit ID alone is not
+   sufficient; include it or an image digest as additional detail if available.
 3. **Reproduction:** minimal workload manifests and commands another person can
    run on that setup. For intermittent failures, include the frequency and how
    long or how many attempts you ran.
