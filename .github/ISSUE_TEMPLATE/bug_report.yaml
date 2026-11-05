@@ -68,10 +68,7 @@ body:
   - type: input
     attributes:
       label: What version of Volcano are you using?
-      description: |
-        Specify a release version (vX.Y.Z) or master. A commit ID alone is not
-        sufficient. You may include the tested commit or image digest as additional
-        information, especially when using master.
+      description: Specify a release version or master, not just a commit ID.
       placeholder: vX.Y.Z or master
     validations:
       required: true
