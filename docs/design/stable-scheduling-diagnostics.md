@@ -1,345 +1,780 @@
-# Stable Pod and PodGroup scheduling diagnostics
+# Stable Scheduling Diagnostics for Pods and PodGroups
 
-Status: Draft for downstream discussion. No runtime changes are included.
+<!-- toc -->
 
-## Problem and scope
+- [Summary](#summary)
+- [Motivation](#motivation)
+  - [Current Behavior](#current-behavior)
+  - [Goals](#goals)
+  - [Non-Goals](#non-goals)
+- [Proposal](#proposal)
+  - [User Stories](#user-stories)
+  - [Architecture](#architecture)
+- [Design Details](#design-details)
+  - [1. Pod Conditions and Events](#1-pod-conditions-and-events)
+  - [2. PodGroup Conditions and Events](#2-podgroup-conditions-and-events)
+  - [3. Diagnostic Types and Ownership](#3-diagnostic-types-and-ownership)
+  - [4. Recording and Reducing Results](#4-recording-and-reducing-results)
+  - [5. Session Finalization and Publication](#5-session-finalization-and-publication)
+  - [6. Code Changes](#6-code-changes)
+  - [7. kube-scheduler Practices](#7-kube-scheduler-practices)
+- [Compatibility and Related Work](#compatibility-and-related-work)
+- [Risks and Mitigations](#risks-and-mitigations)
+- [Alternatives Considered](#alternatives-considered)
+- [Test Plan](#test-plan)
+- [Performance Validation](#performance-validation)
+- [Implementation Plan and Open Questions](#implementation-plan-and-open-questions)
+- [References](#references)
 
-A failed gang attempt can leave every Pod Pending while changing the diagnostics
-published on those Pods. A discarded allocation or Pipeline candidate is currently
-used to describe a possible destination, and a Pod that was never evaluated can
-inherit the whole PodGroup failure summary. HyperNode simulation repeats these
-attempts across domains, exposing temporary choices as persistent state.
+<!-- /toc -->
 
-The proposal is to publish diagnostics from explicit scheduling outcomes: a Pod
-reports its own blocker or that it is waiting for its PodGroup; the PodGroup reports
-the group decision and aggregated blockers; debug logs retain trial placements,
-per-domain details and rollback history. Retrying scheduling must remain possible
-without changing an otherwise unchanged condition.
+## Summary
 
-This addresses the diagnostic ownership and rollback-message portion of
+**Draft for downstream discussion; implementation follows design agreement.**
+
+Volcano exposes discarded scheduling attempts through Pod conditions and Events.
+A candidate node chosen during HyperNode simulation can change on every attempt,
+even though the Pod remains Pending and the gang blocker has not changed. The
+resulting message changes trigger Pod status writes and watch traffic.
+
+This proposal separates scheduling transactions from published diagnostics.
+Actions record explicit evaluation results; the session reduces them into a final
+diagnostic view. Pods report their own failure or a stable message that they are
+waiting for their PodGroup. PodGroups report the gang decision and aggregate
+HyperNode blockers. Candidate nodes, per-domain trial details and rollback progress
+stay in debug logs.
+
+The scope is the diagnostic ownership and message-churn portion of
 [#6081](https://github.com/volcano-sh/volcano/issues/6081) and
-[#6196](https://github.com/volcano-sh/volcano/issues/6196). It does not change gang
-eligibility, early exit, scoring, victim selection, resource accounting, scheduling
-retry policy, or transaction recovery. No CRD fields or new public condition types
-are proposed.
+[#6196](https://github.com/volcano-sh/volcano/issues/6196). Scheduling retries and
+transaction behavior remain unchanged.
 
-### Relationship to existing work
+## Motivation
 
-| Work | Boundary of this proposal |
-| --- | --- |
-| [#6106](https://github.com/volcano-sh/volcano/issues/6106), implemented by merged [#6127](https://github.com/volcano-sh/volcano/pull/6127) | Retain deterministic representative-task selection where the existing formatter is used. Do not redo that fix. |
-| [#6107](https://github.com/volcano-sh/volcano/issues/6107), configurable diagnostic verbosity | Leave the flag and existing detailed/summary formatter work separate. Correct ownership and exclusion of discarded candidates apply in either mode. Genuine Pod fit-error detail remains detailed by default. |
-| [#6108](https://github.com/volcano-sh/volcano/issues/6108), downstream [PR #29](https://github.com/JesseStutler/volcano/pull/29) | Reuse its PodGroup event delivery policy when available; do not build another deduplication cache or modify that PR here. Stable content alone does not eliminate repeated PodGroup Event requests. |
-| [#6066](https://github.com/volcano-sh/volcano/pull/6066) | Preserve the corrected nomination lifecycle. Empty nomination and changing messages are a separate failure mode. |
-| #6081 informer-lag investigation | Remains deferred. Do not add last-written-object caches, synchronous informer updates or blanket retry suppression. |
+### Current Behavior
 
-The proposal develops the public discussion on
-[diagnostic ownership](https://github.com/volcano-sh/volcano/issues/6081#issuecomment-6577040419)
-and [explicit outcomes and HyperNode aggregation](https://github.com/volcano-sh/volcano/issues/6196#issuecomment-6599802637).
-It retains the separate workstreams established in the
-[#6081 breakdown](https://github.com/volcano-sh/volcano/issues/6081#issuecomment-6263823420).
+Consider a three-Pod gang. Pod A cannot satisfy its node affinity. Pod B finds a
+candidate node but its placement is rolled back when the gang fails. Pod C is
+skipped because the remaining tasks can no longer satisfy `minAvailable`.
 
-## Evidence and current publication path
+| Object | Condition reason | Representative current message |
+| --- | --- | --- |
+| Pod A | `Unschedulable` | Its node-affinity fit error, potentially combined with group HyperNode details |
+| Pod B | `Schedulable` for discarded Allocated; `Unschedulable` for Pipeline | `Pod ns/b can possibly be assigned to node-a, once minAvailable is satisfied` for the Allocated case; another attempt may name node-b |
+| Pod C | `Unschedulable` | Whole `job.FitError()` summary when its own message is empty, potentially including A's error |
+| PodGroup | `NotEnoughResources` | Group state plus pending-reason and tentative schedulability counts |
 
-The #6196 report contains a kind reproduction with Volcano v1.16.0 and Kubernetes
-v1.34.0: discarded Pipeline attempts changed Pod messages while nomination stayed
-empty and no victim was evicted. A separate
-[reported HyperNode reproduction](https://github.com/volcano-sh/volcano/issues/6196#issuecomment-6577306168)
-used equal-score nodes and recorded 50 successful Pod status updates and 30 Pod
-Event writes in a 30-second Allocate rollback observation. Removing trial node
-names eliminated those writes in that diagnostic experiment. These are existing
-reported results, not a new measurement or validation of this complete proposal.
+These examples omit unrelated suffixes. B exposes discarded placement choices,
+C can inherit another member's failure, and the group summary can change with
+trial history. A mixes individual and group scope when HyperNode detail is appended.
 
-The source inspection below uses upstream
-[`8a05cdba9405e66a5f3bacf7234a98677f62c6ab`](https://github.com/volcano-sh/volcano/tree/8a05cdba9405e66a5f3bacf7234a98677f62c6ab).
-The downstream PR's older base is only a destination for the design document.
+```text
+Allocate / Pipeline / HyperNode simulation
+  -> Statement.Discard(): save LastTransaction, undo operations
+  -> TaskSchedulingReason(): prefer LastTransaction for reason/message
+  -> gang.OnSessionClose(): construct PodGroup condition
+  -> JobUpdater -> RecordJobStatusEvent()
+  -> compare Pod condition and nomination
+  -> FailedScheduling Event + Pods.UpdateStatus
+```
 
-1. Pending Pods enter a session through the scheduler cache. Allocate explores
-   candidate placements, including nested job/subjob HyperNode attempts, and
-   [discards dry-run statements](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/actions/allocate/allocate.go#L455-L686).
-2. [`Statement.Discard()`](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/framework/statement.go#L376-L398)
-   saves the transaction context before undoing operations.
-   [`TaskSchedulingReason()`](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/api/job_info.go#L981-L1022)
-   prefers that snapshot for reason/message construction, although nomination
-   already uses the live transaction and eviction evidence.
-3. [Gang session close](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/plugins/gang/gang.go#L228-L278)
-   also uses `LastTransaction` to count tentatively schedulable tasks in the
-   PodGroup condition. `JobInfo.FitError()` adds a pending-reason histogram and
-   group/task dimensions. Thus removing node names alone does not remove every
-   speculative input to published diagnostics.
-4. Plugin close callbacks run before the
-   [job updater](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/framework/session.go#L541-L550).
-   [`RecordJobStatusEvent()`](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/cache/cache.go#L1792-L1845)
-   falls back to the whole job's `FitError()` when a task message is empty.
-   This can assign another member's failure to an unevaluated Pod.
-5. [`taskUnschedulable()`](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/cache/cache.go#L1203-L1258)
-   compares condition fields and nomination, then records `FailedScheduling` and
-   calls `Pods.UpdateStatus` when either needs updating. Changed messages defeat
-   this existing comparison.
+Nomination already distinguishes a live Pipeline with eviction evidence from a
+discarded trial; message construction does not. Gang close reporting also reads
+`LastTransaction` for schedulable-task counts, and `FitError()` includes a histogram
+derived from `TaskSchedulingReason()`. Removing only candidate names leaves other
+trial-dependent reporting. The source links are in [References](#references).
 
-An Event write updates an Event object, not the Pod. A successful persisted Pod
-status change produces Pod watch traffic. Count status requests, successful status
-changes, Event requests and Pod watch notifications separately; conflicts are
-requests, but do not themselves persist another Pod change.
+The #6196 kind reproduction uses Volcano v1.16.0 and Kubernetes v1.34.0. It reports
+message changes with empty nomination and no victim eviction. A separate
+[HyperNode experiment](https://github.com/volcano-sh/volcano/issues/6196#issuecomment-6577306168)
+reported 50 successful Pod status updates and 30 Pod Event writes in 30 seconds
+with four rack HyperNodes and one three-Pod gang. These are existing reported
+results, not measurements of this proposal.
 
-## Diagnostic ownership and visible behavior
+An Event write changes an Event object. A persisted Pod status change produces
+Pod watch traffic. Both matter, but they must be measured separately.
 
-| Final situation | Pod condition and Event content | PodGroup content | Debug logs |
-| --- | --- | --- | --- |
-| Pod has a confirmed individual scheduling failure | Its own fit/pre-filter error in the applicable search scope | Aggregate member-blocker categories | Node-level evaluation details |
-| Pod found a usable placement, but the gang attempt was discarded | Stable message identifying the PodGroup it is waiting for | Gang blocker | Trial node, candidate domain and rollback cause |
-| Pod was skipped because the gang requirement could no longer be met | The same group-waiting message | Gang blocker | Early-exit position and reason |
-| A HyperNode fails the group's aggregate resource requirement before Pod evaluation | Group-waiting message, without claiming a Pod fit failure | Aggregate domain-capacity blocker | Domain identity, capacity, counts and thresholds |
-| Explicit queue/admission restriction | Preserve an attributable explanation; refer to the group where the restriction applies to the group | Queue/admission blocker | Plugin details |
-| Pod has scheduling gates | Preserve the existing gated condition; do not overwrite it with gang waiting | Appropriate existing group explanation | Gate details |
-| Pipeline is retained after actual preemption | Preserve real nomination and the explanation for waiting on resource release | Group readiness/blocker as applicable | Preemption and reservation details |
-| Binding succeeds or a real bind/scheduler error occurs | Existing success/error reporting | Existing lifecycle reporting | Operational details |
+### Goals
 
-For example, with three members and `minMember: 3`:
+- Keep Pod diagnostics stable when only discarded placement, candidate order or
+  gang early-exit position changes.
+- Attribute individual failures only to Pods whose evaluation establishes them.
+- Give PodGroup conditions and Events one deterministic group summary.
+- Preserve real blockers, nomination, gates and lifecycle reporting; retain
+  simulation detail in debug logs.
 
-- Pod A, conclusively rejected by node affinity: `No eligible node satisfies this Pod's node affinity.`
-- Pod B, rolled back after finding a placement: `Waiting for PodGroup ns/job to satisfy gang requirements.`
-- Pod C, skipped after early exit: `Waiting for PodGroup ns/job to satisfy gang requirements.`
-- PodGroup: `Gang requirements are not satisfied. Blockers: member node affinity.`
+### Non-Goals
 
-These are illustrative messages, not new Kubernetes reason constants. Pod B and
-Pod C should not alternate between a speculative-placement prefix and a group
-error suffix. Pod A may correctly differ: members do not need identical messages
-when their actual outcomes differ.
+- Changing gang eligibility, early exit, scoring, resource accounting, preemption,
+  rollback/recovery, or when scheduling retries occur.
+- Replacing the unschedulable job cache or using diagnostics to skip work.
+- Adding CRD fields, public condition types, or another cross-session cache.
+- Redoing #6106 deterministic selection, #6107 verbosity configuration, or #6108
+  PodGroup Event deduplication.
+- Fixing informer-lag duplicate requests or switching `UpdateStatus` to `Patch`.
 
-### Condition reasons require an explicit compatibility decision
+## Proposal
 
-Changing messages is insufficient if the reason still follows a discarded
-`Allocated` versus `Pending` snapshot. Today a discarded allocation can produce
-`Schedulable`, while a skipped Pod or discarded Pipeline produces `Unschedulable`.
-An allocation-versus-skip alternation can therefore still cause status writes even
-with identical waiting text.
+Add a session-owned collector and a finalized diagnostic view on each session Job.
+Actions record outcomes with explicit ownership and search scope. After actions
+finish, the session reduces those outcomes before gang close callbacks run. The
+condition and Event publishers consume this immutable view.
 
-The recommended contract is `PodScheduled=False, Reason=Unschedulable` for all
-unbound Pods whose final outcome is gang waiting, including discarded allocations.
-Keep the existing `Schedulable` reason for a live allocation retained for dispatch,
-and retain `SchedulerError`, scheduling-gate behavior and existing Event reasons.
-Internal feasibility remains available to scheduling logic and debug logs.
+### User Stories
 
-This changes the meaning of `Schedulable` for rolled-back allocations and needs
-agreement before implementation. It is a deliberate exception to the earlier
-#6081 requirement to preserve reason behavior, not a silent message cleanup.
-Autoscaling consumers may distinguish these reasons, so their behavior must be
-tested. If strict legacy reason behavior is required, the first fix can stabilize
-messages while retaining reasons, but it must not claim to solve
-allocation-versus-skip condition churn.
+- **A gang repeatedly tries different nodes.** A Pending Pod keeps the same waiting
+  condition while candidates change. An operator uses debug logs to inspect trials
+  without generating Pod updates.
+- **One member prevents the gang from starting.** That member exposes its own
+  failure. Rolled-back and skipped members point to the PodGroup's aggregate blocker.
+- **HyperNodes fail for different reasons.** The PodGroup reports distinct capacity
+  and placement categories in a stable order. The last domain visited does not
+  become every Pod's explanation.
+- **Resources become available or preemption succeeds.** Real changes still update
+  status and Events promptly, even if the previous failure message is unchanged.
 
-## Explicit outcomes instead of transaction snapshots
+### Architecture
 
-Introduce session-owned diagnostic results keyed by Pod UID and group/subjob UID.
-They describe what was established by evaluation, separately from the mutable
-transaction used to reserve and recover resources. `LastTransaction` can remain
-for internal uses; neither Pod nor PodGroup diagnostic rendering should read it.
+![Scheduling diagnostic ownership and publication](images/scheduling-diagnostics-architecture.svg)
 
-The minimum information is:
+Each candidate attempt owns a local result. Discarded candidates contribute failure
+evidence to the reducer, while tentative placements stay in logs. A recovered winner
+supplies its matching result. Neither Pod nor PodGroup rendering reads
+`LastTransaction`.
 
-| Result field | Purpose |
-| --- | --- |
-| Outcome | Distinguish not evaluated, individual rejection, placement found, group waiting, explicit blocker, operational failure and retained placement. |
-| Evaluation scope and completeness | Distinguish an exhausted permitted search from a failed candidate or an early exit. |
-| Attributable blockers | Typed plugin/category/resource facts, including whose constraint failed. |
-| Final disposition | Distinguish a discarded trial from a retained allocation or Pipeline. |
+A task result produces the Pod diagnostic; a group result produces the PodGroup
+summary. They share a finalization boundary, not an error string. Existing
+publishers keep their comparisons, nomination handling and lifecycle behavior.
 
-These are internal concepts; exact Go types should follow the agreed implementation
-boundary. Avoid a general diagnostics framework or a second cross-session cache.
+## Design Details
 
-### Collection and finalization
+The Go excerpts are proposed interfaces and pseudocode, with imports, routine
+error handling and unrelated code omitted. They are not an implementation patch.
+Mermaid sources are stored beside the figures as `.mmd` files.
 
-Each candidate attempt owns its diagnostic accumulator. Nested attempts must not
-overwrite their parent's results. A discarded trial contributes failure evidence
-to the parent reducer, not a node name to a public message. A recovered winning
-statement carries its matching outcome; rejected alternatives cannot overwrite it.
+### 1. Pod Conditions and Events
 
-After all configured actions have run, finalize the diagnostic view before gang
-close callbacks construct conditions. Both gang reporting and the job updater
-consume that view. Later successful scheduling or genuine nomination supersedes
-an earlier failure; backfill, preempt and reclaim must participate where they
-produce or replace relevant results. An internal error must retain an explicit
-error outcome rather than falling through to a generic gang message.
+#### Proposed conditions
 
-The reducer must follow these rules:
+This section concerns unbound Pods. Existing detailed fit formatting still applies
+to genuine individual failures.
 
-1. A nonempty `NodesFitErrors` map does not prove a final Pod failure. Some nodes
-   may fail while another permits placement. A placement found within the relevant
-   attempt invalidates a claim that the Pod had no feasible node there.
-2. Publish individual no-fit only when evaluation establishes it over the
-   applicable permitted scope. A failure in the last visited HyperNode is not a
-   global Pod failure. Group filtering that prevented evaluation provides no such
-   evidence. For incomplete searches, retain group waiting and publish scoped
-   evidence on the group or in logs.
-3. Keep early exit and role-based predicate reuse. When a cached rejection is
-   valid for an equivalent role and scope, report the underlying attributable
-   cause; do not expose the optimization message as the Pod's failure.
-4. Distinguish gang early exit from queue rejection, gates and operational errors.
-   Missing evidence is not proof of gang waiting. An untouched Pod without a
-   known blocker keeps its existing diagnostic rather than receiving an invented
-   `all nodes unavailable` result.
-5. Discard session diagnostic data when the session closes. Do not use old fit
-   errors to suppress a new real blocker, recovery or nomination update.
+A conclusively evaluated Pod with no feasible placement keeps
+`PodScheduled=False, Reason=Unschedulable` and its own fit error. For example, an
+affinity failure may say `No eligible node satisfies this Pod's node affinity.`
+Do not append a different member's failure or a group-level capacity summary.
 
-Structured logs should retain session, Pod/PodGroup UID, action, domain, trial node,
-operation and discard cause. Reuse existing V(3)/V(4) transaction and topology logs;
-keep expensive per-node dumps behind higher verbosity. Do not replace API churn
-with unconditional high-volume logging.
+A Pod whose placement was discarded because the gang cannot proceed uses
+`PodScheduled=False, Reason=Unschedulable` and the stable message
+`Waiting for PodGroup ns/job to satisfy gang requirements.` The same output applies
+to Pods skipped after gang early exit and to Pods never evaluated because group
+capacity or topology screening rejected every applicable placement. The reason
+change for discarded allocations is a proposal requiring agreement, as discussed
+below.
 
-## HyperNode aggregation and PodGroup publication
+Explicit blockers keep their own meaning. Queue/admission restrictions retain the
+applicable existing reason and restriction text. Scheduling-gated Pods keep their
+`SchedulingGated` condition without scheduler replacement. Actual scheduler or bind
+errors remain `SchedulerError`, with the operational failure in the message.
 
-Apply one reducer for both a single candidate domain and multiple candidates.
-Build a deterministic union of supported blocker categories across rejected
-attempts. Sort and deduplicate typed keys, rather than parsing formatted strings
-or reporting only the final domain visited. A key includes the blocker scope,
-plugin/category and resource where relevant. Candidate names, counts and traversal
-order do not create new categories.
+A retained Pipeline with real nomination remains `PodScheduled=False` with reason
+`Unschedulable`. Its message can say `Waiting for resources to be released on the
+nominated node.` Other explicit blockers remain visible. A live allocation still
+reported before dispatch keeps `Schedulable`, with `Placement selected; waiting for
+binding.` If no new evaluation or explicit blocker exists, preserve the current
+condition instead of inventing an all-nodes-unavailable result.
 
-Keep meaningful distinctions, especially:
+Retained-allocation reporting adds no new pre-binding write and does not delay binding.
+Successful binding keeps its existing status/Event path. A retained Pipeline without
+real nomination uses a node-free explanation such as `Waiting for resource release
+and PodGroup ns/job readiness.` It must not publish a simulated node as a nomination.
 
-- Insufficient aggregate HyperNode capacity for the group's minimum resources.
-- Insufficient per-node resources for a complete gang placement, including
-  fragmentation despite sufficient aggregate capacity.
-- Member affinity or other placement constraints.
-- An explicit topology or admission constraint.
+#### Proposed Events
 
-For example, if two domains fail group GPU capacity and a third fails a member
-affinity check, publish a group summary such as:
+When the published scheduling condition changes, retain the
+`Warning / FailedScheduling` Event and use the same final message as the condition.
+A nomination-only change keeps the existing Event behavior, using the retained
+result or current diagnostic. Nomination must be checked independently of text.
+
+When another discarded trial produces identical condition and nomination inputs,
+the existing no-change path skips both the Pod Event and status write. Binding,
+eviction and genuine errors retain their existing Event owners, reasons and paths.
+
+Do not add a `WaitingForPodGroup` Event reason or another Event cache. API failures
+remain retryable. Since an Event may precede a failed status write, retries can
+still repeat it; that differs from successful repeated writes caused by simulation.
+
+#### Selecting the diagnostic
+
+![Pod diagnostic selection flow](images/scheduling-diagnostics-pod-flow.svg)
+
+Apply this decision to finalized results. Nonempty `NodesFitErrors` does not prove
+individual no-fit: several nodes may fail while another permits placement. A group
+resource filter that prevents evaluation is not a Pod predicate failure.
+
+#### Reason compatibility decision
+
+A discarded `Allocated` snapshot currently produces `Schedulable`, whereas skipped
+Pods and discarded Pipelines produce `Unschedulable`. Stable text alone cannot stop
+writes if these reasons alternate.
+
+Use `Unschedulable` for every **final gang-waiting** outcome and reserve
+`Schedulable` for live retained allocations. This recommendation changes the
+rolled-back allocation case and requires agreement against the earlier #6081
+reason-compatibility requirement. Autoscaling consumers need regression coverage.
+A strict-compatibility first patch can retain old reasons, but must state that
+allocation-versus-skip reason churn remains unresolved.
+
+### 2. PodGroup Conditions and Events
+
+#### Proposed conditions
+
+An unsatisfied gang keeps `Unschedulable=True` with reason `NotEnoughResources`.
+The message describes the final group blocker, for example:
+
+> Gang requirements are not satisfied. Blockers: member node affinity.
+
+If the permitted HyperNode search is exhausted without a complete placement, the
+same condition type and reason carry the aggregated domain explanation:
 
 > No eligible HyperNode can satisfy the gang requirements. Blockers: insufficient HyperNode GPU capacity; unsatisfied member node affinity.
 
-This is a union of observed blockers explaining why no complete group placement
-was found; it does not assert that every domain or every Pod failed every category.
-Only say that no eligible domain works when the permitted search was exhausted.
-If a search stopped early or failed operationally, report that actual outcome.
-If a candidate ultimately succeeds, do not carry rejected-candidate failures into
-the successful group's diagnostic.
+Enqueue/admission restrictions preserve the owning plugin's existing contract and
+actual explanation. When the gang becomes ready, the existing `Scheduled=True`
+path handles recovery and removes stale failure reporting. With no new group
+evaluation, including a valid whole-Job cache skip, preserve the existing diagnostic
+rather than rebuilding failure from empty evidence.
 
-An established placement may constrain later scheduling to a particular domain.
-That real scope can appear in the public explanation. A domain selected only for
-simulation cannot. Per-domain histograms, candidate identities and trial task
-counts remain in logs. Unknown plugin failures need a deterministic fallback with
-the plugin identity and its actual explanation; do not discard actionable errors
-by mapping everything to an undifferentiated `other` category.
+Retain existing condition types and reasons. Use one `GroupDiagnostic` message in
+the gang condition and cache Event path, replacing their different prefixes and
+speculative counters.
 
-Use the same finalized group summary in the gang condition and cache Event path.
-Remove speculative counts derived from `LastTransaction` and the pending
-`Schedulable` histogram where they encode discarded trial progress. Preserve real
-job-local facts such as configured minimum membership and actual task phases.
-Keep existing PodGroup condition types/reasons and lifecycle transitions.
+#### Proposed Events
 
-The new simulation summary is intentionally category-based in both verbosity
-modes. This does not remove node counts from genuine individual fit diagnostics
-handled by #6107. The interface between these formatters must be agreed with that
-workstream; detailed mode must not reintroduce a discarded placement as truth.
+For gang or HyperNode placement failures, retain `Warning / Unschedulable` and use
+the same finalized group message as the condition. Recovery continues through
+`Normal / Scheduled` with the existing readiness message. Enqueue/admission plugin
+Events retain their source identity and explicit restriction.
 
-## Status writes, Events and kube-scheduler practices
+Identical failures in later sessions produce the same content. Whether that Event
+is suppressed or refreshed belongs to #6108 and downstream PR #29, including their
+recovery, recurrence and source-aware delivery rules.
 
-Keep Volcano's existing condition comparison and independent nomination check.
-An unchanged diagnostic must not suppress a required nomination write, binding,
-eviction, recovery or deletion-related work. Preserve `LastTransitionTime` when
-condition status is unchanged and retain the PodGroup comparison that ignores
-transition timestamps/IDs. Do not introduce a per-session timestamp into messages.
+Without #6108 the current path can still submit unchanged PodGroup Events. Stable
+content alone does not eliminate those API requests.
 
-The following practices are visible in kube-scheduler
-[v1.34.0 failure handling and updatePod](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/scheduler/schedule_one.go#L1043-L1170)
-and also in the inspected
-[v1.37.1 source](https://github.com/kubernetes/kubernetes/blob/v1.37.1/pkg/scheduler/schedule_one.go#L1150-L1307):
+#### HyperNode aggregation
 
-- Carry an explicit scheduling failure and separate nomination information into
-  publication, rather than deriving a failure from an undone reservation.
-- Compare condition and nomination independently before writing status. The API
-  cacher path delegates status patching separately.
-- In the direct path, use a status patch helper that skips an empty patch and
-  [retries selected API errors](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/scheduler/util/utils.go#L101-L140).
+Use the same reducer for one domain and many domains. Sort and deduplicate typed
+blocker keys from rejected attempts. Candidate identities, counts and traversal
+order are not category keys.
 
-Volcano can adopt the ownership and comparison principles without changing its
-status transport in this proposal. Switching `UpdateStatus` to `Patch` does not
-eliminate real message changes or the resulting Pod watch notifications.
+For example, rack-A and rack-B may fail the group's GPU minimum resources while
+rack-C fails a member's affinity. The group summary contains two categories:
+insufficient aggregate HyperNode GPU capacity and unsatisfied member affinity.
+Domain identities, quantities, tier counts and member-level details stay in logs.
 
-kube-scheduler still records `FailedScheduling` on failure attempts independently
-of whether a condition patch is needed. It is not evidence for transition-only
-Events or universal count-free messages. Volcano's event-delivery decisions must
-remain explicit.
+Keep aggregate capacity distinct from per-node placement. A domain can have enough
+total CPU but still lack a complete gang placement because resources are fragmented.
+That is a per-node placement blocker, not the same category as failing the group's
+minimum-resource filter.
 
-For Pods, use the finalized message in the existing status/Event publication path;
-stable condition and nomination inputs already skip that path. For PodGroups,
-stable summaries compose with #6108's separate delivery policy, including recovery,
-UID isolation and refresh behavior. Do not gate all Pod processing on whether the
-PodGroup status changed. Failed status writes remain retryable; no additional
-suppression state should mark them successfully published. Event delivery can
-precede a failed status write today, so API-error retries may still repeat Events.
-That is distinct from successful repeated writes caused by simulation churn.
+The summary is a union of observed blockers, not a claim that every Pod or domain
+failed every category. Group screening must not manufacture individual fit errors.
+Only an exhausted permitted search supports the claim that no eligible domain can
+place the gang. Early exit or operational failure must retain its actual outcome.
+Successful candidates supersede failed alternatives.
 
-## Implementation sequence after agreement
+An established placement's domain can appear publicly because it is a real
+constraint; a simulated domain cannot. Unknown plugin failures retain plugin
+identity and their actual explanation through a deterministic fallback rather than
+an undifferentiated `other` category. Stable output means the same final facts
+produce the same text; do not run extra scheduling searches just to collect errors.
 
-1. Agree on the outcome/attribution contract, the reason compatibility decision
-   and the HyperNode summary boundary with #6107. Keep this PR documentation-only.
-2. Add outcome collection and finalization for normal and topology allocation,
-   including nested discard/recover and later action overrides. Route Pod messages
-   through the finalized outcome and remove the whole-job fallback. Preserve
-   nomination and transaction semantics.
-3. Route PodGroup condition/Event summaries through the same finalized group
-   result. Remove speculative reporting counts and aggregate HyperNode categories.
-   Integrate with the existing #6106/#6107/#6108 work without replacing it.
-4. Verify the agreed behavior on real clusters, then update the older
-   [scheduling-reason design](scheduling-reason.md) and user-facing diagnostic
-   guidance alongside the implementation.
+#### Example across all four outputs
 
-A smaller first patch may remove candidate-node text from both Allocated and
-Pipelined messages, but it is only a partial mitigation: prefix changes, inherited
-group errors, reason changes and last-domain reporting would remain.
+For A's affinity failure, B's rollback and C's early exit:
 
-## Verification and acceptance
+| Output | Object | Reason | Proposed message |
+| --- | --- | --- | --- |
+| Pod condition | A | `Unschedulable` | `No eligible node satisfies this Pod's node affinity.` |
+| Pod Event | A | `FailedScheduling` | `No eligible node satisfies this Pod's node affinity.` |
+| Pod condition | B and C | `Unschedulable` | `Waiting for PodGroup ns/job to satisfy gang requirements.` |
+| Pod Event | B and C | `FailedScheduling` | The same waiting message, when publication is needed |
+| PodGroup condition | ns/job | `NotEnoughResources` | `Gang requirements are not satisfied. Blockers: member node affinity.` |
+| PodGroup Event | ns/job | `Unschedulable` | The same group message, with delivery governed separately |
 
-No cluster run is required for this documentation-only PR. Implementation must
-re-run the #6196 kind reproducer against the affected release and the proposed
-build, and add the following user-level scenarios. Record exact images/commits,
-scheduler actions/plugins, feature gates, workload manifests and observation
-windows. Do not infer API traffic from recorder-call counts.
+B's trial node or rollback-versus-skip history does not alter the output. A's text
+legitimately differs: consistent attribution does not require identical messages
+for members with different actual outcomes.
 
-| Scenario | Required result |
-| --- | --- |
-| Unchanged gang, equal-score trial nodes, repeated Allocate and Pipeline rollback | After initial publication and informer convergence, trial-node changes produce no additional successful Pod status changes or Pod Events. |
-| A Pod alternates between a trial placement and being skipped | Same waiting message; no reason churn if the recommended reason contract is accepted. |
-| One member fails; another is rolled back; another is never evaluated | Only the failing member carries its attributable failure; the others reference the group. |
-| Some nodes reject a Pod but another succeeds | Do not report individual no-fit from leftover errors. |
-| One versus multiple HyperNodes; reverse candidate order; fail then succeed | Same failure-category summary for equivalent failures; no stale failures after success. |
-| Group capacity rejection, fragmented nodes, member affinity, pinned domain | Preserve the distinct scope/cause; no borrowed member errors or speculative domain names. |
-| Nested job/subjob trials and recover; preempt/reclaim/backfill after allocate | Final diagnostics match the retained outcome, regardless of discarded intermediate attempts. |
-| Resource or affinity repair; failure category changes; recovery then recurrence | Genuine changes become visible promptly; stale failures disappear. |
-| Real preemption and resource release; nomination-only change; binding | Nomination and existing lifecycle Events remain correct even with unchanged failure text. |
-| Gates, queue restrictions, scheduler errors, API conflicts/failures | Preserve explicit blockers and gate ownership; failed writes retry normally. |
-| Same-name Pod/PodGroup recreation and scheduler restart | No diagnostic state leaks across UIDs; fresh current diagnostics appear. |
+### 3. Diagnostic Types and Ownership
 
-Measure Pod status update/patch attempts and response codes, persisted condition
-changes, Pod watch notifications, PodGroup writes and Event create/patch/update
-requests separately. Correlate watch changes with status fields and scheduler
-identity so kubelet/controller writes are not counted as scheduler regressions.
-Observe after initialization for at least 30 seconds and record completed
-scheduling attempts, including continued trial/rollback activity in logs.
+Shared value types belong in `pkg/scheduler/api`, which framework and cache already
+import. Mutable collection belongs to the session; the frozen publication view is
+attached to its `JobInfo`.
 
-For the unchanged reproducer, expect zero additional simulation-induced Pod
-condition/nomination changes after convergence. Do not promise zero writes under
-informer lag or API failures, or when genuine detailed fit histograms change.
-Measure PodGroup Event reduction separately with #6108; without it, unchanged
-PodGroup Events may still be repeated. Preserve scheduling throughput and gang
-correctness, and measure the CPU/memory cost of diagnostic accumulation at the
-scale described in #6081.
+```go
+// api/scheduling_diagnostics.go (new; abbreviated)
+type DiagnosticOutcome uint8
 
-Focused regression tests should cover outcome precedence, completeness, nested
-candidate reduction, stable rendering and nomination-only writes. These tests
-support, rather than replace, cluster verification of actual watch/API behavior.
+const (
+    DiagnosticUnknown DiagnosticOutcome = iota
+    DiagnosticNoFit
+    DiagnosticGroupWaiting
+    DiagnosticExplicitBlocker
+    DiagnosticRetainedPlacement
+    DiagnosticError
+)
 
-## Decisions for alignment
+type SchedulingBlocker struct {
+    Scope    string // pod, group capacity, or group placement
+    Plugin   string
+    Category string
+    Resource v1.ResourceName // empty for non-resource failures
+    // Attributable detail and established constraint scope omitted.
+}
 
-1. Adopt `Unschedulable` for all final gang-waiting outcomes, or retain legacy
-   `Schedulable` behavior and accept the remaining reason churn in the initial fix?
-2. Agree that simulated HyperNode results use category summaries in both verbosity
-   modes, while #6107 continues to own detail policy for genuine Pod fit failures?
-3. Agree on the session finalization boundary before gang close reporting and the
-   action/plugin coverage required for an atomic change of diagnostic ownership?
+type TaskDiagnostic struct {
+    Outcome   DiagnosticOutcome
+    Condition *v1.PodCondition // nil means no diagnostic replacement
+}
 
-Implementation follows this agreement. The draft does not resolve or close the
-upstream tracking issues.
+type GroupDiagnostic struct {
+    Known    bool // false for unknown/no new evaluation
+    Blockers []SchedulingBlocker
+    Message  string // shared by condition and Event renderers
+    // Final group outcome and search completeness omitted.
+}
+
+type JobSchedulingDiagnostics struct {
+    Tasks map[TaskID]TaskDiagnostic
+    Group GroupDiagnostic
+}
+
+// JobInfo gains a session-only view:
+// Diagnostics *JobSchedulingDiagnostics
+```
+
+The collector additionally records evaluation scope/completeness, whether any
+placement succeeded, why evaluation stopped and which candidate was retained.
+These facts produce the view above; they cannot be inferred from error strings.
+
+Candidate evidence belongs to one attempt under its parent. A child's failure
+cannot overwrite the parent or winner. The mutable collector begins empty for
+each session and never controls whether scheduling retries occur. Once finalized,
+the Job's view is read-only through close callbacks and parallel publication.
+
+`LastTransaction` remains part of transaction machinery for internal consumers;
+it is no longer reporting evidence. Nomination continues to come from the existing
+live transaction and Pod status path, independently of the diagnostic collector.
+
+Do not carry mutable collection into scheduler-cache Jobs or the next snapshot.
+Release it after publication. UID scoping prevents same-name recreation from
+inheriting results. A valid unschedulable-cache skip supplies no new evaluation;
+preserve the current diagnostic unless another action establishes a new result.
+
+### 4. Recording and Reducing Results
+
+#### Action integration
+
+Record evidence where the decision occurs without changing the scheduling branch:
+
+```go
+// allocateResourcesForTasks, using a candidate-local collector (pseudocode)
+if len(predicateNodes) == 0 {
+    attempt.RecordNoFit(task.UID, scope, fitErrors)
+    if !job.NeedContinueAllocating(subJob.UID) {
+        attempt.StopForGang() // remaining unevaluated tasks wait for the group
+        break               // existing early exit
+    }
+    continue
+}
+if err := alloc.allocateResourcesForTask(stmt, task, bestNode, job); err != nil {
+    attempt.RecordError(task.UID, err)
+    continue
+}
+attempt.RecordPlacementFound(task.UID, scope)
+// Trial node and operation remain available in debug logs.
+```
+
+`RecordNoFit` describes the evaluated scope of this attempt. It becomes a public
+individual failure only if the reducer establishes no placement over the permitted
+scope. Pre-predicate failures may already be conclusive. Equivalent-role rejection
+reuse keeps its existing validity requirements; publish the underlying cause,
+not the optimization message `already predicated failed, skip`.
+
+#### Nested trials and rollback
+
+```go
+// allocateForJob / allocateForSubJob (pseudocode)
+attempt := diagnostics.BeginCandidate(job.UID, subJob.UID, scope)
+stmt := allocateCandidate(attempt) // existing logic with result recording
+result := attempt.Finish()        // evidence plus search completion
+
+if stmt != nil {
+    saved := framework.SaveOperations(stmt) // existing operation backup
+    candidates.Save(saved, result)          // keep matching evidence
+    stmt.Discard()                         // existing dry-run rollback
+}
+diagnostics.MergeCandidate(result)
+
+// If there is a winner, select its result after successful recovery.
+recovered := framework.NewStatement(ssn)
+if err := recovered.RecoverOperations(winner.Statement); err == nil {
+    diagnostics.SelectCandidate(winner.Result)
+} else {
+    diagnostics.RecordRecoveryError(err)
+}
+```
+
+Failed attempts retain evidence even when no statement survives. A recovered
+subjob remains tentative until its parent is settled: parent discard converts the
+placement to group waiting. Successful final placement supersedes failed
+alternatives; recovery failure remains an operational error. No changes to
+`Discard()` or `RecoverOperations()` semantics are needed.
+
+#### Reduction rules
+
+Finding a placement overrides the claim that the Pod had no feasible node, even
+if other nodes left fit errors behind. Individual no-fit requires a complete
+evaluation of the permitted scope. Failure in just one candidate domain cannot
+prove it when other scope remains unevaluated.
+
+When gang failure discards a placement or stops further evaluation, the affected
+member waits for its group. Group minimum-resource screening contributes a group
+capacity blocker, never an invented Pod predicate failure. Keep incomplete,
+scoped evidence on the group or in logs.
+
+Later actions are reconciled against the final live disposition: retained progress
+can supersede an earlier failure, while a genuine later error must remain visible.
+Neither first-error-wins nor last-error-wins is sufficient. A valid cache skip
+provides no new result and therefore preserves the existing diagnostic unless
+another action establishes one.
+
+Queue rejection, gates and operational errors remain explicit. Unknown does not
+default to group waiting without a group decision preventing that Pod's progress.
+This also covers disabled gang plugins and intentionally untouched tasks.
+
+### 5. Session Finalization and Publication
+
+#### Finalization boundary
+
+Finalize after configured actions complete, before plugin close callbacks:
+
+```go
+// framework/framework.go (proposed ordering)
+func CloseSession(ssn *Session) {
+    ssn.FinalizeSchedulingDiagnostics() // new: immutable Job views, no API writes
+    for _, plugin := range ssn.plugins {
+        plugin.OnSessionClose(ssn)      // gang consumes the group view
+    }
+    closeSession(ssn)                   // existing JobUpdater/publication
+}
+```
+
+Finalization initializes a diagnostic view for every session Job, including unknown
+results, and reconciles evidence with live retained placements and final group
+decisions. Plugins owning enqueue/admission diagnostics retain their
+ownership. Missing results must not erase those conditions. Freeze the view before
+parallel JobUpdater/task workers read it.
+
+#### Rollback and unchanged retry sequence
+
+![Rollback diagnostic publication sequence](images/scheduling-diagnostics-sequence.svg)
+
+The sequence assumes normal informer convergence. Scheduling attempts still run;
+only redundant publication is skipped. PodGroup Event suppression in the final
+step depends on #6108's separate delivery policy.
+
+#### Pod publication
+
+Replace `TaskSchedulingReason()`'s transaction-based formatting with finalized
+conditions. Remove the whole-job fallback from the Pod publication path:
+
+```go
+// RecordJobStatusEvent, per-task portion (pseudocode)
+if task.SchGated {
+    return // preserve the existing gated condition
+}
+diagnostic := job.Diagnostics.Tasks[task.UID] // absent means no new condition
+condition := diagnostic.Condition
+
+// Existing #6066 rule: live Pipeline with actual eviction evidence.
+// An empty result does not clear nomination through this path.
+nominatedNode := liveNominationForPublication(task)
+publishTaskDiagnostic(task, condition, nominatedNode)
+```
+
+`publishTaskDiagnostic` adapts `taskUnschedulable`, accepting an optional condition
+so nomination can progress independently:
+
+```go
+updateCondition := condition != nil &&
+    podConditionHaveUpdate(&pod.Status, condition)
+updateNomination := nominatedNode != "" &&
+    podNominatedNodeNameNeedUpdate(&pod.Status, nominatedNode)
+if !updateCondition && !updateNomination {
+    return nil
+}
+// Keep DeepCopy, condition/nomination updates, FailedScheduling recording,
+// UpdatePodStatus, and existing nomination-cache synchronization.
+// For nomination-only changes, retain the current/retained-result diagnostic.
+// Return API errors; never mark a failed write as successfully published.
+```
+
+A nil result must not become an empty condition clearing the message. Binding/error
+callers still supply explicit conditions through their own paths.
+
+#### PodGroup publication
+
+The gang plugin and cache publisher share the final message:
+
+```go
+// gang.OnSessionClose, inside the existing unschedulable branch
+group := job.Diagnostics.Group
+if group.Known {
+    condition := &scheduling.PodGroupCondition{
+        Type:    scheduling.PodGroupUnschedulableType,
+        Status:  v1.ConditionTrue,
+        Reason:  v1beta1.NotEnoughResourcesReason,
+        Message: group.Message,
+        // Existing transition metadata omitted.
+    }
+    ssn.UpdatePodGroupCondition(job, condition)
+}
+
+// RecordJobStatusEvent, group failure path (pseudocode)
+// Known failures use the same message through the existing/#6108 entry point.
+if group.Known {
+    recordGroupFailure(job.PodGroup, group.Message)
+}
+```
+
+For unknown results, preserve/reuse the existing diagnostic where appropriate;
+do not emit an empty replacement. Preserve existing success and plugin paths.
+Remove reporting-only tentative counts from `LastTransaction` and the pending
+reason histogram where they encode discarded progress. Keep actual task phases
+and configured minimum membership; do not change scheduling readiness logic.
+
+Retain PodGroup comparison rules that ignore transition time/ID and Pod
+`LastTransitionTime` behavior when condition status is unchanged. Attempt IDs and
+timestamps must not enter messages. Pod processing must not be gated on whether
+the PodGroup status changed.
+
+### 6. Code Changes
+
+Paths are relative to `pkg/scheduler/`. This is the implementation map; the PR
+contains only the design and figures.
+
+**Result types and formatting.** Add `api/scheduling_diagnostics.go` for the shared
+values and rendering helpers. In `api/job_info.go`, add the session view, replace
+`TaskSchedulingReason()` reporting and remove speculative inputs from `FitError()`.
+Audit clone/snapshot behavior so the view does not leak across sessions. Reuse
+attributable fit details from `api/unschedule_info.go` without redoing #6107 or
+changing genuine detailed Pod counts.
+
+**Collection and action calls.** `framework/session.go` owns the collector, and
+`framework/framework.go` establishes the finalization boundary. Instrument
+`actions/allocate/allocate.go` at evaluation, early exit, screening, candidate
+discard and winner selection. `actions/preempt`, `actions/reclaim` and
+`actions/backfill` contribute later outcomes where they supersede earlier evidence
+or retain progress. Their scheduling, eviction and nomination decisions stay intact.
+
+**Publication.** `plugins/gang/gang.go` consumes the shared group summary instead
+of transaction-derived diagnostic counts. `cache/cache.go` removes the whole-job
+Pod fallback and accepts an optional condition alongside independent nomination.
+It retains existing comparisons and composes with #6108's Event delivery path.
+Readiness, accounting and metrics remain separate from rendering.
+
+**Transaction logging.** `framework/statement.go` retains rollback/recovery
+semantics and other `LastTransaction` consumers. Only enrich debug logs where
+existing messages lack the context needed to replace discarded-placement text.
+
+Reuse V(3)/V(4) transaction/topology logs with session, Pod/PodGroup UID, action,
+domain, trial node and discard cause. Keep expensive per-node detail behind higher
+verbosity; avoid replacing API churn with unconditional logs.
+
+### 7. kube-scheduler Practices
+
+`handleSchedulingFailure()` receives explicit failure status and separate nomination
+information. The direct `updatePod()` path compares condition and nomination
+independently; its patch helper skips empty patches and retries selected API errors.
+See the [v1.34.0 failure path](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/scheduler/schedule_one.go#L1043-L1170),
+[patch helper](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/scheduler/util/utils.go#L101-L140),
+and inspected [v1.37.1 path](https://github.com/kubernetes/kubernetes/blob/v1.37.1/pkg/scheduler/schedule_one.go#L1150-L1307).
+
+Volcano should adopt the separation of failure from reservation state: explicit
+outcomes replace `LastTransaction` as diagnostic evidence. Keep its existing
+no-change comparisons, with stable inputs, and continue checking nomination
+independently so unchanged text cannot suppress real preemption progress. API
+errors must remain retryable rather than being hidden by publication suppression.
+
+kube-scheduler still records `FailedScheduling` independently of whether a status
+patch is needed. It is not a transition-only Event deduplication model. Changing
+Volcano's transport to `Patch` would not remove actual message changes or their
+watch traffic, so it remains outside this proposal.
+
+## Compatibility and Related Work
+
+The deterministic selection fix from #6106/#6127 remains in place wherever the
+existing formatter is used. #6107 continues to own configurable fit-detail
+verbosity, with genuine individual diagnostics detailed by default. Simulation
+summaries use categories in both modes; agree on that boundary with its owner so
+detail mode does not reintroduce discarded placements.
+
+This proposal composes with #6108 and downstream PR #29 rather than adding another
+Event cache. Preserve their source identity, recovery/recurrence, UID isolation and
+refresh policy. Likewise, retain #6066's live Pipeline/eviction evidence and
+nomination lifecycle.
+
+The unschedulable job cache keeps its skip/wake policy. A skipped evaluation is
+not a new failure, so it does not replace current diagnostics unless another action
+establishes a result. The #6081 informer-lag work remains deferred; no synchronous
+cache updates or last-written-status suppression are introduced.
+
+The proposed reason change for a discarded allocation is the explicit compatibility
+exception. Agree on it and test consumers before implementing it; the rest of the
+existing condition reason vocabulary remains intact.
+
+Simulation summaries exclude trial counts and identities. They do not promise
+unchanged text when actual blockers or genuine detailed individual fit histograms
+change.
+
+## Risks and Mitigations
+
+The main correctness risk is overstating partial evidence. Scope and completeness
+must travel with each result, and nested attempts must keep statements paired with
+their evidence until the parent outcome is settled. This prevents a failed child
+from replacing a winning placement or becoming a global Pod failure.
+
+Changing rolled-back allocations from `Schedulable` to `Unschedulable` may affect
+consumers such as autoscaling. Treat it as a compatibility decision and verify the
+affected behavior. Independently test nomination-only updates so stable condition
+text never blocks actual preemption progress.
+
+Category summaries lose per-candidate detail by design. Preserve meaningful
+scope/resource distinctions and established constraints in public explanations;
+keep trial detail available in debug logs. Freeze results before parallel
+publication and audit cloning to prevent races or cross-session leakage.
+
+Collection must not become a new scheduling bottleneck. Reduce candidate evidence
+incrementally, reuse existing facts and avoid extra node evaluations just to
+complete a diagnostic. Measure CPU and retained memory alongside write reduction.
+
+## Alternatives Considered
+
+- **Remove candidate names only.** Partial mitigation; prefix, reason,
+  inherited-error and speculative group-counter churn remain.
+- **Move every message to PodGroup.** Loses attributable Pod failures needed by
+  users and integrations. Keep individual errors on Pods.
+- **Report the last failed HyperNode.** Traversal-dependent and incomplete; reduce
+  categories across relevant attempts instead.
+- **Add a throttle or last-written-message cache.** Does not fix attribution and
+  risks hiding changes or failed-write retries. #6108 owns its separate concern.
+- **Delete `LastTransaction` or change rollback.** Unnecessarily changes transaction
+  semantics. Remove diagnostic dependencies while preserving internal consumers.
+
+## Test Plan
+
+This design-only PR requires document/link/figure checks. Runtime implementation
+requires focused tests and real-cluster reproduction. These are planned checks.
+
+### Unit and Integration Tests
+
+Test reduction with failure followed by success, complete and partial search
+scope, gang early exit versus queue rejection, and valid equivalent-role reuse.
+Nested cases must cover child success followed by parent discard, winner recovery,
+recovery failure and later actions superseding earlier evidence.
+
+Rendering tests should verify identical output for the same facts in different
+orders, preserved scope/resource distinctions and exclusion of trial names/counts.
+Publication tests cover all four outputs, nil-diagnostic preservation,
+nomination-only changes, unchanged inputs and API-error retries. Lifecycle coverage
+includes gates, cache skips, recurrence, UID recreation and immutable parallel reads.
+
+### End-to-End Tests
+
+Start with the #6196 Allocate/Pipeline reproduction on equal-score nodes. Confirm
+that candidate changes stop producing additional Pod condition/nomination changes
+and Pod Events after informer convergence. Then alternate one member between a
+trial placement and gang early exit: its text must stay stable and, if the proposed
+reason contract is accepted, its reason must too.
+
+Use a three-member gang to check attribution: one affinity failure, one rolled-back
+member and one skipped member. Only the failed member should carry no-fit. Extend
+the workload to one and multiple HyperNodes, reorder candidates, exercise capacity,
+fragmentation and affinity blockers, then provide a successful candidate. Verify
+stable equivalent summaries, correct scope and removal of stale failure text.
+
+Finally exercise real preemption through victim eviction, nomination, resource
+release and binding. Cover scheduling gates, Queue restrictions and real API
+failures to preserve explicit blockers and retries. Repeat with the unschedulable
+cache enabled and disabled, recreate same-name objects and restart the scheduler
+to check that diagnostics neither leak nor arise from skipped evaluation.
+
+## Performance Validation
+
+Re-run #6196 on the affected release and eventual patched build. Record exact
+images/commits, actions/plugins, feature gates, manifests, observation windows and
+completed attempts. Disable the unschedulable cache for the primary rollback
+comparison so it cannot hide reporting, then enable it for compatibility coverage.
+
+Count Pod status update/patch attempts by response code, then separately count
+persisted condition/nomination changes and Pod watch notifications. Correlate
+notifications with scheduler-owned fields so kubelet/controller writes are not
+mistaken for regressions. In the unchanged reproducer, expect zero additional
+simulation-induced Pod changes after initial publication and informer convergence.
+
+Count actual Pod and PodGroup Event create/patch/update requests, not `Eventf()`
+calls. Report group delivery with and without #6108 separately. PodGroup status
+must not change solely because trial progress or candidate order changed while
+the final facts stayed the same.
+
+Measure scheduler CPU, memory, session latency and useful throughput at the #6081
+scale. The reduction in API traffic must not come at the cost of scheduling
+progress or excessive collector overhead.
+
+Observe for at least 30 seconds after convergence and confirm continued trials in
+logs. API errors and informer lag may still cause requests; conflicts do not
+persist another Pod update. No new runtime measurements are claimed in this draft.
+
+## Implementation Plan and Open Questions
+
+1. Agree on the four output contracts, rolled-back allocation reason and #6107
+   simulation-summary boundary.
+2. Implement collection, action recording and finalization with nested-candidate
+   and later-action precedence checks.
+3. Switch publishers together; preserve transaction semantics and compose with
+   existing #6108 delivery policy.
+4. Verify the same real-cluster workloads before/after, then update the older
+   [scheduling-reason design](scheduling-reason.md) and user guidance.
+
+Decisions requiring alignment:
+
+- Use `Unschedulable` for all gang-waiting outcomes, or retain legacy reasons in a
+  partial mitigation and explicitly accept remaining reason churn?
+- Use simulation category summaries in both verbosity modes while #6107 owns
+  genuine individual fit-detail policy?
+- Accept finalization before `OnSessionClose` and the action coverage in the
+  code-change section as the implementation boundary?
+
+## References
+
+The structure follows the
+[Unschedulable Job Cache design](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/docs/design/unschedulable-job-cache.md).
+Source analysis is pinned to upstream `8a05cdba9405e66a5f3bacf7234a98677f62c6ab`;
+the older downstream base is only the document destination.
+
+- [#6081 scope breakdown](https://github.com/volcano-sh/volcano/issues/6081#issuecomment-6263823420) — Separate message, Event and informer-lag workstreams.
+- [Pod ownership discussion](https://github.com/volcano-sh/volcano/issues/6081#issuecomment-6577040419) — Rolled-back/skipped members refer to the group.
+- [Explicit result and aggregation discussion](https://github.com/volcano-sh/volcano/issues/6196#issuecomment-6599802637) — Attribution, completeness and HyperNode categories.
+- [Allocate candidate handling](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/actions/allocate/allocate.go#L455-L686) — Nested attempts and recovery.
+- [Statement.Discard](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/framework/statement.go#L376-L398) — Snapshots before rollback.
+- [TaskSchedulingReason](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/api/job_info.go#L981-L1022) — Pod message and nomination construction.
+- [Gang close reporting](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/plugins/gang/gang.go#L228-L278) — Trial-derived counts and group conditions.
+- [Job updater entry](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/framework/session.go#L541-L550) — Publication after close callbacks.
+- [Pod publication](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/cache/cache.go#L1203-L1258) — Comparison and Event/status writes.
+- [Group/task reporting](https://github.com/volcano-sh/volcano/blob/8a05cdba9405e66a5f3bacf7234a98677f62c6ab/pkg/scheduler/cache/cache.go#L1792-L1845) — Group Event and whole-job Pod fallback.
+- [#6106](https://github.com/volcano-sh/volcano/issues/6106), [#6127](https://github.com/volcano-sh/volcano/pull/6127), [#6107](https://github.com/volcano-sh/volcano/issues/6107), [#6108](https://github.com/volcano-sh/volcano/issues/6108) — Existing workstreams.
+- [Downstream PR #29](https://github.com/JesseStutler/volcano/pull/29), [#6066](https://github.com/volcano-sh/volcano/pull/6066) — Event delivery and nomination compatibility.

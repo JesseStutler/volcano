@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph session ["Scheduling session"]
+        actions["Actions and plugins"] --> attempts["Candidate-local evidence"]
+        attempts --> reduce["Finalize after actions"]
+        live["Live retained placement"] --> reduce
+        reduce --> pod["Pod diagnostic: own outcome"]
+        reduce --> group["PodGroup diagnostic: group outcome"]
+    end
+    actions -. "Trial and rollback" .-> logs["Debug logs"]
+    pod --> podWriter["Compare condition and nomination"]
+    group --> groupWriter["Shared group condition and Event message"]
+    podWriter --> podApi["Pod status and Events"]
+    groupWriter --> groupApi["PodGroup status and Events"]
+    policy["Existing Event policy / #6108"] -. "Delivery" .-> groupWriter
+    style session fill:#f5f3ff,stroke:#a78bfa
+    classDef result fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
+    classDef output fill:#ecfdf5,stroke:#34d399,color:#064e3b
+    classDef detail fill:#f8fafc,stroke:#94a3b8,color:#334155
+    class pod,group result
+    class podApi,groupApi output
+    class logs,policy detail
