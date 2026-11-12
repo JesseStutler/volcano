@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="450" viewBox="0 0 1000 450" role="img" aria-labelledby="title desc">
+  <title id="title">Scheduling diagnostics through existing Volcano paths</title>
+  <desc id="desc">Actions prepare Pod conditions and a group failure summary in memory. Existing session-close publishers compare and write status and Events. Trial placement and rollback details go to debug logs.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; fill: #1f2937; }
+    .heading { font-size: 15px; font-weight: 700; fill: #64748b; }
+    .name { font-size: 17px; font-weight: 600; fill: #4c1d95; }
+    .body { font-size: 15px; }
+    .small { font-size: 13px; fill: #475569; }
+    .box { fill: #f5f3ff; stroke: #a78bfa; stroke-width: 1.5; }
+    .output { fill: #ecfdf5; stroke: #34d399; stroke-width: 1.5; }
+    .line { fill: none; stroke: #64748b; stroke-width: 1.5; marker-end: url(#arrow); }
+  </style>
+  <rect width="1000" height="450" fill="#fff"/>
+  <text x="40" y="35" class="heading">EXISTING DECISION SITES</text>
+  <text x="355" y="35" class="heading">SESSION JOB</text>
+  <text x="705" y="35" class="heading">EXISTING PUBLICATION</text>
+
+  <rect x="30" y="65" width="240" height="225" rx="8" class="box"/>
+  <text x="150" y="103" text-anchor="middle" class="name">Scheduling actions</text>
+  <text x="150" y="140" text-anchor="middle" class="body">Resolve Pod failures</text>
+  <text x="150" y="165" text-anchor="middle" class="body">and gang waiting</text>
+  <text x="150" y="207" text-anchor="middle" class="body">Keep HyperNode trials local</text>
+  <text x="150" y="247" text-anchor="middle" class="small">No API writes here</text>
+
+  <rect x="345" y="65" width="280" height="95" rx="8" class="box"/>
+  <text x="485" y="101" text-anchor="middle" class="name">Pod conditions</text>
+  <text x="485" y="129" text-anchor="middle" class="body">TaskSchedulingConditions</text>
+  <path d="M270 112 L345 112" class="line"/>
+
+  <rect x="345" y="195" width="280" height="95" rx="8" class="box"/>
+  <text x="485" y="231" text-anchor="middle" class="name">Group failure summary</text>
+  <text x="485" y="259" text-anchor="middle" class="body">JobFitErrors</text>
+  <path d="M270 242 L345 242" class="line"/>
+
+  <rect x="695" y="65" width="275" height="95" rx="8" class="output"/>
+  <text x="832" y="101" text-anchor="middle" class="name">Pod status and Events</text>
+  <text x="832" y="129" text-anchor="middle" class="body">Condition / nomination checks</text>
+  <path d="M625 112 L695 112" class="line"/>
+
+  <rect x="695" y="195" width="275" height="95" rx="8" class="output"/>
+  <text x="832" y="231" text-anchor="middle" class="name">PodGroup status and Events</text>
+  <text x="832" y="259" text-anchor="middle" class="body">Gang plugin and cache publisher</text>
+  <path d="M625 242 L695 242" class="line"/>
+
+  <rect x="345" y="345" width="625" height="70" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="365" y="374" class="name">Debug logs</text>
+  <text x="365" y="399" class="body">Trial nodes, per-domain details and rollback progress</text>
+  <path d="M150 290 L150 380 L345 380" class="line" stroke-dasharray="5 4"/>
+</svg>
