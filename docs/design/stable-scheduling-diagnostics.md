@@ -124,7 +124,7 @@ Use the existing error producers and publication path. Pass a Kubernetes
 nomination separate. There is no new diagnostic state machine or session
 finalization phase.
 
-![Scheduling diagnostics through existing Volcano paths](images/stable-scheduling-diagnostics/reporting.svg)
+![Scheduling diagnostics: session-owned inputs, existing publication calls, and independent Pod condition and nomination checks](images/stable-scheduling-diagnostics/reporting.svg)
 
 The work falls into three existing modules. **Scheduling actions** decide which
 Pod failed, which members are waiting, and whether a candidate was retained.
@@ -257,6 +257,12 @@ recovery succeeds, merge its conditions only for the affected subjob/tasks; do n
 replace conditions belonging to other members. An enclosing job attempt retains
 ownership until its own decision completes: a recovered subjob is still tentative
 until the parent is settled. Failed recovery remains an operational error.
+
+The sequence below shows successful subjob recovery within a parent attempt. A
+parent rollback drops the candidate's conditions; only the settled parent decision
+reaches the session's `JobInfo` for later publication.
+
+![HyperNode sequence: save and discard candidate operations, recover a subjob, then retain or discard its conditions at the parent scope](images/stable-scheduling-diagnostics/hypernode-attempts.svg)
 
 If no complete group placement is found, report group waiting for members without
 a confirmed individual failure. A failure in one domain does not establish that

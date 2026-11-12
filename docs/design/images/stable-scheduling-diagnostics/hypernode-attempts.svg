@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="735" viewBox="0 0 1100 735" role="img" aria-labelledby="title desc">
+  <title id="title">HyperNode diagnostic ownership across nested attempts</title>
+  <desc id="desc">Sequence for a subjob inside a parent job attempt. Usable candidates save operations and independent condition maps before simulation rollback. The selected subjob is recovered, but its conditions remain owned by the parent attempt. Discarding that parent candidate drops these conditions. Only a retained parent decision or the final group failure reaches session JobInfo; candidate retries do not publish status or Events.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#475569" stroke-width="1.5"/></marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#245b88" stroke-width="1.5"/></marker>
+  </defs>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; font-size: 16px; fill: #263340; }
+    .title { font-size: 24px; font-weight: 600; fill: #182632; }
+    .label { font-size: 14px; fill: #586572; }
+    .code { font-family: 'DejaVu Sans Mono', monospace; font-size: 14px; }
+    .strong { font-weight: 600; }
+    .blue { fill: #245b88; }
+    .edge { fill: none; stroke: #475569; stroke-width: 1.5; marker-end: url(#arrow); }
+    .accepted { fill: none; stroke: #245b88; stroke-width: 1.8; marker-end: url(#blue-arrow); }
+    .rule { fill: none; stroke: #d6dce1; stroke-width: 1; }
+    .lifeline { fill: none; stroke: #a4adb5; stroke-width: 1; stroke-dasharray: 5 5; }
+  </style>
+  <rect width="1100" height="735" fill="#fff"/>
+  <text x="44" y="42" class="title" text-anchor="start">HyperNode diagnostic scope</text>
+  <text x="44" y="70" class="label" text-anchor="start">A recovered subjob is still tentative until its parent attempt settles.</text>
+  <text x="110" y="112" class="strong" text-anchor="middle">Job attempt</text>
+  <path d="M110 125 V683" class="lifeline"/>
+  <text x="370" y="112" class="strong" text-anchor="middle">Subjob attempt</text>
+  <path d="M370 125 V182 M370 241 V443" class="lifeline"/>
+  <text x="670" y="112" class="strong" text-anchor="middle">Statement</text>
+  <path d="M670 125 V443" class="lifeline"/>
+  <text x="960" y="112" class="strong" text-anchor="middle">Session JobInfo</text>
+  <path d="M960 125 V683" class="lifeline"/>
+  <path d="M110 154 H370" class="edge"/>
+  <text x="240" y="144" class="code" text-anchor="middle">allocateForSubJob()</text>
+  <rect x="310" y="182" width="415" height="137" fill="none" stroke="#74818c" stroke-width="1.2"/>
+  <rect x="310" y="182" width="415" height="28" fill="#f3f5f6" stroke="#74818c" stroke-width="1.2"/>
+  <text x="326" y="202" class="label strong" text-anchor="start">loop · candidate HyperNodes</text>
+  <text x="326" y="232" class="label" text-anchor="start">For each usable solution: save its condition map.</text>
+  <path d="M370 264 H670" class="edge"/>
+  <text x="520" y="253" class="code" text-anchor="middle">SaveOperations(stmt)</text>
+  <path d="M370 305 H670" class="edge"/>
+  <text x="520" y="294" class="code" text-anchor="middle">stmt.Discard()</text>
+  <text x="750" y="269" class="label" text-anchor="start">Simulation rollback</text>
+  <text x="750" y="292" class="label" text-anchor="start">No published diagnostic</text>
+  <path d="M370 363 H670" class="edge"/>
+  <text x="520" y="351" class="code" text-anchor="middle">RecoverOperations(winner)</text>
+  <path d="M670 393 H370" class="edge" stroke-dasharray="4 4"/>
+  <text x="520" y="385" class="label" text-anchor="middle">success</text>
+  <path d="M370 432 H110" class="edge" stroke-dasharray="4 4"/>
+  <text x="240" y="421" class="label" text-anchor="middle">winner + its conditions</text>
+  <rect x="44" y="454" width="684" height="51" fill="#f7f8f9" stroke="#d6dce1" stroke-width="1.2"/>
+  <text x="60" y="476" class="label" text-anchor="start">If this parent candidate is discarded, drop its conditions.</text>
+  <text x="60" y="495" class="label" text-anchor="start">The next parent candidate starts with independent diagnostic storage.</text>
+  <rect x="44" y="528" width="1012" height="146" fill="none" stroke="#74818c" stroke-width="1.2"/>
+  <text x="60" y="549" class="code strong" text-anchor="start">alt</text>
+  <text x="127" y="549" class="label" text-anchor="start">[parent retained]</text>
+  <path d="M110 581 H960" class="accepted"/>
+  <text x="535" y="571" class="blue" text-anchor="middle">Merge retained conditions for affected tasks only</text>
+  <path d="M44 598 H1056" class="rule" stroke-dasharray="5 4"/>
+  <text x="127" y="621" class="label" text-anchor="start">[search ends without a complete group placement]</text>
+  <path d="M110 657 H960" class="accepted"/>
+  <text x="535" y="647" class="blue" text-anchor="middle">Prepare group waiting / confirmed Pod failures; set JobFitErrors</text>
+  <text x="44" y="711" class="label" text-anchor="start">JobInfo holds the settled decision. The existing session-close path performs publication.</text>
+</svg>
