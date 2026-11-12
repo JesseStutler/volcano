@@ -70,7 +70,9 @@ Those are previously reported results, not measurements of this proposal.
 
 - Changing gang eligibility, early exit, scoring, retry policy or rollback.
 - Replacing the unschedulable job cache or adding persistent diagnostic state.
-- Reimplementing #6106, #6107 or #6108, or fixing informer-lag duplicate requests.
+- Changing fit-error selection, diagnostic verbosity controls or PodGroup Event
+  deduplication, recurrence and refresh policy.
+- Suppressing duplicate writes caused by stale informer snapshots.
 
 ## Proposal
 
@@ -354,9 +356,9 @@ When the existing cache-skip path performs no new group evaluation, preserve the
 current group diagnostic. An empty error string alone is not evidence of recovery.
 
 Existing comparisons still control status writes. Unchanged Pod conditions and
-nomination skip the Pod Event/status path. Unchanged PodGroup Event delivery remains
-the separate responsibility of #6108; this change supplies stable content to that
-path. kube-scheduler itself records failed-scheduling Events independently of its
+nomination skip the Pod Event/status path. Stable PodGroup messages alone do not
+suppress repeated Events; the Event publisher's delivery policy is unchanged.
+kube-scheduler itself records failed-scheduling Events independently of its
 no-op status check, so it is not an Event deduplication model to copy wholesale.
 
 ### 5. Scheduler Integration
@@ -393,16 +395,18 @@ trial node, domain and rollback details at debug verbosity.
 
 ## Compatibility
 
-Keep #6106/#6127's deterministic selection where its formatter remains in use.
-#6107 continues to own configurable detail for genuine fit errors; detailed mode
-must not reintroduce discarded placements. #6108 and downstream PR #29 retain
-ownership of PodGroup Event suppression, recurrence and refresh. The #6081
-informer-lag work remains deferred; no extra write-suppression cache is introduced.
+Keep deterministic representative-error selection wherever the existing fit-error
+formatter remains in use. Genuine Pod fit errors retain their diagnostic detail;
+neither detailed nor summary formatting may reintroduce discarded placements.
+PodGroup Event suppression, recurrence and refresh remain governed by the Event
+publisher's delivery policy. Duplicate writes caused by stale informer snapshots
+remain outside this design; no extra write-suppression cache is introduced.
 
 The two decisions requiring agreement are the rolled-back allocation reason
-change and the category-summary boundary with #6107. The former can affect
-autoscaling consumers; the latter must preserve genuine individual fit detail
-while keeping discarded placements out of both verbosity modes.
+change and the boundary between detailed Pod fit errors and PodGroup blocker
+categories. The former can affect autoscaling consumers; the latter must preserve
+genuine individual fit detail while keeping trial placements out of public
+diagnostics.
 
 ## Risks and Mitigations
 
@@ -444,7 +448,7 @@ API failure retries and the existing transition-time behavior.
 
 Validate the implementation with:
 
-- The #6196 Allocate/Pipeline reproducer: trial-node changes and trial-versus-skip
+- Repeated Allocate/Pipeline rollback: trial-node changes and trial-versus-skip
   alternation must stop changing Pod conditions after informer convergence.
 - The A/B/C example, including failures on some nodes followed by placement on
   another, so residual fit errors cannot become an individual failure.
@@ -458,9 +462,10 @@ Validate the implementation with:
 Compare affected and patched builds on a real cluster. Count successful Pod status
 changes, status requests by response code, Pod watch notifications and Event API
 requests separately. Confirm trials still run while unchanged diagnostic writes
-stop, and measure added bookkeeping cost at the #6081 workload scale.
-Measure PodGroup Event reduction separately with #6108. No new cluster results
-are claimed by this documentation-only proposal.
+stop, and measure added bookkeeping cost with large gangs and many HyperNode
+candidates. Measure PodGroup message stability separately from Event delivery
+frequency, since stable content alone does not suppress repeated Events. No new
+cluster results are claimed by this documentation-only proposal.
 
 ## Related Issues and References
 

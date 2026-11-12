@@ -58,8 +58,8 @@
   <path d="M960 466 V518" class="edge"/>
   <rect x="835" y="518" width="241" height="58" fill="#fff" stroke="#74818c" stroke-width="1.2"/>
   <text x="955" y="552" class="strong" text-anchor="middle">PodGroup Event</text>
-  <text x="835" y="602" class="label" text-anchor="start">Existing delivery policy;</text>
-  <text x="835" y="622" class="label" text-anchor="start">deduplication belongs to #6108.</text>
+  <text x="835" y="602" class="label" text-anchor="start">Stable group message</text>
+  <text x="835" y="622" class="label" text-anchor="start">Delivery policy unchanged</text>
   <text x="44" y="544" class="strong" text-anchor="start">Pod publication inputs</text>
   <text x="44" y="572" class="label" text-anchor="start">Optional prepared condition</text>
   <text x="44" y="594" class="label" text-anchor="start">Live nomination, checked independently</text>
