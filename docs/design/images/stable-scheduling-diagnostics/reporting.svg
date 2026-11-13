@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="574pt" height="604pt" viewBox="0.00 0.00 574.30 603.80" role="img" aria-labelledby="title desc">
+<title id="title">Scheduling diagnostics and publication</title><desc id="desc">Actions prepare native Pod conditions and a group summary in session JobInfo. At session close, gang prepares the group condition, JobUpdater compares group status, and the cache updates PodGroup status when required before RecordJobStatusEvent. The Pod helper compares its optional condition and live nomination independently. Unchanged inputs skip the Pod Event and status write. PodGroup Event deduplication remains separate.</desc><g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 589.4)">
+<title>reporting</title>
+<polygon fill="white" stroke="transparent" points="-14.4,14.4 -14.4,-589.4 559.9,-589.4 559.9,14.4 -14.4,14.4"/>
+<g id="edge1" class="edge">
+<title>actions-&gt;job</title>
+<path fill="none" stroke="#333333" d="M136.1,-536.5C154.92,-536.5 175.67,-536.5 195.62,-536.5"/>
+<polygon fill="#333333" stroke="#333333" points="195.85,-538.78 202.35,-536.5 195.85,-534.23 195.85,-538.78"/>
+<text text-anchor="middle" x="169.25" y="-542.9" font-family="Arial" font-size="12.00" fill="#333333">prepare</text>
+</g>
+<g id="edge2" class="edge">
+<title>actions-&gt;logs</title>
+<path fill="none" stroke="#333333" stroke-dasharray="5,2" d="M68,-518.28C68,-501.8 68,-476.79 68,-458.29"/>
+<polygon fill="#333333" stroke="#333333" points="70.28,-457.8 68,-451.3 65.73,-457.8 70.28,-457.8"/>
+</g>
+<g id="edge3" class="edge">
+<title>job-&gt;gang</title>
+<path fill="none" stroke="#333333" d="M288,-497.99C288,-486.02 288,-472.99 288,-461.83"/>
+<polygon fill="#333333" stroke="#333333" points="290.28,-461.65 288,-455.15 285.73,-461.65 290.28,-461.65"/>
+<text text-anchor="middle" x="324.5" y="-473.4" font-family="Arial" font-size="12.00" fill="#333333">session close</text>
+</g>
+<g id="edge4" class="edge">
+<title>gang-&gt;cache</title>
+<path fill="none" stroke="#333333" d="M288,-410.89C288,-403.32 288,-394.67 288,-386.64"/>
+<polygon fill="#333333" stroke="#333333" points="290.28,-386.57 288,-380.07 285.73,-386.57 290.28,-386.57"/>
+</g>
+<g id="edge5" class="edge">
+<title>cache-&gt;events</title>
+<path fill="none" stroke="#333333" d="M288,-335.92C288,-328.4 288,-319.86 288,-312.1"/>
+<polygon fill="#333333" stroke="#333333" points="290.28,-311.74 288,-305.24 285.73,-311.74 290.28,-311.74"/>
+</g>
+<g id="edge6" class="edge">
+<title>events-&gt;group</title>
+<path fill="none" stroke="#333333" d="M373.29,-287C387.55,-287 405.64,-287 415.45,-287"/>
+<polygon fill="#333333" stroke="#333333" points="415.68,-289.28 422.18,-287 415.68,-284.73 415.68,-289.28"/>
+</g>
+<g id="edge7" class="edge">
+<title>events-&gt;pod</title>
+<path fill="none" stroke="#333333" d="M288,-268.82C288,-258.42 288,-244.9 288,-232.98"/>
+<polygon fill="#333333" stroke="#333333" points="290.28,-232.69 288,-226.19 285.73,-232.69 290.28,-232.69"/>
+<text text-anchor="middle" x="309.5" y="-244.4" font-family="Arial" font-size="12.00" fill="#333333">per Pod</text>
+</g>
+<g id="edge8" class="edge">
+<title>pod-&gt;changed</title>
+<path fill="none" stroke="#333333" d="M288,-181.63C288,-174.35 288,-165.98 288,-157.8"/>
+<polygon fill="#333333" stroke="#333333" points="290.28,-157.5 288,-151 285.73,-157.5 290.28,-157.5"/>
+</g>
+<g id="edge9" class="edge">
+<title>changed-&gt;skip</title>
+<path fill="none" stroke="#333333" d="M269.83,-91.03C260.58,-77.3 249.43,-60.74 240.44,-47.4"/>
+<polygon fill="#333333" stroke="#333333" points="242.25,-46.01 236.73,-41.89 238.47,-48.56 242.25,-46.01"/>
+<text text-anchor="middle" x="263" y="-62.4" font-family="Arial" font-size="12.00" fill="#333333">no</text>
+</g>
+<g id="edge10" class="edge">
+<title>changed-&gt;write</title>
+<path fill="none" stroke="#333333" d="M306.17,-91.03C314.82,-78.19 325.14,-62.86 333.8,-50.01"/>
+<polygon fill="#333333" stroke="#333333" points="335.9,-50.96 337.65,-44.3 332.13,-48.42 335.9,-50.96"/>
+<text text-anchor="middle" x="336.5" y="-62.4" font-family="Arial" font-size="12.00" fill="#333333">yes</text>
+</g>
+<g id="node1" class="node">
+<title>actions</title>
+<polygon fill="none" stroke="#333333" points="136,-554.5 0,-554.5 0,-518.5 136,-518.5 136,-554.5"/>
+<text text-anchor="middle" x="68" y="-532.8" font-family="Arial" font-size="14.00" fill="#222222">Scheduling actions</text>
+</g>
+<g id="node2" class="node">
+<title>job</title>
+<text text-anchor="start" x="237" y="-557.3" font-family="Arial" font-size="14.00" fill="#222222">JobInfo (session)</text>
+<text text-anchor="start" x="209" y="-532.3" font-family="Arial" font-size="14.00" fill="#222222">TaskSchedulingConditions</text>
+<text text-anchor="start" x="209" y="-507.3" font-family="Arial" font-size="14.00" fill="#222222">JobFitErrors</text>
+<polygon fill="#333333" stroke="#333333" points="203,-548.5 203,-548.5 374,-548.5 374,-548.5 203,-548.5"/>
+<polygon fill="none" stroke="#333333" points="202.5,-498 202.5,-575 373.5,-575 373.5,-498 202.5,-498"/>
+</g>
+<g id="node3" class="node">
+<title>logs</title>
+<polygon fill="none" stroke="#333333" points="129.5,-451 0.5,-451 0.5,-415 135.5,-415 135.5,-445 129.5,-451"/>
+<polyline fill="none" stroke="#333333" points="129.5,-451 129.5,-445 "/>
+<polyline fill="none" stroke="#333333" points="135.5,-445 129.5,-445 "/>
+<text text-anchor="middle" x="68" y="-429.3" font-family="Arial" font-size="14.00" fill="#222222">Trial / rollback logs</text>
+</g>
+<g id="node4" class="node">
+<title>gang</title>
+<polygon fill="none" stroke="#333333" points="371.5,-455 204.5,-455 204.5,-411 371.5,-411 371.5,-455"/>
+<text text-anchor="middle" x="288" y="-438.3" font-family="Arial" font-size="14.00" fill="#222222">gang.OnSessionClose()</text>
+<text text-anchor="middle" x="288" y="-420.3" font-family="Arial" font-size="14.00" fill="#222222">Set PodGroup condition</text>
+</g>
+<g id="node5" class="node">
+<title>cache</title>
+<polygon fill="none" stroke="#333333" points="421,-380 155,-380 155,-336 421,-336 421,-380"/>
+<text text-anchor="middle" x="288" y="-363.3" font-family="Arial" font-size="14.00" fill="#222222">JobUpdater &#8594; cache.UpdateJobStatus()</text>
+<text text-anchor="middle" x="288" y="-345.3" font-family="Arial" font-size="14.00" fill="#222222">Compare status; write only if changed</text>
+</g>
+<g id="node6" class="node">
+<title>events</title>
+<polygon fill="none" stroke="#333333" points="373,-305 203,-305 203,-269 373,-269 373,-305"/>
+<text text-anchor="middle" x="288" y="-283.3" font-family="Arial" font-size="14.00" fill="#222222">RecordJobStatusEvent()</text>
+</g>
+<g id="node7" class="node">
+<title>group</title>
+<polygon fill="none" stroke="#333333" points="545.5,-305 422.5,-305 422.5,-269 545.5,-269 545.5,-305"/>
+<text text-anchor="middle" x="484" y="-283.3" font-family="Arial" font-size="14.00" fill="#222222">PodGroup Event</text>
+</g>
+<g id="node8" class="node">
+<title>pod</title>
+<polygon fill="none" stroke="#333333" points="407,-226 169,-226 169,-182 407,-182 407,-226"/>
+<text text-anchor="middle" x="288" y="-209.3" font-family="Arial" font-size="14.00" fill="#222222">updateTaskSchedulingStatus()</text>
+<text text-anchor="middle" x="288" y="-191.3" font-family="Arial" font-size="14.00" fill="#222222">Optional condition + live nomination</text>
+</g>
+<g id="node9" class="node">
+<title>changed</title>
+<polygon fill="none" stroke="#333333" points="288,-151 150,-119 288,-87 426,-119 288,-151"/>
+<text text-anchor="middle" x="288" y="-124.3" font-family="Arial" font-size="14.00" fill="#222222">Condition or</text>
+<text text-anchor="middle" x="288" y="-106.3" font-family="Arial" font-size="14.00" fill="#222222">nomination changed?</text>
+</g>
+<g id="node10" class="node">
+<title>skip</title>
+<ellipse fill="none" stroke="#333333" cx="224" cy="-22" rx="50.82" ry="20.51"/>
+<text text-anchor="middle" x="224" y="-18.3" font-family="Arial" font-size="14.00" fill="#222222">No write</text>
+</g>
+<g id="node11" class="node">
+<title>write</title>
+<polygon fill="none" stroke="#333333" points="404,-44 300,-44 300,0 404,0 404,-44"/>
+<text text-anchor="middle" x="352" y="-27.3" font-family="Arial" font-size="14.00" fill="#222222">Pod Event</text>
+<text text-anchor="middle" x="352" y="-9.3" font-family="Arial" font-size="14.00" fill="#222222">UpdateStatus</text>
+</g>
+</g>
+</svg>
