@@ -1,0 +1,126 @@
+name: Release publishing test
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full upstream commit SHA to test
+        required: true
+        default: '4513d5cdd897b89ed3f2b8ff490870915fa5f730'
+      build_mode:
+        description: Small fixture or all six real component images
+        type: choice
+        options: [smoke, full]
+        default: smoke
+      dockerhub_namespace:
+        description: Optional test namespace; requires DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-publishing-test
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'JesseStutler/volcano'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      BUILD_MODE: ${{ inputs.build_mode }}
+      DOCKERHUB_NAMESPACE: ${{ inputs.dockerhub_namespace }}
+      DOCKER_PLATFORMS: linux/amd64,linux/arm64
+    steps:
+      - name: Validate inputs and set paths
+        shell: bash
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ -z "$DOCKERHUB_NAMESPACE" || "$DOCKERHUB_NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+          echo "IMAGES_DIR=$RUNNER_TEMP/volcano-images" >> "$GITHUB_ENV"
+          echo "RESULTS_DIR=$RUNNER_TEMP/publish-results" >> "$GITHUB_ENV"
+          echo "GHCR_PREFIX=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/volcano-release-test" >> "$GITHUB_ENV"
+          echo "TAG=pr6296-${SOURCE_SHA:0:7}-$BUILD_MODE-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/publish-results"
+
+      - name: Checkout test harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: harness
+
+      - name: Checkout exact upstream revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: volcano-sh/volcano
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          path: source
+
+      - name: Install Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 1.26.x
+          cache: false
+
+      - name: Install publishing and validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo jq
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint -shellcheck= -pyflakes= source/.github/workflows/release.yaml
+          actionlint -shellcheck= -pyflakes= harness/.github/workflows/release-publishing-test.yaml
+          bash -n source/hack/push-images.sh harness/hack/test-release-publishing.sh
+
+      - name: Enable arm64 emulation
+        if: inputs.build_mode == 'full'
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          platforms: arm64
+
+      - name: Login to test GHCR namespace
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub when requested
+        if: inputs.dockerhub_namespace != ''
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Start local test registry
+        run: |
+          docker run -d --name release-test-registry -p 127.0.0.1:5000:5000 registry:2.8.3
+          sudo mkdir -p /etc/containers/registries.conf.d
+          printf '[[registry]]\nlocation = "localhost:5000"\ninsecure = true\n' | sudo tee /etc/containers/registries.conf.d/release-test.conf >/dev/null
+          curl --retry 10 --retry-connrefused --retry-delay 1 --fail http://localhost:5000/v2/
+
+      - name: Build OCI archives once
+        working-directory: source
+        run: bash ../harness/hack/test-release-publishing.sh build
+
+      - name: Publish, compare manifests, and exercise failures
+        working-directory: source
+        run: bash ../harness/hack/test-release-publishing.sh publish
+
+      - name: Save results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-publishing-${{ inputs.build_mode }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/publish-results
+          retention-days: 7
+
+      - name: Logout
+        if: always()
+        run: |
+          docker logout ghcr.io
+          docker logout
