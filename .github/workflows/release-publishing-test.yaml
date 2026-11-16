@@ -15,6 +15,9 @@ on:
       dockerhub_namespace:
         description: Optional test namespace; requires DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets
         default: ''
+      inspect_tag:
+        description: Optional previous test tag to inspect without republishing
+        default: ''
 
 permissions:
   contents: read
@@ -96,6 +99,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Inspect previous GHCR tag
+        if: inputs.inspect_tag != ''
+        env:
+          INSPECT_TAG: ${{ inputs.inspect_tag }}
+        run: |
+          [[ "$INSPECT_TAG" =~ ^pr6296-[a-zA-Z0-9_.-]+$ ]]
+          for component in scheduler agent-scheduler controller-manager hypernode-controller-manager webhook-manager agent; do
+            manifest="$RESULTS_DIR/previous-$component.json"
+            if skopeo inspect --raw "docker://$GHCR_PREFIX/vc-$component:$INSPECT_TAG" > "$manifest" 2> "$manifest.error"; then
+              printf '%s %s\n' "$component" "$(skopeo manifest-digest "$manifest")" | tee -a "$RESULTS_DIR/previous-tag-digests.txt"
+            else
+              cat "$manifest.error"
+            fi
+          done
+
       - name: Start local test registry
         run: |
           docker run -d --name release-test-registry -p 127.0.0.1:5000:5000 registry:2.8.3
@@ -110,6 +128,18 @@ jobs:
       - name: Publish, compare manifests, and exercise failures
         working-directory: source
         run: bash ../harness/hack/test-release-publishing.sh publish
+
+      - name: Diagnose GHCR visibility after failure
+        if: failure()
+        run: |
+          for component in scheduler agent-scheduler controller-manager hypernode-controller-manager webhook-manager agent; do
+            manifest="$RESULTS_DIR/after-failure-$component.json"
+            if skopeo inspect --raw "docker://$GHCR_PREFIX/vc-$component:$TAG" > "$manifest" 2> "$manifest.error"; then
+              printf '%s %s\n' "$component" "$(skopeo manifest-digest "$manifest")" | tee -a "$RESULTS_DIR/after-failure-digests.txt"
+            else
+              cat "$manifest.error"
+            fi
+          done
 
       - name: Save results
         if: always()
