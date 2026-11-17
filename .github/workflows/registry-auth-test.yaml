@@ -1,0 +1,166 @@
+name: Authenticated registry publishing test
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact upstream commit used by the successful full build
+        default: '4513d5cdd897b89ed3f2b8ff490870915fa5f730'
+        required: true
+      build_run_id:
+        description: Successful full publishing test whose images and digest evidence will be reused
+        default: '43831202853'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-registry-publishing-test
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'JesseStutler/volcano'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      DOCKER_PLATFORMS: linux/amd64,linux/arm64
+    steps:
+      - name: Set test paths
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$BUILD_RUN_ID" =~ ^[0-9]+$ ]]
+          echo "IMAGES_DIR=$RUNNER_TEMP/volcano-images" >> "$GITHUB_ENV"
+          echo "EVIDENCE_DIR=$RUNNER_TEMP/build-evidence" >> "$GITHUB_ENV"
+          echo "RESULTS_DIR=$RUNNER_TEMP/auth-test-results" >> "$GITHUB_ENV"
+          echo "GHCR_PREFIX=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/volcano-release-test" >> "$GITHUB_ENV"
+          echo "TAG=pr6296-auth-$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/auth-test-results"
+
+      - name: Checkout test harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: harness
+
+      - name: Checkout unchanged upstream source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: volcano-sh/volcano
+          ref: ${{ inputs.source_sha }}
+          path: source
+
+      - name: Install Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: 1.26.x
+          cache: false
+
+      - name: Install test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo jq apache2-utils
+          bash -n harness/hack/test-authenticated-registry.sh
+
+      - name: Download successful build evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.build_run_id }}
+          name: release-publishing-full-${{ inputs.build_run_id }}
+          path: ${{ runner.temp }}/build-evidence
+
+      - name: Login to GHCR for digest-pinned downloads
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore six real OCI images without rebuilding
+        working-directory: source
+        run: bash ../harness/hack/test-authenticated-registry.sh restore
+
+      - name: Start two authenticated HTTPS registries
+        run: |
+          registry_dir="$RUNNER_TEMP/auth-registries"
+          mkdir -p "$registry_dir/certs" "$registry_dir/auth-a" "$registry_dir/auth-b"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$registry_dir/certs/key.pem" -out "$registry_dir/certs/cert.pem" \
+            -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+          sudo cp "$registry_dir/certs/cert.pem" /usr/local/share/ca-certificates/release-test.crt
+          sudo update-ca-certificates
+          for port in 5443 5444; do
+            sudo mkdir -p "/etc/docker/certs.d/localhost:$port" "/etc/containers/certs.d/localhost:$port"
+            sudo cp "$registry_dir/certs/cert.pem" "/etc/docker/certs.d/localhost:$port/ca.crt"
+            sudo cp "$registry_dir/certs/cert.pem" "/etc/containers/certs.d/localhost:$port/ca.crt"
+          done
+          for registry in a b; do
+            password=$(openssl rand -hex 24)
+            echo "::add-mask::$password"
+            echo "REGISTRY_PASSWORD_${registry^^}=$password" >> "$GITHUB_ENV"
+            htpasswd -Bbn "publisher-$registry" "$password" > "$registry_dir/auth-$registry/htpasswd"
+            port=5443
+            if [[ "$registry" == b ]]; then port=5444; fi
+            docker run -d --name "auth-registry-$registry" -p "127.0.0.1:$port:5000" \
+              -v "$registry_dir/certs:/certs:ro" -v "$registry_dir/auth-$registry:/auth:ro" \
+              -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/cert.pem -e REGISTRY_HTTP_TLS_KEY=/certs/key.pem \
+              -e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=release-test \
+              -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd registry:2.8.3
+            status=$(curl -sS --retry 10 --retry-connrefused --retry-delay 1 -o /dev/null -w '%{http_code}' "https://localhost:$port/v2/")
+            [[ "$status" == 401 ]]
+            printf '%s unauthenticated_http_status=%s\n' "$registry" "$status" >> "$RESULTS_DIR/auth-status.txt"
+          done
+
+      - name: Check publishing without credentials fails
+        working-directory: source
+        run: bash ../harness/hack/test-authenticated-registry.sh anonymous
+
+      - name: Login to registry A
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: localhost:5443
+          username: publisher-a
+          password: ${{ env.REGISTRY_PASSWORD_A }}
+
+      - name: Check wrong credentials fail and publish latest to A
+        working-directory: source
+        run: bash ../harness/hack/test-authenticated-registry.sh publish-a
+
+      - name: Login separately to registry B
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: localhost:5444
+          username: publisher-b
+          password: ${{ env.REGISTRY_PASSWORD_B }}
+
+      - name: Publish version tag to B and verify both registries
+        working-directory: source
+        run: bash ../harness/hack/test-authenticated-registry.sh verify
+
+      - name: Collect registry logs
+        if: always()
+        run: |
+          docker logs auth-registry-a > "$RESULTS_DIR/registry-a.log" 2>&1 || true
+          docker logs auth-registry-b > "$RESULTS_DIR/registry-b.log" 2>&1 || true
+
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authenticated-registry-test-${{ github.run_id }}
+          path: ${{ runner.temp }}/auth-test-results
+          retention-days: 7
+
+      - name: Logout
+        if: always()
+        run: |
+          docker logout localhost:5443
+          docker logout localhost:5444
+          docker logout ghcr.io
