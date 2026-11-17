@@ -419,6 +419,80 @@ func TestPodAntiAffinity(t *testing.T) {
 	}
 }
 
+func TestSimulatePredicates(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		spread     bool
+		hostPort   bool
+		protected  bool
+		wantVictim bool
+	}{
+		{name: "topology spread removes matching victim and reprieves unrelated pod", spread: true, wantVictim: true},
+		{name: "pod anti affinity removes matching victim and reprieves unrelated pod", wantVictim: true},
+		{name: "host port removes matching victim and reprieves unrelated pod", hostPort: true, wantVictim: true},
+		{name: "topology spread remains blocked by an equal priority job", spread: true, protected: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			low := util.BuildPriorityClass("low", 10)
+			medium := util.BuildPriorityClass("medium", 20)
+			high := util.BuildPriorityClass("high", 100)
+			labels := map[string]string{"role": "worker"}
+			requests := api.BuildResourceList("1", "1G")
+			unrelated := util.BuildPodWithPriority("ns1", "unrelated", "n1", apiv1.PodRunning, requests, "existing", nil, nil, &low.Value)
+			victim := util.BuildPodWithPriority("ns1", "victim", "n1", apiv1.PodRunning, requests, "existing", labels, nil, &medium.Value)
+			incoming := util.BuildPodWithPriority("ns1", "incoming", "", apiv1.PodPending, requests, "incoming", labels, nil, &high.Value)
+			if tc.hostPort {
+				ports := []apiv1.ContainerPort{{ContainerPort: 8080, HostPort: 8080, Protocol: apiv1.ProtocolTCP}}
+				victim.Spec.Containers[0].Ports = ports
+				incoming.Spec.Containers[0].Ports = ports
+			} else if tc.spread {
+				// A single eligible domain with minDomains=2 has a global minimum of
+				// zero, so another matching pod fits only after the victim is removed.
+				minDomains := int32(2)
+				incoming.Spec.TopologySpreadConstraints = []apiv1.TopologySpreadConstraint{{
+					MaxSkew: 1, MinDomains: &minDomains,
+					TopologyKey: apiv1.LabelHostname, WhenUnsatisfiable: apiv1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{MatchLabels: labels},
+				}}
+			} else {
+				incoming.Spec.Affinity = getWorkerAffinity()
+			}
+			pods := []*apiv1.Pod{unrelated, victim, incoming}
+			if tc.protected {
+				pods = append(pods, util.BuildPodWithPriority("ns1", "protected", "n1", apiv1.PodRunning, requests, "protected", labels, nil, &high.Value))
+			}
+			test := uthelper.TestCommonStruct{
+				Plugins:  map[string]framework.PluginBuilder{PluginName: New, priority.PluginName: priority.New},
+				Pods:     pods,
+				Nodes:    []*apiv1.Node{util.BuildNode("n1", api.BuildResourceList("10", "10G", api.ScalarResource{Name: "pods", Value: "10"}), map[string]string{apiv1.LabelHostname: "n1"})},
+				PriClass: []*schedulingv1.PriorityClass{low, medium, high},
+				PodGroups: []*schedulingv1beta1.PodGroup{
+					util.BuildPodGroupWithPrio("existing", "ns1", "q1", 1, nil, schedulingv1beta1.PodGroupRunning, low.Name),
+					util.BuildPodGroupWithPrio("incoming", "ns1", "q1", 1, nil, schedulingv1beta1.PodGroupInqueue, high.Name),
+					util.BuildPodGroupWithPrio("protected", "ns1", "q1", 1, nil, schedulingv1beta1.PodGroupRunning, high.Name),
+				},
+				Queues: []*schedulingv1beta1.Queue{util.BuildQueue("q1", 1, nil)},
+			}
+			if tc.wantVictim {
+				test.ExpectEvicted = []string{"ns1/victim"}
+				test.ExpectEvictNum = 1
+				test.ExpectPipeLined = map[string][]string{"ns1/incoming": {"n1"}}
+			}
+			enabled := true
+			tiers := []conf.Tier{{Plugins: []conf.PluginOption{
+				{Name: PluginName, EnabledPredicate: &enabled, EnabledPreemptable: &enabled},
+				{Name: priority.PluginName, EnabledPreemptable: &enabled, EnabledJobStarving: &enabled, EnabledTaskOrder: &enabled, EnabledJobOrder: &enabled},
+			}}}
+			test.RegisterSession(tiers, []conf.Configuration{{Name: "preempt", Arguments: framework.Arguments{preempt.EnableTopologyAwarePreemptionKey: true}}})
+			defer test.Close()
+			test.Run([]framework.Action{preempt.New()})
+			if err := test.CheckAll(0); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestSetUpDynamicResourcesArgs_Default(t *testing.T) {
 	dra := defaultDynamicResourcesArgs()
 	setUpDynamicResourcesArgs(dra, nil)

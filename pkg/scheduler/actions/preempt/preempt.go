@@ -744,25 +744,18 @@ func SelectVictimsOnNode(
 ) ([]*api.TaskInfo, *api.Status) {
 	var potentialVictims []*api.TaskInfo
 
+	// PreFilter extensions observe the node after the simulated change, matching
+	// the Kubernetes scheduler contract. Failed attempts discard both clones.
 	removeTask := func(rti *api.TaskInfo) error {
-		err := ssn.SimulateRemoveTaskFn(ctx, state, preemptor, rti, nodeInfo)
-		if err != nil {
-			return err
-		}
 		nodeInfo.RemoveTask(rti)
-		return nil
+		return ssn.SimulateRemoveTaskFn(ctx, state, preemptor, rti, nodeInfo)
 	}
 
 	addTask := func(ati *api.TaskInfo) error {
-		err := ssn.SimulateAddTaskFn(ctx, state, preemptor, ati, nodeInfo)
-		if err != nil {
-			return err
-		}
-
 		if err := nodeInfo.AddTask(ati); err != nil {
 			return err
 		}
-		return nil
+		return ssn.SimulateAddTaskFn(ctx, state, preemptor, ati, nodeInfo)
 	}
 
 	var preemptees []*api.TaskInfo
