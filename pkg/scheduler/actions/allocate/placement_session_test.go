@@ -107,7 +107,7 @@ func TestPlacementReconciledAcrossSessions(t *testing.T) {
 					ssn.Nodes["node-1"].Releasing = ssn.Nodes["node-1"].Allocatable.Clone()
 				}
 				alloc := &Action{session: ssn, recorder: NewRecorder(), queueNodes: make(map[queueNodeCacheKey][]*api.NodeInfo)}
-				stmt := alloc.allocateResourcesForTasks(subJob, tasks, "domain-b")
+				stmt, diagnostics := alloc.allocateResourcesForTasks(subJob, tasks, "domain-b")
 				require.NotNil(t, stmt)
 				require.Len(t, stmt.Operations(), 1)
 				require.True(t, job.AllocatedHyperNodeDirty)
@@ -121,6 +121,13 @@ func TestPlacementReconciledAcrossSessions(t *testing.T) {
 						delete(sc.Nodes, "node-1")
 					}
 					stmt.Commit()
+				}
+				diagnostics.apply(ssn, job)
+				if tc.bindFailure {
+					condition := job.TaskSchedulingCondition(task)
+					require.NotNil(t, condition)
+					require.Equal(t, api.PodReasonSchedulerError, condition.Reason)
+					require.Contains(t, condition.Message, "host does not exist")
 				}
 				if tc.pipeline || tc.bindFailure {
 					require.Equal(t, api.Pending, sc.Jobs[job.UID].Tasks[task.UID].Status)

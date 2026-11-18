@@ -17,7 +17,15 @@ limitations under the License.
 package gang
 
 import (
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
 	"testing"
+	"volcano.sh/apis/pkg/apis/scheduling"
+	schedulingv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
+	"volcano.sh/volcano/pkg/scheduler/cache"
+	"volcano.sh/volcano/pkg/scheduler/framework"
+	"volcano.sh/volcano/pkg/scheduler/util"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 )
@@ -90,6 +98,44 @@ func TestShouldSkipUnschedulableForReleasing(t *testing.T) {
 			job.MinAvailable = tc.min
 			if got := shouldSkipUnschedulableForReleasing(job); got != tc.expected {
 				t.Fatalf("shouldSkipUnschedulableForReleasing() = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGroupExplanationFollowsReadiness(t *testing.T) {
+	task := api.NewTaskInfo(util.BuildPod("ns", "p", "", v1.PodPending, api.BuildResourceList("1", "1Mi"), "job", nil, nil))
+	sc := cache.NewCustomMockSchedulerCache("volcano", nil, nil, &util.FakeStatusUpdater{}, nil, record.NewFakeRecorder(10))
+	defer cache.ShutdownMockSchedulerCache(sc)
+	sc.AddQueueV1beta1(util.BuildQueue("q", 1, nil))
+	sc.AddPodGroupV1beta1(util.BuildPodGroup("job", "ns", "q", 1, nil, schedulingv1beta1.PodGroupInqueue))
+	sc.AddPod(task.Pod)
+	ssn := framework.OpenSession(sc, nil, nil)
+	defer framework.CloseSession(ssn)
+	job := ssn.Jobs[task.Job]
+	task = job.Tasks[task.UID]
+	job.GroupDiagnostic = &api.GroupSchedulingDiagnostic{}
+	plugin := New(nil)
+	for _, tc := range []struct {
+		name   string
+		status api.TaskStatus
+		active scheduling.PodGroupConditionType
+	}{
+		{"failed", api.Pending, scheduling.PodGroupUnschedulableType},
+		{"binding", api.Binding, scheduling.PodGroupScheduled},
+		{"failed again", api.Pending, scheduling.PodGroupUnschedulableType},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			job.UpdateTaskStatus(task, tc.status)
+			plugin.OnSessionClose(ssn)
+			for _, condition := range job.PodGroup.Status.Conditions {
+				if condition.Type == tc.active {
+					assert.Equal(t, v1.ConditionTrue, condition.Status)
+					assert.NotEmpty(t, condition.Message)
+				} else {
+					assert.Equal(t, v1.ConditionFalse, condition.Status)
+					assert.Empty(t, condition.Message)
+				}
 			}
 		})
 	}

@@ -76,7 +76,7 @@ func TestAllocateResourcesForTasks_RestoresPlacementOnTotalFailure(t *testing.T)
 	tasks := env.pendingTasks()
 	alloc := env.action()
 
-	stmt := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
+	stmt, _ := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
 	if stmt != nil && len(stmt.Operations()) > 0 {
 		t.Fatalf("expected no successful allocations, got %d ops", len(stmt.Operations()))
 	}
@@ -108,7 +108,7 @@ func TestAllocateResourcesForTasks_RestoresPlacementWhenPartialAllocNotPipelined
 	tasks := env.pendingTasks()
 	alloc := env.action()
 
-	stmt := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
+	stmt, _ := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
 	if stmt != nil {
 		t.Fatalf("expected nil statement when subJob is not pipelined, got %d ops", len(stmt.Operations()))
 	}
@@ -144,7 +144,7 @@ func TestAllocateResourcesForTasks_KeepsPlacementWhenSubJobPipelined(t *testing.
 	tasks := env.pendingTasks()
 	alloc := env.action()
 
-	stmt := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
+	stmt, _ := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
 	if stmt == nil || len(stmt.Operations()) != 2 {
 		t.Fatalf("expected pipelined statement with 2 ops, got %v", stmt)
 	}
@@ -171,7 +171,7 @@ func TestAllocateResourcesForTasks_KeepsPlacementOnSuccess(t *testing.T) {
 	tasks := env.pendingTasks()
 	alloc := env.action()
 
-	stmt := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
+	stmt, _ := alloc.allocateResourcesForTasks(subJob, tasks, "sn-a")
 	if stmt == nil || len(stmt.Operations()) == 0 {
 		t.Fatal("expected non-empty statement for successful allocation")
 	}
@@ -208,7 +208,7 @@ func TestAllocateForSubJob_DryRunSelectsSiblingNotLCA(t *testing.T) {
 	rootHN := env.ssn.HyperNodes["root"]
 	alloc := env.action()
 
-	stmt, _ := alloc.allocateForSubJob(subJob, worksheet, rootHN, "")
+	stmt, _, _ := alloc.allocateForSubJob(subJob, worksheet, rootHN)
 	if stmt == nil || len(stmt.Operations()) == 0 {
 		t.Fatal("expected successful subJob allocation statement")
 	}
@@ -247,7 +247,7 @@ func TestAllocateForSubJob_DryRunRestoresBetweenHyperNodeTries(t *testing.T) {
 		placementAtTryStart[hnName] = subJob.AllocatedHyperNode
 
 		placementBeforeTry := captureHyperNodePlacement(job, subJob)
-		stmt := alloc.allocateResourcesForTasks(subJob, worksheet.Clone().tasks, hnName)
+		stmt, _ := alloc.allocateResourcesForTasks(subJob, worksheet.Clone().tasks, hnName)
 		if stmt != nil && len(stmt.Operations()) > 0 {
 			stmt.Discard()
 		}
@@ -307,7 +307,7 @@ func TestAllocateForJobLoop_RecoverSubJobStatusBetweenHyperNodes(t *testing.T) {
 		}
 		wsCopy := worksheet.Clone()
 		subJobWS := wsCopy.subJobWorksheets[subJob.UID]
-		stmt, _ := alloc.allocateForSubJob(subJob, subJobWS, hn, "")
+		stmt, _, _ := alloc.allocateForSubJob(subJob, subJobWS, hn)
 		if stmt != nil && len(stmt.Operations()) > 0 {
 			stmt.Discard()
 		}
@@ -675,7 +675,7 @@ func TestAllocateResourcesForTasksQueueCandidateScopes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tasks := util.NewPriorityQueue(ssn.TaskOrderFn)
 			tasks.Push(job.Tasks["ns-p1"])
-			stmt := alloc.allocateResourcesForTasks(subJob, tasks, tc.hyperNode)
+			stmt, _ := alloc.allocateResourcesForTasks(subJob, tasks, tc.hyperNode)
 			if tc.wantNode == "" {
 				require.Nil(t, stmt)
 				require.Empty(t, job.Tasks["ns-p1"].NodeName)
@@ -746,7 +746,7 @@ func TestAllocateResourcesForTasksQueueCandidateCache(t *testing.T) {
 			task := job.Tasks[api.TaskID("ns-"+string(tc.queue))]
 			tasks := util.NewPriorityQueue(ssn.TaskOrderFn)
 			tasks.Push(task)
-			stmt := alloc.allocateResourcesForTasks(job.SubJobs[job.DefaultSubJobID()], tasks, tc.hyperNode)
+			stmt, _ := alloc.allocateResourcesForTasks(job.SubJobs[job.DefaultSubJobID()], tasks, tc.hyperNode)
 			if tc.wantNode == "" {
 				require.Nil(t, stmt, "empty cached candidates must not fall back to other nodes")
 				require.Empty(t, task.NodeName)

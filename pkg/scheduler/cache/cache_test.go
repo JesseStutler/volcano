@@ -1146,3 +1146,56 @@ func TestUpdateJobInfoPreservesNewerTaskPlacement(t *testing.T) {
 	sc.updateJobInfo(session)
 	assert.False(t, cached.AllocatedHyperNodeDirty)
 }
+
+// A later session compares its selected explanation with the informer-observed
+// condition. Trial-node changes alone must not generate another write or Event.
+func TestStableSchedulingPublication(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		changed bool
+	}{
+		{name: "unchanged rollback"}, {name: "new blocker", changed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pod := buildPod("ns", "p", "", v1.PodPending, api.BuildResourceList("1", "1G"), []metav1.OwnerReference{buildOwnerReference("job")}, nil)
+			task := api.NewTaskInfo(pod)
+			job := api.NewJobInfo(task.Job, task)
+			job.Namespace, job.Name = "ns", "job"
+			job.SetPendingTaskDiagnostic(task.UID, api.PendingTaskDiagnostic{Kind: api.PendingGangWaiting})
+			recorder := record.NewFakeRecorder(10)
+			updater := &diagnosticStatusUpdater{}
+			sc := &SchedulerCache{StatusUpdater: updater, Recorder: recorder}
+			assert.NoError(t, sc.updateTaskSchedulingStatus(task, job.TaskSchedulingCondition(task), ""))
+			assert.Equal(t, 1, updater.writes)
+			// Simulate the status informer observing the successful write.
+			task.Pod = updater.pod
+			task.LastTransaction = &api.TransactionContext{NodeName: "another-node", Status: api.Allocated}
+			if tc.changed {
+				job.RecordPendingTaskFailure(task.UID, api.PodReasonUnschedulable, fmt.Errorf("new affinity failure"))
+			}
+			assert.NoError(t, sc.updateTaskSchedulingStatus(task, job.TaskSchedulingCondition(task), ""))
+			expected := 1
+			if tc.changed {
+				expected = 2
+			}
+			assert.Equal(t, expected, updater.writes)
+			assert.Len(t, recorder.Events, expected)
+			// An attempt skipped in the next session leaves the previous status alone.
+			job.PendingTaskDiagnostics = nil
+			assert.NoError(t, sc.updateTaskSchedulingStatus(task, job.TaskSchedulingCondition(task), ""))
+			assert.Equal(t, expected, updater.writes)
+		})
+	}
+}
+
+type diagnosticStatusUpdater struct {
+	util.FakeStatusUpdater
+	pod    *v1.Pod
+	writes int
+}
+
+func (u *diagnosticStatusUpdater) UpdatePodStatus(pod *v1.Pod) (*v1.Pod, error) {
+	u.writes++
+	u.pod = pod.DeepCopy()
+	return u.pod, nil
+}

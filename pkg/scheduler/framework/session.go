@@ -23,6 +23,7 @@ limitations under the License.
 package framework
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"sort"
@@ -792,6 +793,7 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 		if err := node.AddTask(task); err != nil {
 			klog.Errorf("Failed to add task <%v/%v> to node <%v>  when binding in Session <%v>: %v",
 				task.Namespace, task.Name, hostname, ssn.UID, err)
+			job.RecordPendingTaskFailure(task.UID, api.PodReasonSchedulerError, err)
 			return err
 		}
 		klog.V(3).Infof("After allocated Task <%v/%v> to Node <%v>: idle <%v>, used <%v>, releasing <%v>",
@@ -799,7 +801,9 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 	} else {
 		klog.Errorf("Failed to find Node <%s> in Session <%s> index when binding.",
 			hostname, ssn.UID)
-		return fmt.Errorf("failed to find node %s", hostname)
+		err := fmt.Errorf("failed to find node %s", hostname)
+		job.RecordPendingTaskFailure(task.UID, api.PodReasonSchedulerError, err)
+		return err
 	}
 
 	// Callbacks
@@ -827,12 +831,16 @@ func (ssn *Session) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 func (ssn *Session) dispatch(task *api.TaskInfo) error {
 	bindContext := ssn.CreateBindContext(task)
 	if err := ssn.cache.AddBindTask(bindContext); err != nil {
+		if job := ssn.Jobs[task.Job]; job != nil {
+			job.RecordPendingTaskFailure(task.UID, api.PodReasonSchedulerError, err)
+		}
 		return err
 	}
 
 	// Update status in session
 	if job, found := ssn.Jobs[task.Job]; found {
 		job.UpdateTaskStatus(task, api.Binding)
+		delete(job.PendingTaskDiagnostics, task.UID)
 	} else {
 		klog.Errorf("Failed to find Job <%s> in Session <%s> index when binding.",
 			task.Job, ssn.UID)
@@ -865,6 +873,11 @@ func (ssn *Session) InitCycleState() {
 		if vr := ssn.JobValid(job); vr != nil && !vr.Pass {
 			klog.V(4).Infof("Job <%s/%s> is not valid, reason: %s, message %s, skip initing cycle state for tasks in it",
 				job.Namespace, job.Name, vr.Reason, vr.Message)
+			for _, task := range job.TaskStatusIndex[api.Pending] {
+				if !task.SchGated {
+					job.RecordPendingTaskFailure(task.UID, vr.Reason, errors.New(vr.Message))
+				}
+			}
 			continue
 		}
 

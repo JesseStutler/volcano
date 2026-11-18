@@ -238,21 +238,8 @@ func (gp *gangPlugin) OnSessionClose(ssn *framework.Session) {
 			if shouldSkipUnschedulableForReleasing(job) {
 				continue
 			}
-			schedulableTaskNum := func() (num int32) {
-				for _, task := range job.TaskStatusIndex[api.Pending] {
-					ctx := task.GetTransactionContext()
-					if task.LastTransaction != nil {
-						ctx = *task.LastTransaction
-					}
-					if api.AllocatedStatus(ctx.Status) {
-						num++
-					}
-				}
-				return num + job.ReadyTaskNum()
-			}
-			unreadyTaskCount = job.MinAvailable - schedulableTaskNum()
-			msg := fmt.Sprintf("%v/%v tasks in gang unschedulable: %v",
-				unreadyTaskCount, len(job.Tasks), job.FitError())
+			unreadyTaskCount = max(0, job.MinAvailable-job.ReadyTaskNum())
+			msg := job.GroupSchedulingMessage()
 
 			unScheduleJobCount++
 			if !ssn.IsJobTerminated(job.UID) {
@@ -282,12 +269,26 @@ func (gp *gangPlugin) OnSessionClose(ssn *framework.Session) {
 				LastTransitionTime: metav1.Now(),
 				TransitionID:       string(ssn.UID),
 				Reason:             "tasks in gang are ready to be scheduled",
-				Message:            "",
+				Message:            api.GroupReadyMessage,
 			}
 
 			if err := ssn.UpdatePodGroupCondition(job, jc); err != nil {
 				klog.Errorf("Failed to update job <%s/%s> condition: %v",
 					job.Namespace, job.Name, err)
+			}
+		}
+		// Retire the opposite explanation when the group changes readiness.
+		inactiveType := scheduling.PodGroupScheduled
+		if job.IsReady() {
+			inactiveType = scheduling.PodGroupUnschedulableType
+		}
+		for i := range job.PodGroup.Status.Conditions {
+			condition := &job.PodGroup.Status.Conditions[i]
+			if condition.Type == inactiveType && condition.Status == v1.ConditionTrue {
+				condition.Status = v1.ConditionFalse
+				condition.Message = ""
+				condition.LastTransitionTime = metav1.Now()
+				condition.TransitionID = string(ssn.UID)
 			}
 		}
 		if !ssn.IsJobTerminated(job.UID) {

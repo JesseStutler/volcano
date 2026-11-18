@@ -127,11 +127,13 @@ func (gp *Action) Execute(ssn *framework.Session) {
 			if ssn.JobPipelined(preemptorJob) {
 				hasEvictions := stmt.HasEvictions()
 				stmt.Commit()
+				preemptorJob.GroupDiagnostic = &api.GroupSchedulingDiagnostic{}
 				if hasEvictions {
 					metrics.RegisterEvictionTransaction(gp.Name())
 				}
 				utils.ApplySubJobNominations(ssn, preemptorJob, subJobHyperNodes)
 			} else {
+				preemptorJob.RecordGangWaiting(stmt.PlacementTasks())
 				stmt.Discard()
 			}
 		}

@@ -160,7 +160,7 @@ func ComputePluginExcludedHyperNodes(
 	return excluded
 }
 
-// FormatHyperNodeFitSummary builds the HyperNode-tier portion of JobFitErrors.
+// FormatHyperNodeFitSummary builds a detailed HyperNode screening summary for logs.
 func FormatHyperNodeFitSummary(
 	stats *HyperNodeGradientStats,
 	resourceStats *HyperNodeMinResourceFilterStats,
@@ -319,6 +319,8 @@ func (f *FitErrors) SetHyperNode(hyperNode string) {
 func (f *FitErrors) SetNodeError(nodeName string, err error) {
 	var fe *FitError
 	switch obj := err.(type) {
+	case *PrePredicateError:
+		fe = &FitError{NodeName: nodeName, Status: StatusSets{&Status{Code: Unschedulable, Plugin: obj.Plugin, Reason: obj.Reason}}}
 	case *FitError:
 		obj.NodeName = nodeName
 		fe = obj
@@ -390,11 +392,12 @@ func (f *FitErrors) NodePluginInsufficientResources(plugin string) map[string][]
 
 // Error returns the final error message
 func (f *FitErrors) Error() string {
-	if f.err == "" {
-		f.err = fmt.Sprintf("0/%v", len(f.nodes)) + " nodes are unavailable"
+	prefix := f.err
+	if prefix == "" {
+		prefix = fmt.Sprintf("0/%v", len(f.nodes)) + " nodes are unavailable"
 	}
 	if len(f.nodes) == 0 {
-		return f.err
+		return prefix
 	}
 
 	reasons := make(map[string]int)
@@ -412,7 +415,7 @@ func (f *FitErrors) Error() string {
 		sort.Strings(reasonStrings)
 		return reasonStrings
 	}
-	reasonMsg := fmt.Sprintf(f.err+": %v.", strings.Join(sortReasonsHistogram(), ", "))
+	reasonMsg := fmt.Sprintf(prefix+": %v.", strings.Join(sortReasonsHistogram(), ", "))
 	if f.hyperNode != "" {
 		reasonMsg = fmt.Sprintf("In hyperNode %s: %s", f.hyperNode, reasonMsg)
 	}

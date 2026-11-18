@@ -73,17 +73,24 @@ func (backfill *Action) Execute(ssn *framework.Session) {
 		fe := api.NewFitErrors()
 
 		if err := ssn.PrePredicateFn(task); err != nil {
+			if _, rejected := err.(*api.PrePredicateError); !rejected {
+				job.RecordPendingTaskFailure(task.UID, api.PodReasonSchedulerError, err)
+				continue
+			}
+
 			klog.V(3).Infof("PrePredicate for task %s/%s failed in backfill for: %v", task.Namespace, task.Name, err)
 			for _, ni := range ssn.Nodes {
 				fe.SetNodeError(ni.Name, err)
 			}
 			job.NodesFitErrors[task.UID] = fe
+			job.RecordPendingTaskFailure(task.UID, api.PodReasonUnschedulable, fe)
 			continue
 		}
 
 		predicateNodes, fitErrors := ph.PredicateNodes(task, ssn.NodeList, predicateFunc, backfill.enablePredicateErrorCache, ssn.NodesInShard)
 		if len(predicateNodes) == 0 {
 			job.NodesFitErrors[task.UID] = fitErrors
+			job.RecordPendingTaskFailure(task.UID, api.PodReasonUnschedulable, fitErrors)
 			if fitErrors != nil && ssn.RejectionTrackingEnabled() {
 				for plugin := range fitErrors.UnschedulablePlugins() {
 					if plugin == resourcefit.ProviderName {
