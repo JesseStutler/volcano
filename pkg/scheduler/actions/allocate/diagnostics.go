@@ -233,16 +233,21 @@ func (d *candidateDiagnostics) applyTask(job *api.JobInfo, id api.TaskID, placed
 // recordExcludedHyperNodes records the candidate HyperNodes that were excluded
 // before any member was checked. gradientStats names the HyperNodes that the
 // gradient plugins rejected, and minResourceStats those whose idle resources
-// cannot hold minimum. taskQueues hold the Pending members of the Job or SubJob
-// that these HyperNodes were candidates for.
-func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, gradientStats *api.HyperNodeGradientStats, minResourceStats *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, taskQueues ...*util.PriorityQueue) {
+// cannot hold minimum.
+//
+// members are the Pending tasks that these HyperNodes were candidates for: all
+// of them for a Job, and only those of the SubJob for a SubJob. The nodes of
+// an excluded HyperNode stay among the nodes that each of these members may
+// use. No member was checked there, so a failure found in another HyperNode
+// cannot become the member's own failure.
+func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, gradientStats *api.HyperNodeGradientStats, minResourceStats *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, members []*api.TaskInfo) {
 	if gradientStats != nil {
 		// ExcludedByReason is keyed by the name of each rejected HyperNode.
 		for hyperNode := range gradientStats.ExcludedByReason {
 			if hyperNode == framework.ClusterTopHyperNode {
 				continue
 			}
-			d.addUncheckedHyperNode(ssn, hyperNode, taskQueues)
+			d.addPermittedNodes(members, hyperNode, ssn.RealNodesList[hyperNode])
 			d.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", hyperNode)
 		}
 	}
@@ -250,7 +255,7 @@ func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, 
 		return
 	}
 	for hyperNode := range minResourceStats.ExcludedByReason {
-		d.addUncheckedHyperNode(ssn, hyperNode, taskQueues)
+		d.addPermittedNodes(members, hyperNode, ssn.RealNodesList[hyperNode])
 		// The filter reports that the HyperNode is too small, not which
 		// resource is short. Compare again to name the resource.
 		available := api.EmptyResource()
@@ -267,33 +272,20 @@ func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, 
 	}
 }
 
-// addUncheckedHyperNode keeps the nodes of an excluded HyperNode among the nodes
-// that the members may use. No member was checked there, so a failure found in
-// another HyperNode cannot become the member's own failure.
-func (d *candidateDiagnostics) addUncheckedHyperNode(ssn *framework.Session, hyperNode string, taskQueues []*util.PriorityQueue) {
-	for _, tasks := range taskQueues {
-		d.addPermittedNodes(tasks, hyperNode, ssn.RealNodesList[hyperNode])
-	}
-}
-
 // recordSkipped remembers the members left unexamined when gang failure stops the task loop.
-func (d *candidateDiagnostics) recordSkipped(job *api.JobInfo, tasks *util.PriorityQueue) {
-	remaining := tasks.Clone()
-	for !remaining.Empty() {
-		task := remaining.Pop().(*api.TaskInfo)
+func (d *candidateDiagnostics) recordSkipped(job *api.JobInfo, members []*api.TaskInfo) {
+	for _, task := range members {
 		if !task.SchGated && !job.Skip.SkipTask(task.UID) {
 			d.gangSkippedTaskIDs = append(d.gangSkippedTaskIDs, task.UID)
 		}
 	}
 }
 
-// addPermittedNodes notes that the members in tasks may use the nodes of hyperNode.
+// addPermittedNodes notes that the members may use the nodes of hyperNode.
 // A member reports its own failure only when its fit errors cover all the nodes
 // noted for it.
-func (d *candidateDiagnostics) addPermittedNodes(tasks *util.PriorityQueue, hyperNode string, nodes []*api.NodeInfo) {
-	remaining := tasks.Clone()
-	for !remaining.Empty() {
-		task := remaining.Pop().(*api.TaskInfo)
+func (d *candidateDiagnostics) addPermittedNodes(members []*api.TaskInfo, hyperNode string, nodes []*api.NodeInfo) {
+	for _, task := range members {
 		if task.SchGated {
 			continue
 		}
@@ -302,6 +294,16 @@ func (d *candidateDiagnostics) addPermittedNodes(tasks *util.PriorityQueue, hype
 		}
 		d.permittedNodes[task.UID][hyperNode] = nodes
 	}
+}
+
+// queuedTasks lists the tasks waiting in a queue and leaves the queue intact.
+func queuedTasks(queue *util.PriorityQueue) []*api.TaskInfo {
+	remaining := queue.Clone()
+	tasks := make([]*api.TaskInfo, 0, remaining.Len())
+	for !remaining.Empty() {
+		tasks = append(tasks, remaining.Pop().(*api.TaskInfo))
+	}
+	return tasks
 }
 
 // coversTask reports whether the fit errors cover every node the member may use.

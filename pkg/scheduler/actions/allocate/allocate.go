@@ -78,6 +78,15 @@ func (w *JobWorksheet) Empty() bool {
 	return w.subJobs == nil || w.subJobs.Empty()
 }
 
+// pendingTasks lists the members still queued in every SubJob of the Job.
+func (w *JobWorksheet) pendingTasks() []*api.TaskInfo {
+	var tasks []*api.TaskInfo
+	for _, subJobWorksheet := range w.subJobWorksheets {
+		tasks = append(tasks, subJobWorksheet.pendingTasks()...)
+	}
+	return tasks
+}
+
 func (w *JobWorksheet) Clone() *JobWorksheet {
 	subJobWorksheets := make(map[api.SubJobID]*SubJobWorksheet)
 	for subJobID, tasks := range w.subJobWorksheets {
@@ -102,6 +111,11 @@ func (w *SubJobWorksheet) ShallowCopyFrom(another *SubJobWorksheet) {
 
 func (w *SubJobWorksheet) Empty() bool {
 	return w.tasks == nil || w.tasks.Empty()
+}
+
+// pendingTasks lists the members still queued in the SubJob.
+func (w *SubJobWorksheet) pendingTasks() []*api.TaskInfo {
+	return queuedTasks(w.tasks)
 }
 
 func (w *SubJobWorksheet) Clone() *SubJobWorksheet {
@@ -484,17 +498,12 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 	)
 	fitSummary := api.FormatHyperNodeFitSummary(gradientStats, resourceStats, job.GetMinResources(),
 		ssn.HyperNodesSetByTier, ssn.HyperNodeTierNameMap, ssn.HyperNodes)
-	taskQueues := make([]*util.PriorityQueue, 0, len(jobWorksheet.subJobWorksheets))
-	for _, worksheet := range jobWorksheet.subJobWorksheets {
-		taskQueues = append(taskQueues, worksheet.tasks)
-	}
-	failedDiagnostics.recordExcludedHyperNodes(ssn, gradientStats, resourceStats, job.GetMinResources(), taskQueues...)
+	members := jobWorksheet.pendingTasks()
+	failedDiagnostics.recordExcludedHyperNodes(ssn, gradientStats, resourceStats, job.GetMinResources(), members)
 	failedDiagnostics.markEstablishedDomain(ssn, jobDomain, "")
 	if len(hyperNodeGradients) == 0 {
 		klog.V(3).InfoS("No hyperNode gradient for job", "job", job.UID, "fitError", fitSummary)
-		for _, worksheet := range jobWorksheet.subJobWorksheets {
-			failedDiagnostics.recordSkipped(job, worksheet.tasks)
-		}
+		failedDiagnostics.recordSkipped(job, members)
 		return nil, failedDiagnostics
 	}
 	klog.V(4).InfoS("HyperNode screening for job", "job", job.UID, "screeningSummary", fitSummary)
@@ -639,13 +648,14 @@ func (alloc *Action) allocateForSubJob(
 	hyperNodeGradients, resourceStats := FilterGradientsByMinResource(
 		ssn, hyperNodeGradients, minResource, subJob.AllocatedHyperNode,
 	)
-	failedDiagnostics.recordExcludedHyperNodes(ssn, gradientStats, resourceStats, minResource, subJobWorksheet.tasks)
+	members := subJobWorksheet.pendingTasks()
+	failedDiagnostics.recordExcludedHyperNodes(ssn, gradientStats, resourceStats, minResource, members)
 	if len(hyperNodeGradients) == 0 {
 		fitSummary := api.FormatHyperNodeFitSummary(gradientStats, resourceStats,
 			minResource, ssn.HyperNodesSetByTier, ssn.HyperNodeTierNameMap, ssn.HyperNodes)
 		klog.V(3).InfoS("No hyperNode gradient for subJob", "job", subJob.Job, "subJob", subJob.UID,
 			"fitError", fitSummary)
-		failedDiagnostics.recordSkipped(job, subJobWorksheet.tasks)
+		failedDiagnostics.recordSkipped(job, members)
 		return nil, 0, failedDiagnostics
 	}
 	for gradient, hyperNodes := range hyperNodeGradients {
@@ -977,7 +987,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 	if !exist || len(nodes) == 0 {
 		klog.V(4).InfoS("There is no node in hyperNode", "job", job.UID, "hyperNode", hyperNode)
 		diagnostics.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", hyperNode)
-		diagnostics.recordSkipped(job, tasks)
+		diagnostics.recordSkipped(job, queuedTasks(tasks))
 		return nil, diagnostics
 	}
 
@@ -994,7 +1004,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 		alloc.queueNodes[cacheKey] = nodes
 	}
 
-	diagnostics.addPermittedNodes(tasks, hyperNode, nodes)
+	diagnostics.addPermittedNodes(queuedTasks(tasks), hyperNode, nodes)
 	nodeNameSet := make(map[string]struct{}, len(nodes))
 	for _, n := range nodes {
 		if n != nil {
@@ -1062,7 +1072,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 			if job.NeedContinueAllocating(subJob.UID) {
 				continue
 			}
-			diagnostics.recordSkipped(job, tasks)
+			diagnostics.recordSkipped(job, queuedTasks(tasks))
 			break
 		}
 
@@ -1115,7 +1125,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 			if job.NeedContinueAllocating(subJob.UID) {
 				continue
 			}
-			diagnostics.recordSkipped(job, tasks)
+			diagnostics.recordSkipped(job, queuedTasks(tasks))
 			break
 		}
 
