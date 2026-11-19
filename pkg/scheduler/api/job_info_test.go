@@ -393,10 +393,10 @@ func TestDeleteTaskInfo(t *testing.T) {
 	}
 }
 
-// TestTaskSchedulingReasonNomination checks that the nomination is published
+// TestNominatedNodeName checks that the nomination is published
 // from the live transaction, so a rolled-back gang attempt does not leak a
 // stale NominatedNodeName while a committed preemption still keeps it.
-func TestTaskSchedulingReasonNomination(t *testing.T) {
+func TestNominatedNodeName(t *testing.T) {
 	tests := []struct {
 		name           string
 		live           TransactionContext
@@ -427,7 +427,7 @@ func TestTaskSchedulingReasonNomination(t *testing.T) {
 			ti.TransactionContext = tt.live
 			ti.LastTransaction = tt.lastTx
 
-			_, _, nominated := job.TaskSchedulingReason(ti.UID)
+			nominated := job.Tasks[ti.UID].NominatedNodeName()
 			if nominated != tt.wantNomination {
 				t.Errorf("nominatedNodeName = %q, want %q", nominated, tt.wantNomination)
 			}

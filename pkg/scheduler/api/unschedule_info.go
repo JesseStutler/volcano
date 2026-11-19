@@ -160,7 +160,7 @@ func ComputePluginExcludedHyperNodes(
 	return excluded
 }
 
-// FormatHyperNodeFitSummary builds a detailed HyperNode screening summary for logs.
+// FormatHyperNodeFitSummary describes, for the logs, which candidate HyperNodes were excluded and why.
 func FormatHyperNodeFitSummary(
 	stats *HyperNodeGradientStats,
 	resourceStats *HyperNodeMinResourceFilterStats,

@@ -311,11 +311,7 @@ func (pmpt *Action) preempt(
 	}
 
 	if err := ssn.PrePredicateFn(preemptor); err != nil {
-		reason := api.PodReasonSchedulerError
-		if _, rejected := err.(*api.PrePredicateError); rejected {
-			reason = api.PodReasonUnschedulable
-		}
-		ssn.Jobs[preemptor.Job].RecordPendingTaskFailure(preemptor.UID, reason, err)
+		ssn.Jobs[preemptor.Job].RecordPendingTaskFailure(preemptor.UID, api.PrePredicateFailureReason(err), err)
 
 		return false, fmt.Errorf("PrePredicate for task %s/%s failed for: %v", preemptor.Namespace, preemptor.Name, err)
 	}

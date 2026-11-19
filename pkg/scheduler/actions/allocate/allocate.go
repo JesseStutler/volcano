@@ -482,22 +482,22 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 	hyperNodeGradients, resourceStats := FilterGradientsByMinResource(
 		ssn, hyperNodeGradients, job.GetMinResources(), job.AllocatedHyperNode,
 	)
-	screeningSummary := api.FormatHyperNodeFitSummary(gradientStats, resourceStats, job.GetMinResources(),
+	fitSummary := api.FormatHyperNodeFitSummary(gradientStats, resourceStats, job.GetMinResources(),
 		ssn.HyperNodesSetByTier, ssn.HyperNodeTierNameMap, ssn.HyperNodes)
 	taskQueues := make([]*util.PriorityQueue, 0, len(jobWorksheet.subJobWorksheets))
 	for _, worksheet := range jobWorksheet.subJobWorksheets {
 		taskQueues = append(taskQueues, worksheet.tasks)
 	}
-	failedDiagnostics.screening(ssn, gradientStats, resourceStats, job.GetMinResources(), taskQueues...)
+	failedDiagnostics.recordExcludedHyperNodes(ssn, gradientStats, resourceStats, job.GetMinResources(), taskQueues...)
 	failedDiagnostics.markEstablishedDomain(ssn, jobDomain, "")
 	if len(hyperNodeGradients) == 0 {
-		klog.V(3).InfoS("No hyperNode gradient for job", "job", job.UID, "fitError", screeningSummary)
+		klog.V(3).InfoS("No hyperNode gradient for job", "job", job.UID, "fitError", fitSummary)
 		for _, worksheet := range jobWorksheet.subJobWorksheets {
 			failedDiagnostics.recordSkipped(job, worksheet.tasks)
 		}
 		return nil, failedDiagnostics
 	}
-	klog.V(4).InfoS("HyperNode screening for job", "job", job.UID, "screeningSummary", screeningSummary)
+	klog.V(4).InfoS("HyperNode screening for job", "job", job.UID, "screeningSummary", fitSummary)
 	for gradient, hyperNodes := range hyperNodeGradients {
 		diagnosticsBackup := make(map[string]*candidateDiagnostics)
 		stmtBackup := make(map[string]*framework.Statement)   // backup the statement after the job is allocated to a hyperNode
@@ -578,11 +578,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 		bestHyperNode, err := alloc.selectBestHyperNodeForJob(subJobsAllocationScores, job)
 		if err != nil {
 			klog.ErrorS(err, "Cannot find best hyper node for job", "job", job.UID, "gradient", gradient)
-			for _, candidate := range diagnosticsBackup {
-				failedDiagnostics.merge(candidate)
-			}
-			failedDiagnostics.recordError(err)
-			return nil, failedDiagnostics
+			return nil, failedDiagnostics.failSelection(diagnosticsBackup, err)
 		}
 
 		// recover the stmt
@@ -590,11 +586,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 		finalStmt := framework.NewStatement(ssn)
 		if err = finalStmt.RecoverOperations(bestStmt); err != nil {
 			klog.ErrorS(err, "Failed to recover operations", "job", job.UID, "hyperNode", bestHyperNode)
-			for _, candidate := range diagnosticsBackup {
-				failedDiagnostics.merge(candidate)
-			}
-			failedDiagnostics.recordError(err)
-			return nil, failedDiagnostics
+			return nil, failedDiagnostics.failSelection(diagnosticsBackup, err)
 		}
 
 		// inherit the remains worksheet after allocate to the best hyperNode
@@ -647,12 +639,12 @@ func (alloc *Action) allocateForSubJob(
 	hyperNodeGradients, resourceStats := FilterGradientsByMinResource(
 		ssn, hyperNodeGradients, minResource, subJob.AllocatedHyperNode,
 	)
-	failedDiagnostics.screening(ssn, gradientStats, resourceStats, minResource, subJobWorksheet.tasks)
+	failedDiagnostics.recordExcludedHyperNodes(ssn, gradientStats, resourceStats, minResource, subJobWorksheet.tasks)
 	if len(hyperNodeGradients) == 0 {
-		screeningSummary := api.FormatHyperNodeFitSummary(gradientStats, resourceStats,
+		fitSummary := api.FormatHyperNodeFitSummary(gradientStats, resourceStats,
 			minResource, ssn.HyperNodesSetByTier, ssn.HyperNodeTierNameMap, ssn.HyperNodes)
 		klog.V(3).InfoS("No hyperNode gradient for subJob", "job", subJob.Job, "subJob", subJob.UID,
-			"fitError", screeningSummary)
+			"fitError", fitSummary)
 		failedDiagnostics.recordSkipped(job, subJobWorksheet.tasks)
 		return nil, 0, failedDiagnostics
 	}
@@ -704,11 +696,7 @@ func (alloc *Action) allocateForSubJob(
 		bestHyperNode, bestScore, err := alloc.selectBestHyperNodeForSubJob(stmtBackup, subJob)
 		if err != nil {
 			klog.ErrorS(err, "Cannot find best hyper node for subJob", "subJob", subJob.UID, "gradient", gradient)
-			for _, candidate := range diagnosticsBackup {
-				failedDiagnostics.merge(candidate)
-			}
-			failedDiagnostics.recordError(err)
-			return nil, 0, failedDiagnostics
+			return nil, 0, failedDiagnostics.failSelection(diagnosticsBackup, err)
 		}
 
 		// recover the stmt and update subJob's allocatedHyperNode field
@@ -716,11 +704,7 @@ func (alloc *Action) allocateForSubJob(
 		finalStmt := framework.NewStatement(ssn)
 		if err = finalStmt.RecoverOperations(bestStmt); err != nil {
 			klog.ErrorS(err, "Failed to recover operations", "subJob", subJob.UID, "hyperNode", bestHyperNode)
-			for _, candidate := range diagnosticsBackup {
-				failedDiagnostics.merge(candidate)
-			}
-			failedDiagnostics.recordError(err)
-			return nil, 0, failedDiagnostics
+			return nil, 0, failedDiagnostics.failSelection(diagnosticsBackup, err)
 		}
 		newAllocatedHyperNode := ssn.HyperNodes.GetLCAHyperNode(subJob.AllocatedHyperNode, bestHyperNode)
 		subJob.AllocatedHyperNode = newAllocatedHyperNode
@@ -954,7 +938,6 @@ func (alloc *Action) validateNomination(subJob *api.SubJobInfo, subJobWorksheet 
 			return nil, false
 		}
 		if err := ssn.PrePredicateFn(task); err != nil {
-
 			klog.V(3).InfoS("PrePredicate failed against nominated node, falling back to normal allocation process",
 				"subJob", subJob.UID, "task", task.UID, "node", nominated, "err", err)
 			return nil, false
@@ -993,7 +976,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 	nodes, exist := ssn.RealNodesList[hyperNode]
 	if !exist || len(nodes) == 0 {
 		klog.V(4).InfoS("There is no node in hyperNode", "job", job.UID, "hyperNode", hyperNode)
-		diagnostics.blockers[api.SchedulingBlocker{Scope: api.HyperNodeScope, Reason: "PlacementRejected", HyperNodeName: hyperNode}] = struct{}{}
+		diagnostics.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", hyperNode)
 		diagnostics.recordSkipped(job, tasks)
 		return nil, diagnostics
 	}
@@ -1029,10 +1012,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 	for !tasks.Empty() {
 		task := tasks.Pop().(*api.TaskInfo)
 		if !ssn.Allocatable(queue, task) {
-			diagnostics.taskFailures[task.UID] = api.PendingTaskDiagnostic{
-				Kind: api.PendingTaskFailure, Reason: api.PodReasonUnschedulable,
-				Failure: fmt.Errorf("Queue %s has insufficient resources for this Pod.", queue.Name),
-			}
+			diagnostics.recordQueueRejection(task, queue)
 			klog.V(3).Infof("Queue <%s> is overused when considering task <%s>, ignore it.", queue.Name, task.Name)
 			continue
 		}
@@ -1059,12 +1039,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 		if job.TaskHasFitErrors(subJob.UID, task) {
 			msg := fmt.Sprintf("Task %s with role spec %s has already predicated failed, skip", task.Name, task.TaskRole)
 			klog.V(5).Info(msg)
-			fitErrors := api.NewFitErrors()
-			for id, previous := range job.NodesFitErrors {
-				if member := job.Tasks[id]; member != nil && member.TaskRole == task.TaskRole && previous != nil && job.TaskToSubJob[id] == subJob.UID {
-					fitErrors.Merge(previous)
-				}
-			}
+			fitErrors := roleFitErrors(job, subJob, task)
 			job.NodesFitErrors[task.UID] = fitErrors
 			diagnostics.recordFailure(task, fitErrors, hyperNode)
 			continue
@@ -1074,8 +1049,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 
 		if err := ssn.PrePredicateFn(task); err != nil {
 			if _, rejected := err.(*api.PrePredicateError); !rejected {
-				diagnostics.taskFailures[task.UID] = api.PendingTaskDiagnostic{Kind: api.PendingTaskFailure, Reason: api.PodReasonSchedulerError, Failure: err}
-				diagnostics.err = err
+				diagnostics.abort(task.UID, err)
 				break
 			}
 			klog.V(3).Infof("PrePredicate for task %s/%s failed for: %v", task.Namespace, task.Name, err)
@@ -1156,11 +1130,11 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 
 		if err := alloc.allocateResourcesForTask(stmt, task, bestNode, job); err != nil {
 			klog.ErrorS(err, "Allocate resources for task fail", "task", task.Name)
-			diagnostics.taskFailures[task.UID] = api.PendingTaskDiagnostic{Kind: api.PendingTaskFailure, Reason: api.PodReasonSchedulerError, Failure: err}
+			diagnostics.recordTaskError(task.UID, err)
 			continue
 		}
 
-		diagnostics.trialPlacementTaskIDs = append(diagnostics.trialPlacementTaskIDs, task.UID)
+		diagnostics.recordTrialPlacement(task.UID)
 		if trackHyperNodePlacement {
 			allocatedHyperNode = getNewAllocatedHyperNode(ssn, bestNode.Name, allocatedHyperNode)
 			subJob.AllocatedHyperNode = allocatedHyperNode

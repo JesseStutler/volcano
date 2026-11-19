@@ -903,21 +903,6 @@ func (ji JobInfo) String() string {
 		ji.UID, ji.Namespace, ji.Queue, ji.Name, ji.MinAvailable, ji.PodGroup, ji.Preemptable, ji.RevocableZone, ji.Budget) + res
 }
 
-// TaskSchedulingReason reports the selected condition and a live preemption nomination.
-func (ji *JobInfo) TaskSchedulingReason(tid TaskID) (reason, msg, nominatedNodeName string) {
-	task, found := ji.Tasks[tid]
-	if !found {
-		return
-	}
-	if condition := ji.TaskSchedulingCondition(task); condition != nil {
-		reason, msg = condition.Reason, condition.Message
-	}
-	if task.Status == Pipelined && task.NodeName != "" && task.EvictionOccurred {
-		nominatedNodeName = task.NodeName
-	}
-	return
-}
-
 // ReadyTaskNum returns the number of tasks that are ready or that is best-effort.
 func (ji *JobInfo) ReadyTaskNum() int32 {
 	occupied := 0

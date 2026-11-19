@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+
 	"volcano.sh/apis/pkg/apis/scheduling"
 )
 
@@ -63,13 +64,32 @@ type SchedulingBlocker struct {
 	PlacementDomain string
 }
 
+// Blocker reasons classify a rejection without naming a trial Node. The three
+// constraint reasons reuse the names of the predicate plugins that report them.
+const (
+	BlockerNodeAffinity          = "NodeAffinity"
+	BlockerTaintToleration       = "TaintToleration"
+	BlockerPodAffinity           = "InterPodAffinity"
+	BlockerInsufficientResources = "InsufficientResources"
+	BlockerPlacementRejected     = "PlacementRejected"
+	BlockerPredicateRejected     = "PredicateRejected"
+)
+
 // GroupSchedulingDiagnostic holds a completed Job attempt. An empty result clears blockers.
 type GroupSchedulingDiagnostic struct {
 	Blockers []SchedulingBlocker
 }
 
-// GroupReadyMessage is shared by the ready PodGroup condition and Event.
-const GroupReadyMessage = "PodGroup satisfies its gang requirements."
+const (
+	// GroupReadyMessage is shared by the ready PodGroup condition and Event.
+	GroupReadyMessage = "PodGroup satisfies its gang requirements."
+	// groupUnsatisfiedMessage starts every unschedulable PodGroup explanation.
+	groupUnsatisfiedMessage = "Gang requirements are not satisfied."
+	// pipelinedTaskMessage explains a member that keeps its Pipeline.
+	pipelinedTaskMessage = "Waiting for resources to be released for this Pod."
+	// gangWaitingFormat takes the PodGroup namespace and name.
+	gangWaitingFormat = "Waiting for PodGroup %s/%s to satisfy gang requirements."
+)
 
 // RecordPendingTaskFailure retains a result independently of the working fit errors.
 func (ji *JobInfo) RecordPendingTaskFailure(id TaskID, reason string, failure error) {
@@ -92,26 +112,42 @@ func (ji *JobInfo) SetPendingTaskDiagnostic(id TaskID, diagnostic PendingTaskDia
 	ji.PendingTaskDiagnostics[id] = diagnostic
 }
 
+// PrePredicateFailureReason tells a plugin rejection from a scheduler error.
+func PrePredicateFailureReason(err error) string {
+	if _, rejected := err.(*PrePredicateError); rejected {
+		return PodReasonUnschedulable
+	}
+	return PodReasonSchedulerError
+}
+
+// NominatedNodeName returns the node to publish as the Pod's nomination. Only a
+// live Pipeline that evicted victims nominates a node. A rolled-back trial does not.
+func (ti *TaskInfo) NominatedNodeName() string {
+	if ti.Status == Pipelined && ti.EvictionOccurred {
+		return ti.NodeName
+	}
+	return ""
+}
+
 // TaskSchedulingCondition selects the final explanation, after actions have finished.
 // An absent Pending result leaves the condition observed through the informer intact.
 func (ji *JobInfo) TaskSchedulingCondition(task *TaskInfo) *v1.PodCondition {
 	if task.SchGated {
 		return nil
 	}
-	condition := &v1.PodCondition{Type: v1.PodScheduled, Status: v1.ConditionFalse, Reason: PodReasonUnschedulable}
-	if diagnostic, found := ji.PendingTaskDiagnostics[task.UID]; found && diagnostic.Reason == PodReasonSchedulerError && diagnostic.Failure != nil && (task.Status == Pending || task.Status == Allocated) {
-		condition.Reason, condition.Message = diagnostic.Reason, diagnostic.Failure.Error()
-		return condition
+	diagnostic, recorded := ji.PendingTaskDiagnostics[task.UID]
+	// A scheduler error belongs to the member that failed, whether it is still
+	// Pending or holds an allocation.
+	if recorded && diagnostic.Reason == PodReasonSchedulerError && diagnostic.Failure != nil && (task.Status == Pending || task.Status == Allocated) {
+		return unscheduledCondition(diagnostic.Reason, diagnostic.Failure.Error())
 	}
 	switch task.Status {
 	case Pipelined:
-		condition.Message = "Waiting for resources to be released for this Pod."
+		return unscheduledCondition(PodReasonUnschedulable, pipelinedTaskMessage)
 	case Allocated:
-		condition.Reason = PodReasonSchedulable
-		condition.Message = fmt.Sprintf("Waiting for PodGroup %s/%s to satisfy gang requirements.", ji.Namespace, ji.Name)
+		return unscheduledCondition(PodReasonSchedulable, ji.gangWaitingMessage())
 	case Pending:
-		diagnostic, found := ji.PendingTaskDiagnostics[task.UID]
-		if !found {
+		if !recorded {
 			return nil
 		}
 		switch diagnostic.Kind {
@@ -119,20 +155,23 @@ func (ji *JobInfo) TaskSchedulingCondition(task *TaskInfo) *v1.PodCondition {
 			if diagnostic.Failure == nil {
 				return nil
 			}
-			condition.Reason, condition.Message = diagnostic.Reason, taskFailureMessage(diagnostic.Failure)
+			return unscheduledCondition(diagnostic.Reason, taskFailureMessage(diagnostic.Failure))
 		case PendingGangWaiting:
-			condition.Message = fmt.Sprintf("Waiting for PodGroup %s/%s to satisfy gang requirements.", ji.Namespace, ji.Name)
-		default:
-			return nil
+			return unscheduledCondition(PodReasonUnschedulable, ji.gangWaitingMessage())
 		}
-	default:
-		return nil
 	}
-	return condition
+	return nil
 }
 
-// groupUnsatisfiedMessage starts every unschedulable PodGroup explanation.
-const groupUnsatisfiedMessage = "Gang requirements are not satisfied."
+// unscheduledCondition builds the PodScheduled condition of a task that is not bound.
+func unscheduledCondition(reason, message string) *v1.PodCondition {
+	return &v1.PodCondition{Type: v1.PodScheduled, Status: v1.ConditionFalse, Reason: reason, Message: message}
+}
+
+// gangWaitingMessage is the stable explanation for a member that waits for its PodGroup.
+func (ji *JobInfo) gangWaitingMessage() string {
+	return fmt.Sprintf(gangWaitingFormat, ji.Namespace, ji.Name)
+}
 
 // blockerCause identifies one sentence of the PodGroup message. Blockers that
 // differ only by the checked HyperNode share a cause.
@@ -223,21 +262,21 @@ func (c blockerCause) explanation() string {
 		resource = "resource"
 	}
 	if c.scope == HyperNodeScope {
-		if c.reason == "InsufficientResources" {
+		if c.reason == BlockerInsufficientResources {
 			return fmt.Sprintf("Insufficient HyperNode %s capacity", resource)
 		}
 		return "HyperNode placement requirements are not satisfied"
 	}
 	switch c.reason {
-	case "InsufficientResources":
+	case BlockerInsufficientResources:
 		return fmt.Sprintf("Pod %s has insufficient %s capacity", c.pod, resource)
-	case "NodeAffinity":
+	case BlockerNodeAffinity:
 		return fmt.Sprintf("Pod %s has no node satisfying node affinity", c.pod)
-	case "TaintToleration":
+	case BlockerTaintToleration:
 		return fmt.Sprintf("Pod %s has no node with tolerated taints", c.pod)
-	case "PodAffinity", "InterPodAffinity":
+	case BlockerPodAffinity:
 		return fmt.Sprintf("Pod %s has no node satisfying Pod affinity constraints", c.pod)
-	case "PlacementRejected":
+	case BlockerPlacementRejected:
 		return fmt.Sprintf("Pod %s does not satisfy placement requirements", c.pod)
 	default:
 		return fmt.Sprintf("Pod %s does not satisfy scheduling predicates", c.pod)
@@ -267,16 +306,16 @@ func taskFailureMessage(failure error) string {
 // taskConstraint names the Pod constraint that a failure category violates.
 func taskConstraint(category SchedulingBlocker) string {
 	switch category.Reason {
-	case "InsufficientResources":
+	case BlockerInsufficientResources:
 		if category.ResourceName == "" {
 			return "resource requests"
 		}
 		return fmt.Sprintf("%s request", category.ResourceName)
-	case "NodeAffinity":
+	case BlockerNodeAffinity:
 		return "node affinity"
-	case "TaintToleration":
+	case BlockerTaintToleration:
 		return "taint tolerations"
-	case "PodAffinity", "InterPodAffinity":
+	case BlockerPodAffinity:
 		return "Pod affinity constraints"
 	default:
 		return "scheduling predicates"
@@ -344,29 +383,38 @@ func (f *FitErrors) failureCategories() map[SchedulingBlocker]struct{} {
 				if status == nil {
 					continue
 				}
-				key := SchedulingBlocker{Scope: MemberScope, Reason: "PredicateRejected"}
-				switch status.Plugin {
-				case "predicates-resource-fit", "NodeResourcesFit":
-					key.Reason = "InsufficientResources"
-				case "NodeAffinity", "TaintToleration", "InterPodAffinity":
-					key.Reason = status.Plugin
+				key := SchedulingBlocker{Scope: MemberScope, Reason: blockerReason(status)}
+				if len(status.InsufficientResources) == 0 {
+					keys[key] = struct{}{}
+					continue
 				}
-				if len(status.InsufficientResources) > 0 {
-					key.Reason = "InsufficientResources"
-					for _, resource := range status.InsufficientResources {
-						key.ResourceName = v1.ResourceName(resource)
-						keys[key] = struct{}{}
-					}
-				} else {
+				for _, resource := range status.InsufficientResources {
+					key.ResourceName = v1.ResourceName(resource)
 					keys[key] = struct{}{}
 				}
 			}
 		}
 	}
 	if len(keys) == 0 {
-		keys[SchedulingBlocker{Scope: MemberScope, Reason: "PredicateRejected"}] = struct{}{}
+		keys[SchedulingBlocker{Scope: MemberScope, Reason: BlockerPredicateRejected}] = struct{}{}
 	}
 	return keys
+}
+
+// blockerReason maps a predicate status to the reason published for it.
+func blockerReason(status *Status) string {
+	if len(status.InsufficientResources) > 0 {
+		return BlockerInsufficientResources
+	}
+	switch status.Plugin {
+	// The resource-fit predicates may report a shortage without naming the resource.
+	case "predicates-resource-fit", "NodeResourcesFit":
+		return BlockerInsufficientResources
+	case BlockerNodeAffinity, BlockerTaintToleration, BlockerPodAffinity:
+		return status.Plugin
+	default:
+		return BlockerPredicateRejected
+	}
 }
 
 // SchedulingBlockers uses predicate identities and resource dimensions, never trial node names.

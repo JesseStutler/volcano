@@ -17,10 +17,12 @@ limitations under the License.
 package allocate
 
 import (
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
-	"volcano.sh/apis/pkg/apis/scheduling"
 
+	"volcano.sh/apis/pkg/apis/scheduling"
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/framework"
 	"volcano.sh/volcano/pkg/scheduler/util"
@@ -46,6 +48,8 @@ func newCandidateDiagnostics() *candidateDiagnostics {
 	}
 }
 
+// recordFailure keeps the fit errors of a member that found no node in this
+// candidate, and the group blockers they stand for.
 func (d *candidateDiagnostics) recordFailure(task *api.TaskInfo, fit *api.FitErrors, domain string) {
 	if fit == nil {
 		return
@@ -60,6 +64,48 @@ func (d *candidateDiagnostics) recordFailure(task *api.TaskInfo, fit *api.FitErr
 	}
 }
 
+// recordQueueRejection explains a member that its queue cannot admit.
+func (d *candidateDiagnostics) recordQueueRejection(task *api.TaskInfo, queue *api.QueueInfo) {
+	d.taskFailures[task.UID] = api.PendingTaskDiagnostic{
+		Kind: api.PendingTaskFailure, Reason: api.PodReasonUnschedulable,
+		Failure: fmt.Errorf("Queue %s has insufficient resources for this Pod.", queue.Name),
+	}
+}
+
+// recordTaskError keeps an operational failure with the member that hit it.
+func (d *candidateDiagnostics) recordTaskError(id api.TaskID, err error) {
+	d.taskFailures[id] = api.PendingTaskDiagnostic{Kind: api.PendingTaskFailure, Reason: api.PodReasonSchedulerError, Failure: err}
+}
+
+// abort stops the candidate on an operational failure of one member. Such a
+// failure establishes no group blocker.
+func (d *candidateDiagnostics) abort(id api.TaskID, err error) {
+	d.recordTaskError(id, err)
+	d.err = err
+}
+
+// recordTrialPlacement remembers a member placed by this candidate. Its ID
+// must survive the rollback that clears the statement.
+func (d *candidateDiagnostics) recordTrialPlacement(id api.TaskID) {
+	d.trialPlacementTaskIDs = append(d.trialPlacementTaskIDs, id)
+}
+
+// recordStatement remembers every member placed by a restored statement.
+func (d *candidateDiagnostics) recordStatement(stmt *framework.Statement) {
+	if stmt == nil {
+		return
+	}
+	for _, task := range stmt.PlacementTasks() {
+		d.recordTrialPlacement(task.UID)
+	}
+}
+
+// recordHyperNodeBlocker notes that a HyperNode was rejected as a whole.
+func (d *candidateDiagnostics) recordHyperNodeBlocker(reason string, resource v1.ResourceName, hyperNode string) {
+	d.blockers[api.SchedulingBlocker{Scope: api.HyperNodeScope, Reason: reason, ResourceName: resource, HyperNodeName: hyperNode}] = struct{}{}
+}
+
+// merge adds the results of another candidate, or of a SubJob within this one.
 func (d *candidateDiagnostics) merge(other *candidateDiagnostics) {
 	if other == nil {
 		return
@@ -75,19 +121,7 @@ func (d *candidateDiagnostics) merge(other *candidateDiagnostics) {
 	d.trialPlacementTaskIDs = append(d.trialPlacementTaskIDs, other.trialPlacementTaskIDs...)
 	d.gangSkippedTaskIDs = append(d.gangSkippedTaskIDs, other.gangSkippedTaskIDs...)
 	for id, failure := range other.taskFailures {
-		if old, ok := d.taskFailures[id]; ok {
-			if oldFit, ok := old.Failure.(*api.FitErrors); ok {
-				if newFit, ok := failure.Failure.(*api.FitErrors); ok {
-					oldFit.Merge(newFit)
-					d.taskFailures[id] = old
-					continue
-				}
-			}
-		}
-		if fit, ok := failure.Failure.(*api.FitErrors); ok {
-			failure.Failure = fit.Clone()
-		}
-		d.taskFailures[id] = failure
+		d.mergeTaskFailure(id, failure)
 	}
 	for blocker := range other.blockers {
 		d.blockers[blocker] = struct{}{}
@@ -97,13 +131,29 @@ func (d *candidateDiagnostics) merge(other *candidateDiagnostics) {
 	}
 }
 
-func (d *candidateDiagnostics) recordStatement(stmt *framework.Statement) {
-	if stmt == nil {
+// mergeTaskFailure combines the fit errors found for one member in different
+// candidates. Any other failure replaces the earlier one.
+func (d *candidateDiagnostics) mergeTaskFailure(id api.TaskID, failure api.PendingTaskDiagnostic) {
+	fit, isFit := failure.Failure.(*api.FitErrors)
+	if !isFit {
+		d.taskFailures[id] = failure
 		return
 	}
-	for _, task := range stmt.PlacementTasks() {
-		d.trialPlacementTaskIDs = append(d.trialPlacementTaskIDs, task.UID)
+	if existing, ok := d.taskFailures[id].Failure.(*api.FitErrors); ok {
+		existing.Merge(fit)
+		return
 	}
+	failure.Failure = fit.Clone()
+	d.taskFailures[id] = failure
+}
+
+// failSelection ends a search whose usable candidates could not be selected or restored.
+func (d *candidateDiagnostics) failSelection(candidates map[string]*candidateDiagnostics, err error) *candidateDiagnostics {
+	for _, candidate := range candidates {
+		d.merge(candidate)
+	}
+	d.recordError(err)
+	return d
 }
 
 // apply runs after the outer Job decision. A failed trial alone cannot establish
@@ -112,48 +162,12 @@ func (d *candidateDiagnostics) apply(ssn *framework.Session, job *api.JobInfo) {
 	if d == nil {
 		return
 	}
-	placed := make(map[api.TaskID]bool)
-	affected := make(map[api.TaskID]struct{})
-	for _, id := range d.trialPlacementTaskIDs {
-		placed[id] = true
-		affected[id] = struct{}{}
-	}
-	for _, id := range d.gangSkippedTaskIDs {
-		affected[id] = struct{}{}
-	}
-	for id := range d.taskFailures {
-		affected[id] = struct{}{}
-	}
+	affected := d.affectedTasks()
 	if len(affected) == 0 && len(d.blockers) == 0 && d.err == nil {
 		return
 	}
-	for id := range affected {
-		task := job.Tasks[id]
-		if task == nil || task.SchGated {
-			continue
-		}
-		if failure, found := d.taskFailures[id]; found && failure.Reason == api.PodReasonSchedulerError && (task.Status == api.Pending || task.Status == api.Allocated) {
-			job.SetPendingTaskDiagnostic(id, failure)
-			continue
-		}
-		if task.Status != api.Pending {
-			delete(job.PendingTaskDiagnostics, id)
-			continue
-		}
-		// Commit/dispatch failures belong to the failing member, even if its trial fit.
-		if prior, ok := job.PendingTaskDiagnostics[id]; ok && prior.Reason == api.PodReasonSchedulerError && placed[id] {
-			continue
-		}
-		failure, failed := d.taskFailures[id]
-		if _, isFit := failure.Failure.(*api.FitErrors); failed && !isFit {
-			job.SetPendingTaskDiagnostic(id, failure)
-			continue
-		}
-		if fit, ok := failure.Failure.(*api.FitErrors); failed && ok && !placed[id] && d.coversTask(id, fit) {
-			job.SetPendingTaskDiagnostic(id, failure)
-		} else if d.err == nil {
-			job.SetPendingTaskDiagnostic(id, api.PendingTaskDiagnostic{Kind: api.PendingGangWaiting})
-		}
+	for id, placed := range affected {
+		d.applyTask(job, id, placed)
 	}
 	if d.err != nil {
 		return
@@ -169,7 +183,56 @@ func (d *candidateDiagnostics) apply(ssn *framework.Session, job *api.JobInfo) {
 	}
 }
 
-func (d *candidateDiagnostics) screening(ssn *framework.Session, stats *api.HyperNodeGradientStats, resources *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, queues ...*util.PriorityQueue) {
+// affectedTasks lists the members this result can explain, and whether the
+// candidate placed each of them.
+func (d *candidateDiagnostics) affectedTasks() map[api.TaskID]bool {
+	affected := make(map[api.TaskID]bool)
+	for _, id := range d.gangSkippedTaskIDs {
+		affected[id] = false
+	}
+	for id := range d.taskFailures {
+		affected[id] = false
+	}
+	for _, id := range d.trialPlacementTaskIDs {
+		affected[id] = true
+	}
+	return affected
+}
+
+// applyTask writes the Pending record of one member.
+func (d *candidateDiagnostics) applyTask(job *api.JobInfo, id api.TaskID, placed bool) {
+	task := job.Tasks[id]
+	if task == nil || task.SchGated {
+		return
+	}
+	failure, failed := d.taskFailures[id]
+	if failed && failure.Reason == api.PodReasonSchedulerError && (task.Status == api.Pending || task.Status == api.Allocated) {
+		job.SetPendingTaskDiagnostic(id, failure)
+		return
+	}
+	if task.Status != api.Pending {
+		delete(job.PendingTaskDiagnostics, id)
+		return
+	}
+	// Commit/dispatch failures belong to the failing member, even if its trial fit.
+	if prior, ok := job.PendingTaskDiagnostics[id]; ok && prior.Reason == api.PodReasonSchedulerError && placed {
+		return
+	}
+	fit, isFit := failure.Failure.(*api.FitErrors)
+	switch {
+	case failed && !isFit:
+		job.SetPendingTaskDiagnostic(id, failure)
+	case failed && !placed && d.coversTask(id, fit):
+		job.SetPendingTaskDiagnostic(id, failure)
+	case d.err == nil:
+		job.SetPendingTaskDiagnostic(id, api.PendingTaskDiagnostic{Kind: api.PendingGangWaiting})
+	}
+}
+
+// recordExcludedHyperNodes records the candidate HyperNodes that were excluded
+// before any member was checked: those the gradient plugins rejected and those
+// whose resources cannot hold the minimum request.
+func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, stats *api.HyperNodeGradientStats, resources *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, queues ...*util.PriorityQueue) {
 	if stats != nil {
 		for name := range stats.ExcludedByReason {
 			if name == framework.ClusterTopHyperNode {
@@ -178,7 +241,7 @@ func (d *candidateDiagnostics) screening(ssn *framework.Session, stats *api.Hype
 			for _, queue := range queues {
 				d.includeScope(queue, name, ssn.RealNodesList[name])
 			}
-			d.blockers[api.SchedulingBlocker{Scope: api.HyperNodeScope, Reason: "PlacementRejected", HyperNodeName: name}] = struct{}{}
+			d.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", name)
 		}
 	}
 	if resources == nil || minimum == nil {
@@ -194,14 +257,15 @@ func (d *candidateDiagnostics) screening(ssn *framework.Session, stats *api.Hype
 		}
 		_, dimensions := minimum.LessEqualWithResourcesName(available, api.Zero)
 		if len(dimensions) == 0 {
-			d.blockers[api.SchedulingBlocker{Scope: api.HyperNodeScope, Reason: "InsufficientResources", HyperNodeName: name}] = struct{}{}
+			d.recordHyperNodeBlocker(api.BlockerInsufficientResources, "", name)
 		}
 		for _, dimension := range dimensions {
-			d.blockers[api.SchedulingBlocker{Scope: api.HyperNodeScope, Reason: "InsufficientResources", ResourceName: v1.ResourceName(dimension), HyperNodeName: name}] = struct{}{}
+			d.recordHyperNodeBlocker(api.BlockerInsufficientResources, v1.ResourceName(dimension), name)
 		}
 	}
 }
 
+// recordSkipped remembers the members left unexamined when gang failure stops the task loop.
 func (d *candidateDiagnostics) recordSkipped(job *api.JobInfo, tasks *util.PriorityQueue) {
 	remaining := tasks.Clone()
 	for !remaining.Empty() {
@@ -228,6 +292,7 @@ func (d *candidateDiagnostics) includeScope(tasks *util.PriorityQueue, domain st
 	}
 }
 
+// coversTask reports whether the fit errors cover every node the member may use.
 func (d *candidateDiagnostics) coversTask(id api.TaskID, fit *api.FitErrors) bool {
 	if len(d.scopes[id]) == 0 {
 		return false
@@ -245,10 +310,12 @@ func (d *candidateDiagnostics) coversTask(id api.TaskID, fit *api.FitErrors) boo
 func (d *candidateDiagnostics) recordError(err error) {
 	d.err = err
 	for _, id := range d.trialPlacementTaskIDs {
-		d.taskFailures[id] = api.PendingTaskDiagnostic{Kind: api.PendingTaskFailure, Reason: api.PodReasonSchedulerError, Failure: err}
+		d.recordTaskError(id, err)
 	}
 }
 
+// establishedDomain returns the HyperNode that an existing placement restricts
+// further scheduling to. Only a hard topology constraint restricts it.
 func establishedDomain(ssn *framework.Session, placement string, topology *scheduling.NetworkTopologySpec) string {
 	if placement == "" || topology == nil || topology.Mode != scheduling.HardNetworkTopologyMode || topology.HighestTierAllowed == nil {
 		return ""
@@ -260,23 +327,37 @@ func establishedDomain(ssn *framework.Session, placement string, topology *sched
 	return name
 }
 
+// markEstablishedDomain tags the blockers found inside an established placement.
 // Ancestors are ordered finest first, so overlapping Job and SubJob
 // constraints report the narrower established scope.
 func (d *candidateDiagnostics) markEstablishedDomain(ssn *framework.Session, jobDomain, subJobDomain string) {
 	if d == nil || (jobDomain == "" && subJobDomain == "") {
 		return
 	}
+	marked := make(map[api.SchedulingBlocker]struct{}, len(d.blockers))
 	for blocker := range d.blockers {
-		if blocker.PlacementDomain != "" {
-			continue
-		}
-		for _, name := range ssn.HyperNodeIndex().Ancestors(blocker.HyperNodeName) {
-			if name == jobDomain || name == subJobDomain {
-				delete(d.blockers, blocker)
-				blocker.PlacementDomain = name
-				d.blockers[blocker] = struct{}{}
-				break
+		if blocker.PlacementDomain == "" {
+			for _, name := range ssn.HyperNodeIndex().Ancestors(blocker.HyperNodeName) {
+				if name == jobDomain || name == subJobDomain {
+					blocker.PlacementDomain = name
+					break
+				}
 			}
 		}
+		marked[blocker] = struct{}{}
 	}
+	d.blockers = marked
+}
+
+// roleFitErrors gathers the fit errors already found for the task's role in
+// its SubJob. A task skipped by the predicate cache shares them.
+func roleFitErrors(job *api.JobInfo, subJob *api.SubJobInfo, task *api.TaskInfo) *api.FitErrors {
+	fitErrors := api.NewFitErrors()
+	for id, previous := range job.NodesFitErrors {
+		member := job.Tasks[id]
+		if member != nil && member.TaskRole == task.TaskRole && previous != nil && job.TaskToSubJob[id] == subJob.UID {
+			fitErrors.Merge(previous)
+		}
+	}
+	return fitErrors
 }

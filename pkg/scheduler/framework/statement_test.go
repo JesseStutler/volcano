@@ -481,14 +481,14 @@ func TestTaskSchedulingReasonNominationLifecycle(t *testing.T) {
 			t.Fatalf("Pipeline failed: %v", err)
 		}
 		// Live attempt nominates the node.
-		if _, _, nominated := job.TaskSchedulingReason(task.UID); nominated != node.Name {
+		if nominated := job.Tasks[task.UID].NominatedNodeName(); nominated != node.Name {
 			t.Fatalf("pre-discard nomination = %q, want %q", nominated, node.Name)
 		}
 
 		stmt.Discard()
 
 		// Rolled back to Pending, so nothing is nominated.
-		if _, _, nominated := job.TaskSchedulingReason(task.UID); nominated != "" {
+		if nominated := job.Tasks[task.UID].NominatedNodeName(); nominated != "" {
 			t.Errorf("post-discard nomination = %q, want empty", nominated)
 		}
 	})
@@ -503,7 +503,7 @@ func TestTaskSchedulingReasonNominationLifecycle(t *testing.T) {
 
 		stmt.Commit()
 
-		if _, _, nominated := job.TaskSchedulingReason(task.UID); nominated != node.Name {
+		if nominated := job.Tasks[task.UID].NominatedNodeName(); nominated != node.Name {
 			t.Errorf("post-commit nomination = %q, want %q", nominated, node.Name)
 		}
 	})
@@ -519,7 +519,7 @@ func TestTaskSchedulingReasonNominationLifecycle(t *testing.T) {
 
 		stmt.Commit()
 
-		if _, _, nominated := job.TaskSchedulingReason(task.UID); nominated != "" {
+		if nominated := job.Tasks[task.UID].NominatedNodeName(); nominated != "" {
 			t.Errorf("post-commit nomination = %q, want empty", nominated)
 		}
 	})

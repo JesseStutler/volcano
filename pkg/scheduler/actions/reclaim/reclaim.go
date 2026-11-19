@@ -153,11 +153,7 @@ func (ra *Action) Execute(ssn *framework.Session) {
 				}
 
 				if err := ssn.PrePredicateFn(task); err != nil {
-					reason := api.PodReasonSchedulerError
-					if _, rejected := err.(*api.PrePredicateError); rejected {
-						reason = api.PodReasonUnschedulable
-					}
-					ssn.Jobs[task.Job].RecordPendingTaskFailure(task.UID, reason, err)
+					ssn.Jobs[task.Job].RecordPendingTaskFailure(task.UID, api.PrePredicateFailureReason(err), err)
 
 					klog.V(3).Infof("PrePredicate failed for task %s/%s: %v", task.Namespace, task.Name, err)
 					continue

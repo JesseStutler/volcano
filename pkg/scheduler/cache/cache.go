@@ -1207,6 +1207,8 @@ func (sc *SchedulerCache) taskUnschedulable(task *schedulingapi.TaskInfo, reason
 	}, nominatedNodeName)
 }
 
+// updateTaskSchedulingStatus writes the prepared condition and nomination when either changed.
+// A nil condition keeps the observed one, so a nomination-only update repeats its message in the Event.
 func (sc *SchedulerCache) updateTaskSchedulingStatus(task *schedulingapi.TaskInfo, condition *v1.PodCondition, nominatedNodeName string) error {
 	pod := task.Pod
 	message := ""
@@ -1838,14 +1840,9 @@ func (sc *SchedulerCache) RecordJobStatusEvent(job *schedulingapi.JobInfo, updat
 			}
 
 			condition := job.TaskSchedulingCondition(taskInfo)
-			nominatedNodeName := ""
-			if taskInfo.Status == schedulingapi.Pipelined && taskInfo.EvictionOccurred {
-				nominatedNodeName = taskInfo.NodeName
-			}
-			if err := sc.updateTaskSchedulingStatus(taskInfo, condition, nominatedNodeName); err != nil {
+			if err := sc.updateTaskSchedulingStatus(taskInfo, condition, taskInfo.NominatedNodeName()); err != nil {
 				klog.ErrorS(err, "Failed to update task scheduling status", "task", klog.KRef(taskInfo.Namespace, taskInfo.Name))
 			}
-
 		})
 	}
 }
