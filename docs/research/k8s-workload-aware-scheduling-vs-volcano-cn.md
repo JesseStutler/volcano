@@ -1,217 +1,240 @@
-# Kubernetes 上游 Workload-Aware Scheduling 与 Volcano 对比分析
+# Kubernetes 上游 PodGroup 与 Volcano 的对比
 
 [English](./k8s-workload-aware-scheduling-vs-volcano.md) | 简体中文
 
-> 基于 Kubernetes v1.37 / v1.38（开发版）、SIG Scheduling KEP 及 Volcano 主干代码整理，聚焦架构对比、调度机制与 Volcano 兼容评估。
+Kubernetes 从 v1.35 开始在 kube-scheduler 里做“按工作负载调度”，社区把这项工作叫做 Workload-Aware Scheduling（下文简称 WAS）。它带来了一个新的 `PodGroup` API，和 Volcano 的 PodGroup 同名，要解决的问题也有不少重叠。
 
-**目录**
+这篇文档想讲清楚四件事：
 
-- [1. 核心结论与术语对照](#1-核心结论与术语对照)
-- [2. 上游 PodGroup 现状与演进](#2-上游-podgroup-现状与演进)
-- [3. kube-scheduler 的 PodGroup 调度流程（v1.37 vs v1.38）](#3-kube-scheduler-的-podgroup-调度流程v137-vs-v138)
-- [4. 上游 PodGroup vs Volcano PodGroup](#4-上游-podgroup-vs-volcano-podgroup)
-- [5. CompositePodGroup vs Volcano SubGroup](#5-compositepodgroup-vs-volcano-subgroup)
-- [6. TAS（拓扑感知调度）对比](#6-tas拓扑感知调度对比)
-- [7. WAP（组级抢占）与 Volcano 抢占回收对比](#7-wap组级抢占与-volcano-抢占回收对比)
-- [8. Volcano 兼容上游 PodGroup：方案与工作量评估](#8-volcano-兼容上游-podgroup方案与工作量评估)
-- [9. 参考资料](#9-参考资料)
+1. 上游现在做到了哪一步；
+2. kube-scheduler 是怎么调度一个 PodGroup 的；
+3. 它和 Volcano 的做法差在哪里，包括子组、拓扑感知调度和抢占；
+4. Volcano 如果要兼容上游 PodGroup，该怎么做，要多少工作量。
 
+文中上游的内容以 Kubernetes v1.37.2 和 2026 年 11 月的 master 分支（v1.38 开发中）为准，Volcano 以当前 master 为准。
+
+## 先说结论
+
+- 上游只解决“一个工作负载的 Pod 怎么放”，也就是 gang、拓扑约束和组级抢占。队列、配额、公平性都不做，KEP 里写明这些继续由 Kueue 和 Volcano 提供。
+- 上游的 API 已经是 `v1beta1`，但直到 v1.38，相关的 feature gate 仍然全部默认关闭。GA 最早在 v1.39。
+- 上游已有的能力 Volcano 基本都有，而且多出队列、入队准入、软拓扑和跨队列回收。反过来，上游有三样东西 Volcano 目前没有：超过两层的组嵌套、声明式的抢占单元（`disruptionMode`）、组级 DRA。
+- Volcano 现在不识别上游 PodGroup。带 `schedulingGroup` 的 Pod 交给 Volcano 调度时，会被当成普通 Pod。
+- 兼容可以分步做。先在 controller 里把上游 PodGroup 转换成 Volcano PodGroup，4–6 人周可以让原生 Job 的 gang 在 Volcano 上生效。让调度器直接支持上游对象需要 8–12 人月，建议等上游 GA 之后再决定。
+
+## 1. 上游做了什么
+
+### 1.1 从一个例子看起
+
+假设有一个 4 个 Pod 的训练任务，要求 4 个 Pod 要么一起调度，要么都不调度。在开启了相关 feature gate 的 v1.38 集群里，用户只需要在 Job 上多写一段 `scheduling`：
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: train
+spec:
+  parallelism: 4
+  completions: 4
+  scheduling:
+    schedulingPolicy:
+      gang: {}          # 不写 minCount 时，默认等于 parallelism
+  template:
+    ...
+```
+
+Job controller 看到这段配置后，会先创建一个 Workload 和一个 PodGroup，再创建 Pod，并在每个 Pod 上填好它属于哪个 PodGroup（下面的对象名仅作示意）：
+
+```yaml
+apiVersion: scheduling.k8s.io/v1beta1
+kind: Workload
+metadata:
+  name: train
+spec:
+  podGroupTemplates:
+  - name: workers
+    schedulingPolicy:
+      gang:
+        minCount: 4
 ---
+apiVersion: scheduling.k8s.io/v1beta1
+kind: PodGroup
+metadata:
+  name: train-workers
+spec:
+  workloadRef:
+    workloadName: train
+    templateName: workers
+  schedulingPolicy:       # 从模板里复制过来
+    gang:
+      minCount: 4
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: train-0
+spec:
+  schedulingGroup:
+    podGroupName: train-workers
+  ...
+```
 
-## 1. 核心结论与术语对照
+这里出现了三个新东西：
 
-### 核心结论
+- `Workload` 是模板，描述这个工作负载由哪些组构成。它只给控制器用，kube-scheduler 不读它。
+- `PodGroup` 是调度器真正使用的对象，代表一组要一起调度的 Pod。它的 spec 基本不可变，创建后只有 `minCount` 可以修改。
+- `pod.spec.schedulingGroup` 是 Pod 上的新字段，指向所属的 PodGroup，创建后不能修改。
 
-- **定位互补而非替代**：Kubernetes 上游 WAS（Workload-Aware Scheduling）只解决**单个工作负载如何放置**（Gang、拓扑约束、组级抢占）。**多租户队列、配额、公平性与跨队列回收是明确的非目标**，KEP 明确指出这部分继续由 Volcano / Kueue 提供。
-- **上游仍在 Beta，尚未默认启用**：`Workload` 与 `PodGroup` 在 v1.37 进入 `v1beta1`，`CompositePodGroup` 与 TAS 在 v1.38 进入 Beta，但**所有相关 Feature Gate 均默认关闭**。核心 API 的 GA 目标已推迟至 v1.39，`CompositePodGroup` 目标为 v1.40。
-- **设计差异大，不能直接互换**：上游采用「不可变对象树 + 节点 Label 拓扑域」；Volcano 采用「带队列和准入语义的 PodGroup + 两层 SubGroup + HyperNode 拓扑树」，在队列治理、软拓扑约束和受害方 Gang 保护上能力更完整。
-- **兼容建议「先外围、后原生」**：Volcano 当前尚未对接上游 `PodGroup` 和 `pod.spec.schedulingGroup`。建议在上游 GA 前通过 **Controller 镜像转换**优先覆盖扁平 Gang（4–6 人周）和两层拓扑/子组（12–20 人周），待 API GA 与生态稳定后再评估调度器原生全量支持（8–12 人月）。
+如果工作负载有多层结构，比如 JobSet 或 LeaderWorkerSet，还会用到第四个对象 `CompositePodGroup`，用来把多个 PodGroup 再组成一组。这部分放在第 4 节讲。
 
-### 术语对照
+这些对象都由工作负载的控制器创建。它们之间的引用关系如下，箭头表示“引用”：
 
-上游与 Volcano 的命名不同，核心概念对应关系如下：
+```mermaid
+flowchart LR
+    Pod["Pod"]
+    PG["PodGroup"]
+    CPG["CompositePodGroup<br/>多层结构时才有"]
+    W["Workload<br/>模板"]
 
-| 上游概念 | 作用 | Volcano 对应能力 |
+    Pod --> PG
+    PG --> CPG
+    CPG --> W
+    PG --> W
+```
+
+### 1.2 和 Volcano 的名字对照
+
+上游的几个缩写在后文会反复出现，先对一下：
+
+| 上游 | 含义 | Volcano 里对应的东西 |
 |---|---|---|
-| **WAS**（Workload-Aware Scheduling） | 以工作负载为单位进行调度的整体体系 | Volcano 批调度模型（PodGroup / Job / Queue） |
-| **Workload** | 静态模板，描述工作负载由哪些组构成 | 无独立对象，定义在 Volcano Job 等工作负载 spec 中 |
-| **PodGroup**（`scheduling.k8s.io`） | 一组 Pod 的运行时调度单元 | **PodGroup**（`scheduling.volcano.sh`） |
-| **CompositePodGroup**（CPG） | 由多个 PodGroup 或子 CPG 组成的层级组 | `PodGroup.spec.subGroupPolicy`（SubGroup） |
-| **TAS**（Topology-Aware Scheduling） | 拓扑感知放置 | Network Topology Aware Scheduling（HyperNode） |
-| **WAP**（Workload-Aware Preemption） | 组级抢占 | `preempt` / `reclaim` 与 `gangpreempt` / `gangreclaim` |
+| WAS | 按工作负载调度这一整套工作的统称 | Volcano 的批调度模型 |
+| `Workload` | 工作负载的静态模板 | 没有单独的对象 |
+| `PodGroup` | 一组一起调度的 Pod | `PodGroup` |
+| `CompositePodGroup` | 由多个 PodGroup 组成的组 | `PodGroup` 里的 `subGroupPolicy` |
+| TAS | 拓扑感知调度 | 网络拓扑感知调度，基于 HyperNode |
+| WAP | 组级抢占 | `preempt`、`reclaim`，以及组级的 `gangpreempt`、`gangreclaim` |
 
----
+### 1.3 现在到哪一步了
 
-## 2. 上游 PodGroup 现状与演进
+| 版本 | 状态 | 主要变化 |
+|---|---|---|
+| v1.35 | Alpha | 首次引入 Workload API，PodGroup 还只是 Workload 里的一个字段 |
+| v1.36 | Alpha | PodGroup 拆成独立对象，Pod 改用 `schedulingGroup` 关联；加入 TAS、WAP 和 Job 集成 |
+| v1.37 | Beta | API 升到 `v1beta1`；PodGroup 开始整组排队、整组调度；新增 CompositePodGroup（Alpha） |
+| v1.38（开发中） | Beta | CompositePodGroup、TAS、Job 集成升到 Beta；新增 Deployment 集成（Alpha） |
+| v1.39（计划） | GA | PodGroup、TAS、WAP 计划 GA；CompositePodGroup 计划在 v1.40 |
 
-> **一句话总结**：Kubernetes 自 v1.35 起通过 WAS 体系原生引入工作负载级调度；经过两次不兼容的 API 演进后，核心能力在 v1.37–v1.38 进入 Beta，但所有 Feature Gate 仍默认关闭。
+有两点会影响我们怎么跟进。
 
-### 2.1 演进时间线与成熟度
+一是 API 还不稳定。从 v1.35 到 v1.37 发生过两次不兼容变更，GA 时间也在 2026 年 11 月从 v1.38 推迟到了 v1.39。
 
-```mermaid
-flowchart LR
-    V35["v1.35 · Alpha<br/>v1alpha1 引入<br/>PodGroup 内嵌 Workload"]
-    V36["v1.36 · Alpha<br/>v1alpha2 独立 PodGroup<br/>新增 TAS / WAP / Job"]
-    V37["v1.37 · Beta<br/>核心 API 升 v1beta1<br/>整组入队，新增 CPG"]
-    V38["v1.38 · Beta 扩展<br/>CPG / TAS / Job 升 Beta<br/>新增 Deployment 集成"]
-    V39["v1.39+ · GA 目标<br/>核心 / TAS / WAP: v1.39<br/>CPG 目标: v1.40"]
+二是默认不开启。到 v1.38 为止，这套功能涉及的 feature gate（`GenericWorkload`、`TopologyAwareWorkloadScheduling`、`CompositePodGroup`、`WorkloadWithJob` 等）全部默认关闭，需要在 kube-apiserver、kube-controller-manager 和 kube-scheduler 上手动打开。
 
-    V35 --> V36 --> V37 --> V38 --> V39
-```
+### 1.4 上游明确不做的事
 
-当前成熟度有三个关键信号：
+上游把边界划得很清楚。KEP-4671 的非目标里有这样一条：
 
-1. **API 经历过两轮大改**：Pod 关联字段从 `workloadRef` 改为 `schedulingGroup`，`v1alpha2` 升级 `v1alpha3` 时未提供版本转换；直到 v1.37 进入 `v1beta1` 才基本定型。
-2. **GA 节奏偏谨慎**：核心 API、TAS、WAP 的 GA 目标在 2026 年 11 月从 v1.38 推迟到 v1.39，v1.38 继续停留在 Beta。
-3. **默认全部关闭**：在 v1.37 和 v1.38 中，使用这套能力仍需在 apiserver、controller-manager、scheduler 上显式打开 Feature Gate。
+> Bring fairness or multiple workload queues in kube-scheduler. Kueue and Volcano.sh will continue to provide this.
 
-| Feature Gate | v1.37 | v1.38 | 说明 |
-|---|---|---|---|
-| `GenericWorkload` | Beta（默认关） | Beta（默认关） | 核心开关，已合入 Gang 与 WAP |
-| `TopologyAwareWorkloadScheduling` | Alpha | Beta（默认关） | 拓扑感知放置（TAS） |
-| `CompositePodGroup` | Alpha | Beta（默认关） | 多层级组模型，依赖前两项 |
-| `DRAWorkloadResourceClaims` | Beta（默认关） | Beta（默认关） | PodGroup 级共享 DRA Claim |
-| `WorkloadWithJob` | Alpha | Beta（默认关） | 原生 Job 自动生成 PodGroup |
-| `WorkloadWithDeployment` | — | Alpha | Deployment / ReplicaSet 集成 |
+也就是说，kube-scheduler 内部仍然只有一个按优先级排序的调度队列，没有租户队列，没有配额，也没有跨队列的资源回收。
 
-### 2.2 对象模型与职责边界
+除此之外，上游也不做拓扑的自动发现，拓扑信息只能来自节点 label；目前也不支持“尽量靠近”这样的软拓扑约束。
 
-```mermaid
-flowchart LR
-    Ctrl["工作负载控制器<br/>Job / Deployment / JobSet / LWS"]
-    W["Workload（静态模板）<br/>podGroupTemplates<br/>compositePodGroupTemplates"]
-    CPG["CompositePodGroup<br/>gang.minGroupCount<br/>workloadRef"]
-    PG["PodGroup<br/>gang.minCount<br/>parentCompositePodGroupName"]
-    Pod["Pod<br/>spec.schedulingGroup.podGroupName"]
+## 2. kube-scheduler 怎么调度一个 PodGroup
 
-    Ctrl --> W
-    Ctrl --> CPG
-    Ctrl --> PG
-    Ctrl --> Pod
-    Pod -.-> PG
-    PG -.-> CPG
-    CPG -.-> W
-```
+### 2.1 流程
 
-*实线表示创建关系，虚线表示引用关系。*
-
-上游对象设计围绕三个核心原则展开：
-
-- **模板与运行时解耦**：工作负载控制器按 `Workload → PodGroup → Pod` 的顺序创建对象。`Workload` 只做声明模板，**kube-scheduler 不 watch 它**，调度器只消费运行时的 `PodGroup`、`CompositePodGroup` 和 `Pod.spec.schedulingGroup`。
-- **PodGroup 极简且基本不可变**：仅包含放置决策必需的字段——`schedulingPolicy`（`basic` 或 `gang.minCount`）、`schedulingConstraints.topology`（最多 1 个节点 Label Key）、`disruptionMode`（`single` / `all`）、优先级与抢占策略、最多 4 个共享 DRA `resourceClaims`。全 spec 中**只有 `minCount` 可修改**；status 仅回写 `PodGroupInitiallyScheduled` condition（首次调度成功后永久为 `True`，不再回退）。
-- **面向生态开放，明确划出边界**：
-  - **生态接入**：`scheduling.k8s.io/v1` 提供公共嵌入结构体（如 `Job.spec.scheduling`）；除原生 Job / Deployment 外，KEP-6089 同步规划了 JobSet、LeaderWorkerSet、Kubeflow Trainer、Spark Operator、KubeRay 等控制器的集成。
-  - **明确非目标**：KEP-4671 / 5732 / 5710 / 6012 明确不做**多租户队列、公平性、资源配额、拓扑自动发现、软拓扑约束（preferred）以及被抢占后的重调度**——上游调度器内部仍然只有单一优先级队列。
-
----
-
-## 3. kube-scheduler 的 PodGroup 调度流程（v1.37 vs v1.38）
-
-> **一句话总结**：从 v1.37 起，带 `schedulingGroup` 的 Pod 不再逐个排队，而是按根组整体入队、在单个调度周期内完成全组评估与放置决策，不满足 `minCount` 时整组不绑定并只触发一次组级抢占。
-
-### 3.1 端到端调度流程
+继续用上面 4 个 Pod 的例子。
 
 ```mermaid
 flowchart TD
-    A["Pod 创建"] --> B{{"配置了<br/>spec.schedulingGroup?"}}
-    B -- 否 --> C["常规逐 Pod 调度"]
-    B -- 是 --> D["并入根组队列实体<br/>QueuedPodGroupInfo"]
-    D --> E{{"PreEnqueue 门禁<br/>组对象就绪且已创建 Pod ≥ minCount?"}}
-    E -- 否 --> F["整组挂起等待"]
-    F --> E
-    E -- 是 --> G["进入 activeQ<br/>按根组 priority、时间戳排序"]
-    G --> H["整组出队、更新快照<br/>并校验层级"]
-    H --> I["开启 TAS 时<br/>生成候选 placement"]
-    I --> J["逐 Pod 执行 Filter / Score<br/>在快照中临时 assume"]
-    J --> K{{"PlacementFeasible<br/>可放置 Pod ≥ minCount?"}}
-    K -- 是 --> L["选最优 placement<br/>各 Pod 异步绑定"]
-    L --> M["更新 PodGroupInitiallyScheduled=True"]
-    K -- 否 --> N["PodGroupPostFilter<br/>执行一次组级抢占"]
-    N --> O{{"找到受害者?"}}
-    O -- 是 --> P["驱逐受害 Pod<br/>设置 nominatedNodeName 并重入队"]
-    O -- 否 --> Q["标记 Unschedulable<br/>进入 backoffQ 等待重试"]
+    A["Pod 带有 schedulingGroup"] --> B["并入 PodGroup 的队列项<br/>不再单独排队"]
+    B --> C{{"PodGroup 已存在<br/>且 Pod 数 ≥ minCount?"}}
+    C -- 否 --> D["整组等待 Pod 到齐"]
+    C -- 是 --> E["整组进入 activeQ<br/>按组的优先级排序"]
+    E --> F["整组出队，逐个 Pod 试排<br/>结果只记在快照里"]
+    F --> G{{"能放下的 Pod 数<br/>≥ minCount?"}}
+    G -- 是 --> H["逐个 Pod 绑定"]
+    H --> I["PodGroup 标记为已调度"]
+    G -- 否 --> J["整组不绑定<br/>尝试一次组级抢占"]
+    J --> K{{"抢占成功?"}}
+    K -- 是 --> L["驱逐受害 Pod<br/>本组重新排队"]
+    K -- 否 --> M["进入 backoffQ<br/>稍后重试"]
 ```
 
-整条链路可以拆为四个关键环节理解：
+分步来看：
 
-1. **整组入队与 PreEnqueue 门禁**：无论策略是 `basic` 还是 `gang`，只要 Pod 带 `spec.schedulingGroup`，就会并入其根组（独立 PodGroup 或 CPG 树根）对应的 `QueuedPodGroupInfo`。只有当 PodGroup 及其所有祖先已创建、且已创建的 Pod 数量达到 `minCount`（且无 Pod 被 scheduling gate 阻塞）时，整组才进入 `activeQ`。
-2. **单周期沙盒评估与剪枝**：调度循环为单协程。出队后按固定顺序逐个 Pod 跑完整的 Filter / Score，并在快照中临时 assume 供后续 Pod 感知资源变化，周期结束时统一回滚，不污染真实缓存。每评估一个 Pod 都会调用 `GangScheduling.PlacementFeasible`：若「已放置 + 未评估 < `minCount`」则提前终止，避免无效计算。
-3. **决策、绑定与退避重试**：满足 `minCount` 时选择得分最高的 placement，为成功分配的 Pod 各自发起异步 binding cycle（all-or-nothing 保障的是调度决策，绑定阶段无组级回滚）；若 `minCount < 总 Pod 数`，可放置的部分先绑定，其余重新入队。整组失败时先走一次组级抢占，仍无解则进入 `backoffQ`（退避上限 `podMaxBackoff × √Pod数`，目前尚未支持 PodGroup 级 queueing hints）。
-4. **四个新增调度扩展点**：
-   - `PlacementGenerate`：生成候选节点子集（内置 `TopologyPlacement`）。
-   - `PlacementScore`：为可行 placement 打分（内置 `PodGroupPodsCount`、`NodeResourcesFit`）。
-   - `PlacementFeasible`：判断当前进度是否满足组策略（内置 `GangScheduling`）。
-   - `PodGroupPostFilter`：整组无解时触发一次（内置 `DefaultPreemption`、`DynamicResources`）。
+1. 排队。只要 Pod 带了 `schedulingGroup`，它就不再单独排队，而是并入所属 PodGroup 的队列项。队列里的一项对应一个 PodGroup，有嵌套时对应整棵树的根。组与组之间按组的优先级排序，优先级相同再比时间。
+2. 等 Pod 到齐。进入调度之前有一道检查：PodGroup 对象必须已经存在，并且已创建的 Pod 数要达到 `minCount`。例子里就是等 4 个 Pod 都创建出来。
+3. 试排。调度器把整组取出，按固定顺序为每个 Pod 跑一遍普通的 Filter 和 Score，选出节点。结果只记在这一轮的快照里：后面的 Pod 能看到前面的 Pod 占了哪些资源，但真正的调度缓存不动。
+4. 检查 gang。每排完一个 Pod 检查一次。如果剩下的 Pod 即使全都能放下，总数也到不了 `minCount`，就提前结束。
+5. 绑定或抢占。数量够了，就为每个 Pod 各自发起绑定，并把 PodGroup 的 `PodGroupInitiallyScheduled` condition 置为 True。数量不够，这一组一个 Pod 都不绑定，转而尝试一次组级抢占（见第 6 节）；抢占也不成，整组进入 backoffQ 稍后重试。
 
-### 3.2 正常调度时序（v1.38）
+有几个细节值得知道：
 
-以 `gang.minCount = N`、资源充足的场景为例：
+- gang 保证的是调度决策整组做出。绑定仍然是逐个 Pod 异步进行的，从代码看，没有“某个 Pod 绑定失败就撤回其他 Pod”的逻辑。
+- `minCount` 只在调度时检查。调度成功以后，即使有 Pod 被驱逐，`PodGroupInitiallyScheduled` 也不会变回 False。
+- 调度循环是单协程的。一个大组试排期间，其他 Pod 和组都要等。
+- 试排是贪心的，顺序固定，不回溯。组里的 Pod 规格不一样时，有可能存在可行的放法却排不出来。
 
-```mermaid
-sequenceDiagram
-    participant C as 工作负载控制器
-    participant A as kube-apiserver
-    participant S as kube-scheduler
-    participant P as 调度插件
+### 2.2 v1.37 和 v1.38 的区别
 
-    C->>A: 创建 Workload 与 PodGroup
-    Note over A: 准入插件填充 priority 并添加保护 finalizer
-    C->>A: 创建 N 个带 schedulingGroup 的 Pod
-    A-->>S: 推送 PodGroup 与 Pod 事件
-    Note over S: Pod 并入根组队列实体
-    S->>P: PreEnqueue
-    Note over S,P: 达到 N 个 Pod 后整组进入 activeQ
-    Note over S: 整组出队，刷新快照并校验层级
-    S->>P: PlacementGenerate（开启 TAS 时）
-    loop 每个 Pod
-        S->>P: PreFilter / Filter / Score
-        Note over S: 快照内临时 assume 与 Reserve
-        S->>P: PlacementFeasible
-    end
-    Note over S: 回滚快照中的全部临时 assume
-    S->>P: PlacementScore（开启 TAS 时）
-    loop 每个已分配 Pod
-        S->>P: Reserve / Permit / PreBind
-        S->>A: 异步绑定 Pod
-    end
-    S->>A: 回写 PodGroupInitiallyScheduled=True
-```
+两个版本的主流程一样，上面的图对两者都适用。区别主要在下面几处：
 
-### 3.3 v1.37 到 v1.38 的关键演进
-
-v1.38 的核心工作集中在**去掉过渡设计、提升大规模性能、补齐层级能力与完善控制器生态**：
-
-| 演进方向 | v1.37 | v1.38（开发版） |
+| | v1.37 | v1.38（开发中） |
 |---|---|---|
-| **Gang 机制简化** | 保留固定 5 分钟超时的 Permit 屏障；`PlacementFeasible` 为内部钩子 | **移除 Permit 屏障**，完全由公开可配置的 `PlacementFeasible` 扩展点驱动 |
-| **Placement 搜索性能** | 评估全部候选域；只调用首个 `PlacementGenerate` 插件 | 新增 **`percentageOfPlacementsToScore`**（自适应截断，下限 5%）、随机打散、nominated placement 快速路径、多插件结果求交 |
-| **CompositePodGroup 完善** | Alpha（仅 `v1alpha3`），树深上限 4，无状态回写和删除保护 | 升 **Beta（进入 `v1beta1`）**，树深上限扩至 **5**，补齐整树层级校验、condition 回写与 finalizer 保护 |
-| **抢占与框架重构** | 逻辑集中在 1400+ 行的单文件中 | 拆分 `algorithm_podgroup.go`，抽象 `PreemptionManager` 与 `RankNodes`；移除 `PodGroupPreemptionPolicy` gate |
-| **工作负载集成** | Job 集成 Alpha；公共嵌入类型位于 `v1alpha3` | Job 集成升 **Beta**（suspend 时删除 PodGroup），新增 Deployment 集成（Alpha）；公共嵌入类型进入 `scheduling.k8s.io/v1` |
+| gang 的实现 | 试排检查之外，还保留了 Permit 阶段的等待，超时 5 分钟 | 去掉 Permit 等待，只靠试排时的检查 |
+| CompositePodGroup | Alpha，最多 4 层 | Beta，最多 5 层，补上了状态和删除保护 |
+| 候选拓扑域 | 全部评估 | 域很多时只评估一部分 |
+| 工作负载集成 | Job（Alpha） | Job（Beta）、Deployment（Alpha） |
+| `preemptionPolicy` 字段 | 需要单独的 feature gate | 直接可用 |
 
-> **当前实现的几个已知局限**
-> - **单协程阻塞风险**：一个大组的完整评估（Pod 数 × 候选 placement，抢占时还需重跑）都在单协程周期内完成，可能拖慢同集群其他调度。
-> - **贪心无回溯**：按固定顺序逐 Pod 决策，异构工作负载不保证一定找到可行解；且同层级内所有 Pod 必须共享相同的 `schedulerName`、优先级和抢占策略。
-> - **运行时与生态能力尚不完整**：Gang 仅在调度决策期生效；DRA 组级 PostFilter 暂不支持带拓扑约束的 PodGroup 和 CPG；尚无 Cluster Autoscaler 组级集成。
+## 3. 上游 PodGroup 和 Volcano PodGroup
 
+### 3.1 同一个任务在 Volcano 里
+
+用 Volcano Job 提交同样的任务时，Volcano Job controller 创建的 PodGroup 大致是这样，Pod 通过 annotation 关联它：
+
+```yaml
+apiVersion: scheduling.volcano.sh/v1beta1
+kind: PodGroup
+metadata:
+  name: train
+spec:
+  queue: default
+  minMember: 4
+  minResources:
+    cpu: "16"
+    memory: 64Gi
 ---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: train-worker-0
+  annotations:
+    scheduling.k8s.io/group-name: train
+spec:
+  schedulerName: volcano
+  ...
+```
 
-## 4. 上游 PodGroup vs Volcano PodGroup
+和 1.1 里的上游 PodGroup 对比，差别主要有四处。
 
-> **一句话总结**：两者虽同名，但定位截然不同——上游 PodGroup 是纯粹的「放置单元」，Volcano PodGroup 是承载多租户队列、资源准入、状态机与网络拓扑的「批作业调度载体」。
+- Volcano 的 PodGroup 必须属于一个 Queue，调度时先按队列的配额和公平性决定轮到谁。上游没有队列。
+- Volcano 有入队准入。PodGroup 创建后是 Pending 状态，调度器确认队列里放得下 `minResources` 之后才把它置为 Inqueue，Volcano Job 的 Pod 也是在这之后才创建的。上游没有这一步，控制器直接创建 Pod。
+- gang 的粒度不同。上游只有一个 `minCount`。Volcano 除了 `minMember`，还可以用 `minTaskMember` 要求每种角色的最少数量，比如“至少 1 个 ps 和 2 个 worker”。
+- 状态的含义不同。上游只记录“是否曾经调度成功”。Volcano 的 `phase` 反映的是当前状态（Pending、Inqueue、Running 等），每个调度周期都会重新计算。
 
-### 4.1 架构模型对比
-
-上游模型见 [2.2 节](#22-对象模型与职责边界)，Volcano 的对象关系如下：
+Volcano 这边的对象关系如下，实线是“创建”，虚线是“引用”。和 1.1 的图相比，少了 Workload 和 CompositePodGroup，多了 Queue 和 HyperNode：
 
 ```mermaid
 flowchart LR
-    VJ["Volcano Job Controller"]
-    PGC["pg-controller<br/>为普通 Pod / Deployment /<br/>StatefulSet 自动补建"]
-    VPod["Pod<br/>annotation<br/>scheduling.k8s.io/group-name"]
-    VPG["PodGroup<br/>minMember / minTaskMember<br/>minResources / queue<br/>networkTopology / subGroupPolicy"]
-    Qu["Queue<br/>capability / deserved / guarantee"]
-    HN["HyperNode<br/>显式拓扑树"]
+    VJ["Volcano Job controller"]
+    PGC["pg-controller<br/>为普通 Pod 自动创建"]
+    VPod["Pod"]
+    VPG["PodGroup"]
+    Qu["Queue"]
+    HN["HyperNode<br/>拓扑树"]
 
     VJ --> VPG
     PGC --> VPG
@@ -220,121 +243,105 @@ flowchart LR
     VPG -.-> HN
 ```
 
-*实线表示创建关系，虚线表示引用关系。*
+### 3.2 字段对照
 
-最直观的三个结构差异：
-
-1. **是否绑定队列**：Volcano PodGroup 天然归属某个 `Queue`，参与配额与公平共享；上游没有队列概念。
-2. **层级表达方式**：上游拆分出 `Workload` 和独立的 `CompositePodGroup` 对象树；Volcano 单对象内嵌 `subGroupPolicy`。
-3. **Pod 关联方式**：上游通过不可变的 `pod.spec.schedulingGroup` 原生字段关联；Volcano 通过 `scheduling.k8s.io/group-name` annotation 关联。
-
-### 4.2 核心字段与语义对比
-
-| 维度 | 上游 PodGroup（`scheduling.k8s.io/v1beta1`） | Volcano PodGroup（`scheduling.volcano.sh/v1beta1`） |
+| 含义 | 上游 PodGroup | Volcano PodGroup |
 |---|---|---|
-| **Pod 关联** | `pod.spec.schedulingGroup.podGroupName`（不可变） | annotation `scheduling.k8s.io/group-name` |
-| **Gang 判定** | 单一 `schedulingPolicy.gang.minCount` | 三重校验：Job 级 `minMember` + 角色级 `minTaskMember` + 子组级 `subGroupSize` / `minSubGroups` |
-| **资源与入队准入** | 无 `minResources`，无入队准入，控制器直接创建 Pod | `enqueue` action 按 `minResources` 与队列容量将状态从 `Pending` 置为 `Inqueue`；Volcano Job 在入队后才创建 Pod |
-| **队列与排序** | 单一队列，按根组优先级 + 时间戳排序 | Queue 顺序 → Job 顺序（priority / gang / drf / sla 等插件）→ SubJob → Task |
-| **拓扑约束** | 1 个节点 Label Key，仅硬约束 | 基于 HyperNode 的 `networkTopology`，支持 `hard` / `soft` 及组间反亲和 `topologyAffinity` |
-| **抢占声明** | `disruptionMode: single / all`、`preemptionPolicy` | 由抢占/回收 action 与插件控制，`volcano.sh/preemptable` 控制是否可被抢占 |
-| **组级 DRA** | 支持 `resourceClaims[]`（最多 4 个） | 暂不支持 |
-| **状态语义** | 仅记录「是否曾调度成功」（`PodGroupInitiallyScheduled`，有 status 子资源） | 完整生命周期 `phase`（Pending / Inqueue / Running / Unknown / Completed）+ condition + Pod 计数（无 status 子资源，整对象 Update） |
-| **可变性与保护** | 仅 `minCount` 可变；有 finalizer 保护直到 Pod 全终止 | 字段可修改；依赖 `ownerReference` 清理 |
+| Pod 如何关联 | `pod.spec.schedulingGroup` | annotation `scheduling.k8s.io/group-name` |
+| 最少 Pod 数 | `schedulingPolicy.gang.minCount` | `minMember` |
+| 每种角色的最少数 | 无 | `minTaskMember` |
+| 最少资源量 | 无 | `minResources` |
+| 队列 | 无 | `queue` |
+| 优先级 | `priorityClassName`、`preemptionPolicy` | `priorityClassName` |
+| 拓扑约束 | `schedulingConstraints.topology` | `networkTopology` |
+| 子组 | 独立的 CompositePodGroup 对象 | `subGroupPolicy` |
+| 被抢占时的单元 | `disruptionMode` | 无 |
+| 组级 DRA | `resourceClaims` | 无 |
+| 状态 | condition `PodGroupInitiallyScheduled` | `phase`、conditions、Pod 计数 |
+| 创建后能否修改 | 只有 `minCount` 可以 | 可以 |
 
-### 4.3 调度执行模型对比
+### 3.3 调度过程的差别
 
-Volcano 调度一个 Gang Volcano Job 的完整时序如下（对于普通 Pod，则先有 Pod 再由 `pg-controller` 补建 PodGroup）：
+还是那个 4 个 Pod 的任务，资源充足。上游的过程是：
 
 ```mermaid
 sequenceDiagram
-    participant C as Volcano Job Controller
+    participant C as Job controller
     participant A as kube-apiserver
-    participant S as Volcano Scheduler
-    participant P as 调度插件
+    participant S as kube-scheduler
 
-    C->>A: 创建 PodGroup（phase=Pending）
-    A-->>S: PodGroup 进入 Cache
-    Note over S: 周期性开启 Session 并对 Cache 做快照
-    S->>P: enqueue：JobEnqueueable
-    Note over S,P: 校验 minResources 与队列容量，置为 Inqueue
-    S->>A: 更新 PodGroup phase
-    C->>A: 创建带 group-name annotation 的 Pod
-    A-->>S: Pod 进入 Cache
-    S->>P: allocate：QueueOrder / JobOrder / JobValid
-    loop 每个 Task
-        S->>P: Allocatable / Predicate / NodeOrder
-        Note over S: Statement.Allocate 或 Pipeline
-    end
-    S->>P: JobReady
-    alt 满足 Gang 条件
-        Note over S: Statement.Commit
-        S->>A: 逐 Pod 异步绑定
-    else 不满足
-        Note over S: Statement.Discard
-    end
-    S->>P: 关闭 Session，计算最新 phase 与 condition
-    S->>A: 更新 PodGroup 状态
+    C->>A: 创建 Workload 和 PodGroup
+    C->>A: 创建 4 个 Pod
+    A-->>S: PodGroup 和 Pod 的事件
+    Note over S: 4 个 Pod 到齐，整组入队
+    Note over S: 整组出队，逐个 Pod 试排
+    Note over S: 4 个都能放下，通过 gang 检查
+    S->>A: 绑定 4 个 Pod
+    S->>A: PodGroup 标记为已调度
 ```
 
-| 维度 | kube-scheduler | Volcano Scheduler |
-|---|---|---|
-| **调度触发** | 事件驱动，每次出队处理一个根组 | 周期性 Session，单次快照内批量处理多个队列与 Job |
-| **事务机制** | 快照内临时 assume，周期末全部回滚后再逐 Pod 绑定 | `Statement`（Allocate / Pipeline / Evict），满足 `JobReady` 则 Commit，否则 Discard |
-| **抢占时机** | 同一调度周期内直接执行一次组级抢占 | 由 `preempt` / `reclaim` / `gangpreempt` / `gangreclaim` 等独立 Action 分阶段处理 |
-| **资源预留** | Pod 级 `nominatedNodeName` | Session 内 Pipelined 预占未来释放资源，并配合 `nominatedNodeName` 与 `NominatedHyperNode` |
-| **失败重试** | 进入 `backoffQ` 退避后重新入队 | 下个 Session 重新评估，可借 unschedulable-job cache 跳过 |
-| **绑定语义** | 逐 Pod 异步绑定，无组级回滚 | 逐 Pod 异步绑定，无组级回滚 |
+Volcano 的过程是：
 
----
+```mermaid
+sequenceDiagram
+    participant C as Volcano Job controller
+    participant A as kube-apiserver
+    participant S as Volcano 调度器
 
-## 5. CompositePodGroup vs Volcano SubGroup
+    C->>A: 创建 PodGroup，状态为 Pending
+    A-->>S: PodGroup 的事件
+    Note over S: enqueue：队列放得下 minResources
+    S->>A: PodGroup 置为 Inqueue
+    C->>A: 创建 4 个 Pod
+    A-->>S: Pod 的事件
+    Note over S: allocate：按队列和 Job 的顺序轮到该 Job<br/>逐个 Pod 选节点，先记在 Statement 里
+    Note over S: 4 个都分到节点，提交 Statement
+    S->>A: 绑定 4 个 Pod
+    S->>A: PodGroup 置为 Running
+```
 
-> **一句话总结**：上游用「独立对象树（最多 5 层）」支持任意嵌套和多角色拓扑；Volcano 用「单对象内嵌 `subGroupPolicy`（固定 2 层）」降低对象管理成本。两层场景大多可互转，三层及以上 Volcano 暂无法表达。
+两边最大的不同是调度的节奏。kube-scheduler 是事件驱动的，每次从队列里取出一个组，为它做完决策再取下一个。Volcano 是周期性的，每个周期对集群做一次快照，按队列顺序和 Job 顺序处理快照里的所有 Job，所以它可以在队列之间权衡公平性和配额。
 
-### 5.1 层级结构直观对比
+另外还有两点不同：
 
-上游通过独立的 `CompositePodGroup` 与 `PodGroup` 组成树状结构（叶子节点为 PodGroup，v1.38 支持最多 5 层）：
+- 资源不够时，上游在同一轮里马上尝试抢占。Volcano 把抢占和回收放在 allocate 之后单独的 action 里，是否启用由配置决定。
+- 调度失败后，上游把这个组放进 backoffQ 等待重试。Volcano 不需要单独的重试队列，下一个周期会重新处理所有未调度的 Job。
+
+两边也有相同的地方：都是先在快照上把整组排完，确认满足 gang 再提交；绑定都是逐个 Pod 异步进行的。
+
+## 4. CompositePodGroup 和 Volcano 的 SubGroup
+
+LeaderWorkerSet、JobSet 这类工作负载有两层结构。举个例子：一个推理服务有 2 个副本，每个副本 4 个 Pod。要求每个副本内部的 4 个 Pod 一起调度并放在同一个机架，整个服务在同一个可用区，2 个副本都就绪才算成功。
+
+两边对这种结构的建模方式不同。
+
+上游用独立的对象。每个副本是一个 PodGroup，上面再套一个 CompositePodGroup：
 
 ```mermaid
 flowchart TD
-    Root["CompositePodGroup: root<br/>minGroupCount = 2 · topology = zone"]
-    R0["CompositePodGroup: replica-0<br/>minGroupCount = 2"]
-    R1["CompositePodGroup: replica-1<br/>minGroupCount = 2"]
-    W0["PodGroup: workers-0<br/>minCount = 4 · topology = rack"]
-    D0["PodGroup: driver-0<br/>minCount = 1"]
-    W1["PodGroup: workers-1<br/>minCount = 4 · topology = rack"]
-    D1["PodGroup: driver-1<br/>minCount = 1"]
-
+    Root["CompositePodGroup<br/>至少 2 个子组<br/>同一个 zone"]
+    R0["PodGroup replica-0<br/>至少 4 个 Pod<br/>同一个 rack"]
+    R1["PodGroup replica-1<br/>至少 4 个 Pod<br/>同一个 rack"]
     Root --> R0
     Root --> R1
-    R0 --> W0
-    R0 --> D0
-    R1 --> W1
-    R1 --> D1
+    R0 --> P0["4 个 Pod"]
+    R1 --> P1["4 个 Pod"]
 ```
 
-Volcano 在单个 PodGroup 内通过 `subGroupPolicy` 按 Pod Label 划分出固定两层结构（上图的三层结构无法直接表达，两层形态如下）：
+Volcano 只用一个 PodGroup，在 `subGroupPolicy` 里说明怎么按 Pod 的 label 把 Pod 分成子组，例子里是每 4 个 Pod 一个子组、至少 2 个子组。子组没有自己的对象：
 
 ```mermaid
 flowchart TD
-    VPG["PodGroup<br/>minMember = 8 · networkTopology = zone 对应 tier"]
-    Pol["subGroupPolicy: workers<br/>subGroupSize = 4 · minSubGroups = 2<br/>networkTopology = rack 对应 tier"]
-    S0["SubGroup 0（按 Label 值分组）"]
-    S1["SubGroup 1（按 Label 值分组）"]
-
-    VPG --> Pol
-    Pol --> S0
-    Pol --> S1
-    S0 --> P0["4 个 Pod"]
-    S1 --> P1["4 个 Pod"]
+    VPG["PodGroup<br/>至少 8 个 Pod<br/>同一个 zone"]
+    S0["子组 0<br/>group-index=0<br/>同一个 rack"]
+    S1["子组 1<br/>group-index=1<br/>同一个 rack"]
+    VPG --> S0
+    VPG --> S1
+    S0 --> VP0["4 个 Pod"]
+    S1 --> VP1["4 个 Pod"]
 ```
 
-### 5.2 同一需求的 YAML 实战对比
-
-> **场景**：部署 2 个副本组，每组 4 个 Pod；要求每组内 Pod 落在同一个机架（rack），整体落在同一个可用区（zone），2 个组全部就绪才启动。
-
-**上游写法**（先声明 `Workload`，由控制器展开为 1 个 `CompositePodGroup` + 2 个 `PodGroup`）：
+写成 YAML，上游是一个 Workload 模板，控制器再根据它创建 1 个 CompositePodGroup 和 2 个 PodGroup：
 
 ```yaml
 apiVersion: scheduling.k8s.io/v1beta1
@@ -360,7 +367,7 @@ spec:
         - key: topology.example.com/rack
 ```
 
-**Volcano 写法**（单个 `PodGroup` 完成定义，依赖集群已配置对应层级的 HyperNode）：
+Volcano 是一个 PodGroup，前提是集群里已经有对应层级的 HyperNode：
 
 ```yaml
 apiVersion: scheduling.volcano.sh/v1beta1
@@ -372,7 +379,7 @@ spec:
   minMember: 8
   networkTopology:
     mode: hard
-    highestTierAllowed: 2        # tier 2 对应可用区
+    highestTierAllowed: 2        # 假设第 2 层对应可用区
   subGroupPolicy:
   - name: replica
     subGroupSize: 4
@@ -381,70 +388,59 @@ spec:
       matchLabels:
         app: serving
     matchLabelKeys:
-    - group-index                # 同值 Pod 归入同一子组
+    - group-index                # 取值相同的 Pod 属于同一个子组
     networkTopology:
       mode: hard
-      highestTierAllowed: 1      # tier 1 对应机架
+      highestTierAllowed: 1      # 假设第 1 层对应机架
 ```
 
-### 5.3 核心差异与映射可行性
+两种模型的差别有三点。
 
-| 维度 | CompositePodGroup | Volcano PodGroup + SubGroup |
-|---|---|---|
-| **形态与层数** | 独立 API 对象树，最多 5 层（v1.37 为 4 层） | PodGroup 内嵌列表，固定 2 层 |
-| **子组划分** | 每个子组独立对象，Pod 显式引用 | `labelSelector` 圈选后按 `matchLabelKeys` 自动分组 |
-| **父 / 子 Gang 计数** | 父级 `minGroupCount` 跨模板统一计数；各叶子 `minCount` 可独立设置 | 每个 policy 各自计 `minSubGroups`；同 policy 下子组大小固定为 `subGroupSize` |
-| **多层拓扑** | 每一层可配一个 Label Key，自上而下逐层收窄 | Job 级与 SubGroup 级各配一个 `networkTopology` |
-| **优先级与抢占单元** | 整棵树优先级必须一致；每层可设 `disruptionMode`（`all` 下不可嵌套 `single`） | Job 取 PodGroup 优先级，SubJob 取内部最高 Task 优先级；无 `disruptionMode` 字段 |
-| **调度策略** | 单周期自上而下递归评估，兄弟按创建时间顺序、不回溯 | 先选 Job 级 HyperNode，再逐个为 SubJob 试分配并取得分最高者 |
+- 层数。上游可以继续嵌套，CompositePodGroup 的子节点可以还是 CompositePodGroup，v1.37 最多 4 层，master 上是 5 层。JobSet → ReplicatedJob → Job 这样的三层结构可以直接表达。Volcano 固定是两层。
+- 子组的大小。上游每个子组是独立对象，`minCount` 可以各不相同。Volcano 同一条 policy 下的子组大小相同，要表达不同大小的子组得写多条 policy。
+- “至少几个子组”的算法。上游的 `minGroupCount` 对父节点下的所有子组统一计数。Volcano 的 `minSubGroups` 是每条 policy 各算各的。
 
-**上游结构能否映射到 Volcano 现有模型？**
+所以上游的结构不是都能用 Volcano 现有的模型表达：
 
-| 上游结构形态 | 映射可行性 | 说明 |
-|---|---|---|
-| 单个 PodGroup（`gang` / `basic`） | ✅ 完全支持 | `minCount` 直接对应 `minMember` |
-| 1 个 CPG + 同模板的多个 PodGroup | ✅ 完全支持 | 对应单个 `subGroupPolicy`（`subGroupSize = minCount`，`minSubGroups = minGroupCount`） |
-| 1 个 CPG + 多模板 PodGroup 且全部必需 | ✅ 完全支持 | 按模板拆成多个 policy，或结合 `minTaskMember` |
-| 1 个 CPG + 多模板且 `minGroupCount < 子组总数` | ⚠️ 部分支持 | 上游是「跨模板任选若干子组」，Volcano 只能按 policy 分别计数 |
-| 3 层及以上（如 JobSet → ReplicatedJob → Job） | ❌ 暂不支持 | 需将 Volcano SubGroup 扩展为递归树模型 |
-| 每层差异化的 `disruptionMode` | ❌ 暂不支持 | Volcano 暂无对应声明式字段 |
+| 上游的结构 | Volcano 现有模型能否表达 |
+|---|---|
+| 单个 PodGroup | 能，`minCount` 对应 `minMember` |
+| 一个 CompositePodGroup 下挂若干相同的 PodGroup | 能，对应一条 `subGroupPolicy` |
+| 一个 CompositePodGroup 下挂不同的 PodGroup，全部必需 | 能，每种 PodGroup 对应一条 policy |
+| 同上，但只要求其中任意几个 | 不能精确表达 |
+| 三层及以上 | 不能 |
 
----
+## 5. 拓扑感知调度（TAS）
 
-## 6. TAS（拓扑感知调度）对比
+两边想达到的效果一样：让一组 Pod 落在网络上相互靠近的节点上。区别在拓扑怎么描述。
 
-> **一句话总结**：上游 TAS 依赖节点 Label 定义「同域硬约束」，零额外资源、上手极轻；Volcano 维护显式 HyperNode 拓扑树，换取了软/硬约束、层级就近优选与拓扑自动发现能力。
-
-### 6.1 拓扑建模方式对比
-
-上游没有拓扑对象，节点上相同的 Label 取值即隐式构成一个候选 placement：
+上游没有拓扑对象，直接用节点 label。PodGroup 里写一个 label key，意思是“全组 Pod 必须落在这个 label 取值相同的节点上”。调度时，这个 label 的每个取值是一个候选域，调度器把每个域都试排一遍，在放得下的域里选得分最高的。
 
 ```mermaid
 flowchart LR
-    subgraph Z["节点 Label: zone=a"]
+    subgraph Z["zone=a"]
         direction LR
-        subgraph R1["节点 Label: rack=r1"]
+        subgraph R1["rack=r1"]
             UN1["node-1"]
             UN2["node-2"]
         end
-        subgraph R2["节点 Label: rack=r2"]
+        subgraph R2["rack=r2"]
             UN3["node-3"]
         end
     end
     R1 ~~~ R2
 ```
 
-Volcano 使用显式的 HyperNode CRD 构建拓扑树（tier 越小越贴近物理节点）：
+Volcano 用 HyperNode 这个 CRD 把拓扑显式地建成一棵树，PodGroup 里写的是“最高允许到第几层”。调度时从最低层开始找，找到能放下整组的最低一层就停。
 
 ```mermaid
 flowchart TD
-    H2["HyperNode: zone-a（tier 2）"]
-    H11["HyperNode: rack-r1（tier 1）"]
-    H12["HyperNode: rack-r2（tier 1）"]
+    H2["HyperNode zone-a<br/>第 2 层"]
+    H11["HyperNode rack-r1<br/>第 1 层"]
+    H12["HyperNode rack-r2<br/>第 1 层"]
     VN1["node-1"]
     VN2["node-2"]
     VN3["node-3"]
-
     H2 --> H11
     H2 --> H12
     H11 --> VN1
@@ -452,232 +448,202 @@ flowchart TD
     H12 --> VN3
 ```
 
-### 6.2 核心能力对比
-
-| 维度 | 上游 TAS | Volcano Network Topology Aware Scheduling |
+| | 上游 TAS | Volcano |
 |---|---|---|
-| **拓扑来源** | 节点 Label，无需维护额外对象 | HyperNode CRD（支持节点名、正则、Label 选择） |
-| **拓扑自动发现** | 不支持（明确非目标） | HyperNode Controller 原生支持 `ufm` 与 `label` 发现器 |
-| **约束表达** | 指定 1 个 Label Key：全组 Pod 必须落在同一取值域内 | `highestTierAllowed` / `highestTierName`：全组最近公共祖先不高于指定层级 |
-| **硬 / 软约束** | **仅硬约束**（软约束留待后续） | 同时支持 **`hard` 与 `soft`** |
-| **多层拓扑** | 依赖 CompositePodGroup 逐层嵌套 | Job 级 + SubGroup 级两层配合 |
-| **搜索与剪枝** | 逐个 Label 取值域评估；v1.38 支持按比例截断 | 从最低 tier 向上逐层尝试，**找到可行最低层级即停止**（天然优选最紧凑拓扑） |
-| **打分策略** | `PodGroupPodsCount`（放下越多越好）+ `NodeResourcesFit`（MostAllocated） | HyperNode 级 binpack + 基于拓扑层级的节点打分 |
-| **已运行成员约束** | 新 Pod 只能进入已占用的 Label 域 | 自动收敛至已分配 HyperNode 的最近公共祖先范围内 |
-| **与抢占结合** | 组级抢占时重跑带 placement 的调度算法 | `gangpreempt` / `gangreclaim` 按 HyperNode 域搜索（传统 `preempt` 会跳过带拓扑的抢占方） |
+| 拓扑从哪来 | 节点 label | HyperNode，可以手工创建，也可以从 UFM 或节点 label 自动发现 |
+| 约束怎么写 | 一个 label key | `highestTierAllowed` 或 `highestTierName` |
+| 硬约束和软约束 | 只有硬约束 | 都支持 |
+| 多层约束 | 靠 CompositePodGroup 嵌套，每层一个 key | Job 级和子组级各一个 |
+| 怎么选域 | 逐个域试排，取得分最高的 | 从最低层往上找，能放下就停 |
 
-> **选型取舍**：如果集群仅需基于现有节点 Label 约束「同机架 / 同可用区」，上游 TAS 接入成本更低；若面临大规模 AI 训练常见的多级交换机拓扑、软约束兜底或 IB/UFM 自动发现，Volcano 的 HyperNode 体系优势明显。
+上游的做法轻，节点有 label 就能用，不需要维护额外的对象，代价是只能表达“必须在同一个域里”。Volcano 需要先有 HyperNode，但能表达“尽量近，实在不行再放宽一层”。
 
----
+对兼容来说，麻烦在于两边的写法不一样：上游给的是 label key，Volcano 要的是层级，中间需要一层映射，7.4 会再提到。
 
-## 7. WAP（组级抢占）与 Volcano 抢占回收对比
+## 6. 抢占（WAP）
 
-> **一句话总结**：双方都实现了「抢占方按整组决策、凑不够不驱逐」，核心分歧有两点：Volcano 多出跨队列资源回收，且双方在「默认是否保护受害方 Gang」上立场相反。
-
-### 7.1 先看清两个最核心的分歧
-
-1. **驱动因素不同**：上游 WAP 只有基于**优先级**的抢占；Volcano 除队列内优先级抢占（`preempt` / `gangpreempt`）外，还具备按队列 `deserved` / `guarantee` 触发的**跨队列回收**（`reclaim` / `gangreclaim`）。
-2. **默认是否保护受害方 Gang 立场相反**：
-   - **上游默认不保护**：`disruptionMode` 默认值为 `single`，允许按单个 Pod 拆散运行中的低优先级 Gang；只有显式配置 `disruptionMode: all` 时，才会以整组（最高 `all` 祖先）作为原子受害单元。
-   - **Volcano 默认保护**：传统 `preempt` 绝不把受害 Job 压到 `minAvailable` 以下；`gangpreempt` 优先使用不打破受害方 Gang 的 safe bundle，仅在开启 `allowWholeBundle` 且插件放行时才整体驱逐受害 Job。
-
-### 7.2 执行流程对比
-
-**上游 WAP（`PodGroupPostFilter`，整组失败后同周期执行一次）**：
+上游的组级抢占发生在整组调度失败之后，而且一组只做一次：
 
 ```mermaid
 flowchart TD
-    A["整组调度失败"] --> B["PodGroupPostFilter<br/>整组只执行一次"]
-    B --> C{{"上一轮受害者<br/>仍在终止中?"}}
-    C -- 是 --> D["保持原有<br/>nominatedNodeName 等待"]
-    C -- 否 --> E["全集群收集低优先级受害者<br/>单元由 disruptionMode 决定"]
-    E --> F["快照内移除全部受害者<br/>并重跑组调度"]
-    F --> G{{"可满足放置?"}}
-    G -- 否 --> H["标记 Unschedulable"]
-    G -- 是 --> I["逐个尝试保留受害者<br/>优先保留 PDB 违例与高优先级"]
-    I --> J["删除剩余受害 Pod<br/>设置 nominatedNodeName 并重入队"]
+    A["整组调度失败"] --> B["在全集群找出<br/>优先级更低的 Pod 或组"]
+    B --> C["在快照里把它们全部移除<br/>再试排一次本组"]
+    C --> D{{"本组能放下?"}}
+    D -- 否 --> E["放弃，不驱逐任何 Pod"]
+    D -- 是 --> F["把不必驱逐的受害者<br/>逐个放回"]
+    F --> G["驱逐剩下的受害者<br/>本组重新排队"]
 ```
 
-**Volcano 组级驱逐（`gangpreempt` Action）**：
+Volcano 的抢占是独立的 action。除了原有的 `preempt` 和 `reclaim`，现在还有组级的 `gangpreempt` 和 `gangreclaim`。以 `gangpreempt` 为例：
 
 ```mermaid
 flowchart TD
-    A["Job 处于 starving 状态"] --> B["收集待调度 Task 并生成 HyperNode 候选域"]
-    B --> C["域内按受害 Job 生成候选 bundle<br/>safe：不破坏受害方 Gang<br/>whole：整体驱逐受害方 Gang"]
-    C --> D["插件一次性过滤（priority / capacity / pdb 等）"]
-    D --> E["累计 bundle 直到域内资源充足"]
-    E --> F["Statement 模拟驱逐并为抢占方 Pipeline"]
-    F --> G{{"抢占方达到<br/>JobPipelined?"}}
-    G -- 否 --> H["Discard，尝试下一候选域"]
-    G -- 是 --> I["Commit 并记录 NominatedHyperNode"]
-    I --> J["下个 Session 由 allocate 按 nomination 兑现"]
+    A["Job 资源不足"] --> B["按 HyperNode 划分候选域<br/>无拓扑时全集群是一个域"]
+    B --> C["按受害 Job 挑选驱逐对象<br/>优先不破坏对方的 gang"]
+    C --> D["在 Statement 里模拟驱逐<br/>并为本 Job 预占资源"]
+    D --> E{{"本 Job 整组能放下?"}}
+    E -- 否 --> F["撤销，尝试下一个域"]
+    E -- 是 --> G["提交并驱逐受害者<br/>下个周期完成分配"]
 ```
 
-### 7.3 关键维度对比
+两边的思路是一致的：先在快照里模拟，确认抢占方整组放得下，才真正驱逐。不同之处如下：
 
-| 维度 | 上游 WAP | Volcano 抢占 / 回收 |
+| | 上游 WAP | Volcano |
 |---|---|---|
-| **执行入口** | 调度周期内，整组失败后立刻触发 | 独立 Action：`preempt` / `reclaim` / `gangpreempt` / `gangreclaim` |
-| **触发驱动** | 仅优先级 | 优先级（抢占）+ 队列配额（跨队列回收） |
-| **受害单元** | `single`（单 Pod）或 `all`（最高 `all` 祖先整组） | 传统模式为单 Task；Gang 模式为 safe bundle / whole bundle |
-| **受害方 Gang 保护** | 默认不保护（`single`），需显式设 `all` | 默认保护 `minAvailable` |
-| **搜索范围** | 全集群统一评估（结合 TAS 时重跑 placement） | 传统按节点；Gang 模式按 HyperNode 域逐域搜索 |
-| **优先级与策略** | 取 PodGroup 优先级（忽略 Pod 自身优先级），整树一致；组级 `preemptionPolicy` | Job 级取 PodGroup 优先级，内部用 Task 优先级；Pod 级 `preemptionPolicy` |
-| **PDB 处理** | 尽力而为（优先保留违反 PDB 的受害者，但不硬禁止） | 由 `pdb` 插件过滤（开启时生效） |
-| **抢占后衔接** | Pod 带 `nominatedNodeName` 等待，受害者终止前不重复抢占 | 下个 Session 的 `allocate` 走 nomination 快速路径 |
+| 触发原因 | 优先级 | 优先级，以及队列配额 |
+| 受害单位 | 单个 Pod 或整组，由 `disruptionMode` 决定 | 单个 Pod；组级 action 下以受害 Job 为单位 |
+| 默认是否保护受害方的 gang | 否 | 是 |
+| 搜索范围 | 全集群 | 按节点；组级 action 按 HyperNode 域 |
+| 执行时机 | 调度失败后立即执行 | 独立的 action，按配置启用 |
 
----
+其中两点需要多说几句。
 
-## 8. Volcano 兼容上游 PodGroup：方案与工作量评估
+第一，Volcano 多一种抢占原因。上游只有“高优先级抢低优先级”。Volcano 还有跨队列回收：一个队列用的资源超过了它应得的份额，别的队列需要时可以收回来。上游没有队列，自然也没有这一项。
 
-> **一句话总结**：Volcano 目前尚未消费上游 PodGroup；由于上游 API 仍在 Beta 且默认关闭，建议走「**Controller 镜像转换先行、GA 后视生态决定是否原生化**」的务实路线。
+第二，两边对受害方的默认态度相反。上游的 `disruptionMode` 默认是 `single`，受害单位是单个 Pod，一个正在运行的 gang 可能被抢走一部分 Pod；想让它“要抢就整组一起抢”，需要显式写成 `all`。Volcano 默认保护受害 Job，驱逐不会让它的 Pod 数低于 `minAvailable`，只有显式允许时才会把整个 Job 一起驱逐。
 
-### 8.1 Volcano 现状盘点
+## 7. Volcano 兼容上游 PodGroup
 
-- **仅有接口占位**：Volcano 依赖的 Kubernetes 代码已包含上游 PodGroup 类型，但 `pkg/scheduler/plugins/util/k8s/snapshot.go` 中的查询均返回空/未找到，`Framework.PodGroupManager()` 返回 `nil`。
-- **未读取 `schedulingGroup`**：调度器关联 Pod 与 Job 的唯一入口是 `getJobID`（读取 `scheduling.k8s.io/group-name` annotation），暂无任何代码读取 `pod.spec.schedulingGroup`。
-- **尚无 Informer 与 RBAC**：若今天直接把带 `schedulerName: volcano` 和 `schedulingGroup` 的 Pod 提交到 Volcano，`pg-controller` 会按普通 Pod 补建 `minMember=1` 的 Volcano PodGroup，上游的 Gang、拓扑和 `disruptionMode` 语义都不会生效。
+### 7.1 现状
 
-### 8.2 兼容目标分级
+Volcano 现在不识别上游 PodGroup。调度器判断 Pod 属于哪个 Job 时只看 annotation `scheduling.k8s.io/group-name`，不读 `pod.spec.schedulingGroup`，也没有 watch 上游的 PodGroup。
 
-| 级别 | 能力范围 | 用户获得的价值 |
+所以，如果把 1.1 里那个 Job 的 `schedulerName` 改成 `volcano`，按现在的代码，这些 Pod 会被当成普通 Pod 处理：pg-controller 为它们创建一个 `minMember=1` 的 Volcano PodGroup，4 个 Pod 逐个调度，gang 不生效。
+
+### 7.2 兼容到什么程度
+
+可以分三步，每一步都能独立交付：
+
+| | 做到什么 | 能支持的工作负载 |
 |---|---|---|
-| **L1 · 扁平 PodGroup** | 识别 `schedulingGroup`，遵守 `minCount`、优先级、队列归属，并回写 `PodGroupInitiallyScheduled` | 原生 `Job.spec.scheduling` 可无缝接入 Volcano，叠加多租户队列能力 |
-| **L2 · 两层语义对齐** | 补齐 `disruptionMode`、`preemptionPolicy`、拓扑 Label Key 映射与两层 `CompositePodGroup` | 覆盖 JobSet、LWS 等主流两层 AI 工作负载 |
-| **L3 · 完整原生支持** | 任意层级 `CompositePodGroup` + PodGroup 级 DRA `ResourceClaim` | 与 kube-scheduler 在上游 WAS API 上行为全面对齐 |
-| **L4 · 替换 Volcano PodGroup** | 废弃 Volcano PodGroup，全面切换上游对象 | **不建议**——上游缺失 `queue`、`minResources`、`minTaskMember`、软拓扑、完整 `phase` 等批调度核心能力 |
+| 第一步 | 识别 `schedulingGroup`，支持 `minCount` 和优先级，回写上游 PodGroup 的状态 | 带 `spec.scheduling` 的原生 Job 和 Deployment |
+| 第二步 | 支持 `disruptionMode`、拓扑约束和两层 CompositePodGroup | LeaderWorkerSet、JobSet 的常见用法 |
+| 第三步 | 任意层数的 CompositePodGroup、组级 DRA | 所有使用上游 API 的工作负载 |
 
-### 8.3 两条技术路径对比
+用上游 PodGroup 替换 Volcano PodGroup 不在考虑范围内。上游没有 `queue`、`minResources`、`minTaskMember` 这些字段，替换意味着丢功能。
 
-**路径 A：Controller 镜像转换**（改动集中在 `pg-controller`，双向同步 spec 与 status）
+### 7.3 两种做法
+
+做法 A 是在 controller 里做转换。pg-controller watch 上游的 PodGroup，为它生成一个对应的 Volcano PodGroup，并给 Pod 打上 `group-name` annotation；调度完成后再把状态写回上游 PodGroup。调度器基本不用改。
 
 ```mermaid
 flowchart LR
-    UA["上游 PodGroup /<br/>CompositePodGroup"]
-    MC["镜像转换逻辑<br/>（pg-controller）"]
-    VA["镜像生成的<br/>Volcano PodGroup"]
-    SA["Volcano 调度器<br/>基本无改动"]
-
+    UA["上游 PodGroup"]
+    MC["pg-controller<br/>转换"]
+    VA["Volcano PodGroup"]
+    SA["Volcano 调度器"]
     UA <--> MC
     MC <--> VA
     VA <--> SA
 ```
 
-**路径 B：调度器原生支持**（Scheduler Cache 直接 watch 上游对象并回写 status）
+做法 B 是让调度器直接读上游对象。调度器的 cache watch 上游 PodGroup，把它直接转成内部的 JobInfo，并由调度器回写状态。
 
 ```mermaid
 flowchart LR
-    UB["上游 PodGroup /<br/>CompositePodGroup"]
-    CB["Scheduler Cache<br/>新增 Informer"]
-    JB["JobInfo / SubJobInfo<br/>原生适配上游来源"]
-    SB["Action 与插件"]
-
+    UB["上游 PodGroup"]
+    CB["调度器 cache"]
+    JB["JobInfo"]
+    SB["action 和插件"]
     UB <--> CB
     CB --> JB
     JB --> SB
 ```
 
-| 维度 | 路径 A：Controller 镜像转换 | 路径 B：调度器原生支持 |
+| | 做法 A：controller 转换 | 做法 B：调度器直接支持 |
 |---|---|---|
-| **核心做法** | Controller 将上游对象转为 Volcano PodGroup，并为 Pod 补打 `group-name` 与子组 Label | Cache 直接 watch 上游对象，`getJobID` 增加 `schedulingGroup` 分支并直接回写上游状态 |
-| **调度器改动面** | 极小，隔离上游 API 变动风险 | 大（涉及 Cache、JobInfo、状态回写与队列统计） |
-| **对象与一致性** | 每个组多一个镜像 PodGroup，存在同步延迟 | 单一数据源，无额外对象 |
-| **能力上限** | 受 Volcano 两层 SubGroup 模型限制；无法支持组级 DRA | 可结合 SubJob 递归化支持任意层级与组级 DRA |
-| **适用时机** | **当前推荐**：上游仍在 Beta、快速落地且风险可控 | 上游 API GA 且主流生态广泛采用后 |
+| 调度器改动 | 很少 | 多，涉及 cache、JobInfo、状态回写、队列统计 |
+| 额外对象 | 每个上游 PodGroup 多一个 Volcano PodGroup | 没有 |
+| 一致性 | 两个对象之间有同步延迟 | 只有一份数据 |
+| 能支持的层数 | 两层 | 把子组改成递归结构后可以支持任意层数 |
+| 组级 DRA | 做不了 | 可以 |
 
-### 8.4 需要优先拍板的核心设计缺口
+建议先用做法 A。上游 API 还在 Beta，默认关闭，而且已经变过两次。把适配逻辑放在 controller 里，上游再变的时候调度器不用跟着改。
 
-| 设计问题 | 建议处理方式 |
+### 7.4 需要先定下来的问题
+
+无论用哪种做法，下面几个问题都要先有答案。
+
+**队列从哪来。** 上游 PodGroup 没有队列字段。可以沿用现在处理普通 Pod 的做法：读 Pod 或上层工作负载上的 `scheduling.volcano.sh/queue-name` annotation，没有就进 default 队列。
+
+**`minResources` 怎么算。** 上游没有这个字段，而 Volcano 的入队准入要用它。可以由 controller 按已创建的 Pod 的资源请求累加出来。
+
+**同名问题。** 两种 PodGroup 的资源名都是 `podgroups`，`kubectl get podgroups` 会有歧义。做法 A 生成的 Volcano PodGroup 也不能和用户已有的 PodGroup 重名，需要一个命名规则。
+
+**`disruptionMode` 怎么对应。** `all` 要求整组一起被驱逐，Volcano 的组级驱逐已经能以 Job 为单位驱逐，可以在这个基础上实现。`single` 表示“允许拆散”，而不是“必须拆散”，所以可以保留 Volcano 现在保护受害 Job 的行为。
+
+**拓扑 label key 怎么对应到 HyperNode 的层级。** HyperNode 已经可以从节点 label 自动生成，还缺一份“label key 对应第几层”的映射。这和 [#6161](https://github.com/volcano-sh/volcano/issues/6161) 想解决的问题是同一个方向。
+
+**表达不了的结构怎么办。** 三层以上的嵌套、只要求其中任意几个子组的 `minGroupCount`，Volcano 现有模型表达不了。建议明确拒绝，并在上游 PodGroup 的状态里写明原因，不要悄悄按别的语义调度。
+
+**集群里没有上游 API 怎么办。** 这套 API 只在开了 feature gate 的 v1.37 及以上集群里存在。Volcano 启动时要先探测，并把这部分功能放在 Volcano 自己的 feature gate 后面，默认关闭。
+
+### 7.5 工作量
+
+单位是人周，按熟悉 Volcano 调度器的工程师估算，包含单元测试、e2e 测试和文档，不含社区评审的时间。
+
+| 目标 | 做法 | 工作量 |
+|---|---|---|
+| 第一步：原生 Job 的 gang 在 Volcano 上生效 | A | 4–6 人周 |
+| 第二步：加上抢占语义、拓扑约束和两层子组 | A | 累计 12–20 人周 |
+| 第三步：调度器直接支持，任意层数和组级 DRA | B | 33–51 人周，约 8–12 人月 |
+
+第三步的数字是按做法 B 从头实现算的，不是在前两步基础上的增量。
+
+各项工作的拆分如下：
+
+| 工作项 | 做法 A | 做法 B |
+|---|---|---|
+| 基础设施：探测上游 API、informer、RBAC、feature gate、e2e 环境 | 1–2 | 1–2 |
+| 单个 PodGroup：Pod 关联、`minCount`、优先级、队列、状态回写 | 3–4 | 6–8 |
+| `preemptionPolicy`、`disruptionMode` 接入抢占和回收 | 2–4 | 2–4 |
+| 拓扑 label key 到 HyperNode 层级的映射 | 2–3 | 2–3 |
+| 没有 HyperNode 时直接按节点 label 划分域 | 不做 | 3–4 |
+| 两层 CompositePodGroup 对应到 `subGroupPolicy` | 3–5 | 4–6 |
+| 任意层数：把子组改成递归结构 | 做不了 | 10–16 |
+| 组级 DRA | 做不了 | 4–6 |
+| 用户文档 | 1–2 | 1–2 |
+
+做法 B 贵在两处。一是调度器里直接使用 Volcano PodGroup 的地方很多，非测试代码有 44 个文件，每一处都要确认换成上游对象后是否成立。二是任意层数需要把现在两层的子组模型改成递归的，allocate、gang、网络拓扑和组级驱逐都要跟着改。
+
+另外还有持续的成本：上游 API 到 GA 之前，每个 Kubernetes 版本预计需要 1–2 人周跟进变更。
+
+### 7.6 建议
+
+现在可以做第一步，放在 feature gate 后面，默认关闭。投入不大，能让带 `spec.scheduling` 的原生 Job 在 Volcano 上按 gang 调度，同时用上 Volcano 的队列。
+
+第二步看需求。如果有用户用上游 API 跑 LeaderWorkerSet 或 JobSet，并且希望由 Volcano 调度，再往下做。
+
+第三步等上游 GA 之后再评估。现在投入的风险在于 API 还会变，而且默认关闭期间真正用到它的集群不多。
+
+需要持续关注的是生态的走向。JobSet、LeaderWorkerSet、Kubeflow Trainer、KubeRay、Spark Operator 都在对接上游的 Workload API。如果它们以后默认用上游 API 来声明 gang，Volcano 又不识别，这些工作负载在 Volcano 上就只能逐个 Pod 调度。Kueue 也在做类似的集成，可以参考它的计划：[kubernetes-sigs/kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871)。
+
+## 参考资料
+
+上游的设计文档：
+
+- [KEP-4671 Gang Scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling)：Workload 和 PodGroup API
+- [KEP-6012 CompositePodGroup API](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6012-composite-podgroup-api)
+- [KEP-5732 Topology-aware workload scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5732-topology-aware-workload-scheduling)
+- [KEP-5710 Workload-aware preemption](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5710-workload-aware-preemption)
+- [KEP-6089 WAS Controller APIs](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6089-was-controller-apis)：`Job.spec.scheduling` 等字段的来源
+- [KEP-5547 Integrate Workload APIs with Job controller](https://github.com/kubernetes/enhancements/tree/master/keps/sig-apps/5547-integrate-workload-with-job)
+- [Kubernetes v1.37: Advancing Workload-Aware Scheduling](https://kubernetes.io/blog/2026/09/08/kubernetes-v1-37-advancing-workload-aware-scheduling/)（官方博客）
+
+Volcano 的设计文档：
+
+- [Network Topology Aware Scheduling](../design/Network%20Topology%20Aware%20Scheduling.md)
+- [gang-aware-eviction-design](../design/gang-aware-eviction-design.md)
+
+想看代码可以从这几处开始：
+
+| 内容 | 位置 |
 |---|---|
-| **队列与 `minResources` 缺失** | 队列复用 `scheduling.volcano.sh/queue-name` annotation 或命名空间默认队列；`minResources` 由 Controller 依据 Pod 模板/已创建 Pod 与 `minCount` 自动核算 |
-| **同名资源与状态差异** | 镜像 PodGroup 加统一前缀避免 `namespace/name` 冲突；在 Volcano PodGroup 首次进入 `Running` 时向上游单向回写 `PodGroupInitiallyScheduled=True` |
-| **入队准入与 Pod 创建时机** | 上游控制器会直接创建 Pod，沿用 Volcano 对普通 Pod 的处理方式：Pod 先创建，PodGroup 未 `Inqueue` 前不调度 |
-| **`disruptionMode` 语义对齐** | `single` 保持 Volcano 默认的 Gang 保护（允许而非强制拆散）；`all` 在 bundle 生成时禁止产出 safe bundle |
-| **拓扑 Key 映射** | 结合 `label` 发现器生成 HyperNode 并建立 Label Key → Tier 映射（与 [volcano#6161](https://github.com/volcano-sh/volcano/issues/6161) 方向一致） |
-| **多层级与 API 兼容性** | 仅支持 `v1beta1` 及以上，不适配 Alpha；启动时通过 API Discovery 动态探测并配合 Volcano 独立 Feature Gate 控制；超出两层或跨模板部分计数在 L2 阶段明确拒绝并写入 condition |
-
-### 8.5 工作量评估与分阶段路线
-
-> 以下按熟悉 Volcano 调度器的工程师计，包含单元测试、E2E、集群验证与文档（不含社区评审周期）。代码盘点显示，调度器核心代码有 **44 个文件**（约 480 行）、Controller 有 **14 个文件**直接引用现有 PodGroup，这是路径 B 成本显著更高的主要原因。
-
-**目标汇总**
-
-| 兼容目标 | 推荐路径 | 包含工作项 | 预估工作量 |
-|---|---|---|---|
-| **L1 · 最小可用（扁平 Gang）** | 路径 A | W0 + W1 | **4–6 人周** |
-| **L2 · 两层语义对齐** | 路径 A | W0–W3 + W5 + W8 | **12–20 人周** |
-| **L3 · 完整原生支持** | 路径 B | W0–W8 | **33–51 人周（8–12 人月）** |
-
-*另需考虑持续维护成本：在上游 API GA 之前，每个 Kubernetes 小版本预计需 1–2 人周跟进变更。*
-
-**任务拆解明细（单位：人周）**
-
-| 编号 | 工作项 | 涉及模块 | 路径 A | 路径 B |
-|---|---|---|---|---|
-| **W0** | 基础设施：API Discovery、Informer、RBAC、Feature Gate、E2E 环境 | controllers / scheduler / installer / hack | 1–2 | 1–2 |
-| **W1** | 扁平 PodGroup：Pod 关联、`minCount`、优先级、队列来源、状态回写 | A：`controllers/podgroup`<br/>B：`scheduler/cache`、`api`、`framework`、队列指标 | 3–4 | 6–8 |
-| **W2** | `preemptionPolicy` 与 `disruptionMode` 接入抢占/回收 | `scheduler/actions`（preempt / reclaim / gang*）、gang 插件 | 2–4 | 2–4 |
-| **W3** | 拓扑 Label Key 到 HyperNode Tier 的映射 | hypernode controller、`network-topology-aware` | 2–3 | 2–3 |
-| **W4** | 无 HyperNode 时直接按节点 Label 构建域 | `scheduler/api` HyperNode 缓存 | — | 3–4 |
-| **W5** | 两层 `CompositePodGroup` 映射到 `subGroupPolicy` 及状态回写 | A：controller；B：cache 与 JobInfo | 3–5 | 4–6 |
-| **W6** | 任意层级支持：SubJob 递归化 | allocate / gang / network-topology-aware / 组级驱逐 / `job_info` | 不适用 | 10–16 |
-| **W7** | PodGroup 级 DRA：实现 `PodGroupManager` 与 `PodGroupState` | `plugins/util/k8s`、predicates | 不适用 | 4–6 |
-| **W8** | 用户文档与语义差异说明 | docs | 1–2 | 1–2 |
-
-**建议演进路线**
-
-```mermaid
-flowchart LR
-    P1["阶段 1（4–6 人周）<br/>路径 A · 扁平 PodGroup<br/>Feature Gate 默认关闭"]
-    P2["阶段 2（累计 12–20 人周）<br/>抢占语义与拓扑映射<br/>支持两层 CompositePodGroup"]
-    P3["阶段 3（GA 后评估）<br/>切入路径 B 原生支持<br/>任意层级 + 组级 DRA"]
-
-    P1 --> P2 --> P3
-```
-
-### 8.6 关键风险
-
-- **API 变动风险**：三个版本内已发生两次不兼容修改且 GA 推迟，过早深度耦合调度器内核会导致反复返工。
-- **短期受益面有限**：上游 Feature Gate 默认关闭期间，实际开启该特性的生产集群有限，适合先轻量化试点。
-- **生态迁移压力**：若 KubeRay、Kubeflow Trainer、Spark Operator、JobSet 逐步将上游 WAS API 作为默认集成方式，Volcano 需要提前具备兼容承接能力，避免这些工作负载退化为逐 Pod 调度。
-- **社区对标参考**：Kueue 已启动 WAS 集成规划（[kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871)），其目标与 Volcano 的 L1 / L2 高度相近，可作为设计与演进参照。
-
----
-
-## 9. 参考资料
-
-**核心 KEP 与官方博客**
-
-- [Kubernetes v1.37: Advancing Workload-Aware Scheduling](https://kubernetes.io/blog/2026/09/08/kubernetes-v1-37-advancing-workload-aware-scheduling/)
-- [KEP-4671 Gang Scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling) / [KEP-5832 Decouple PodGroup API](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5832-decouple-podgroup-api) / [KEP-6012 CompositePodGroup API](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6012-composite-podgroup-api)
-- [KEP-5732 Topology-aware workload scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5732-topology-aware-workload-scheduling) / [KEP-5710 Workload-aware preemption](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5710-workload-aware-preemption)
-- [KEP-6089 WAS Controller APIs](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6089-was-controller-apis) / [KEP-5729 DRA ResourceClaim for Workloads](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5729-resourceclaim-support-for-workloads)
-- [KEP-5547 Job 集成](https://github.com/kubernetes/enhancements/tree/master/keps/sig-apps/5547-integrate-workload-with-job) / [KEP-6276 Deployment 集成](https://github.com/kubernetes/enhancements/tree/master/keps/sig-apps/6276-integrate-workload-with-deployment)
-
-**相关设计文档与 Issue**
-
-- Volcano 设计文档：[Network Topology Aware Scheduling](../design/Network%20Topology%20Aware%20Scheduling.md)、[gang-aware-eviction-design](../design/gang-aware-eviction-design.md)
-- 社区跟踪：[kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871)、[jobset#1365](https://github.com/kubernetes-sigs/jobset/issues/1365)、[lws#891](https://github.com/kubernetes-sigs/lws/issues/891)、[volcano#6161](https://github.com/volcano-sh/volcano/issues/6161)
-
-<details>
-<summary>核心源码路径索引（点击展开）</summary>
-
-**Kubernetes（`kubernetes/kubernetes`）**
-
-| 模块 | 路径 |
-|---|---|
-| API 与 `schedulingGroup` | `staging/src/k8s.io/api/scheduling/v1beta1/types.go`、`staging/src/k8s.io/api/core/v1/types.go` |
-| Feature Gate | `pkg/features/kube_features.go` |
-| 组调度与队列 | `pkg/scheduler/schedule_one_podgroup.go`、`pkg/scheduler/algorithm_podgroup.go`、`pkg/scheduler/backend/queue/scheduling_queue.go` |
-| Gang / TAS / WAP 插件 | `pkg/scheduler/framework/plugins/gangscheduling/`、`topologyaware/`、`podgrouppodscount/`、`pkg/scheduler/framework/preemption/podgrouppreemption.go` |
-| Job 集成 | `pkg/controller/job/job_scheduling_manager.go` |
-
-**Volcano（`volcano-sh/volcano`）**
-
-| 模块 | 路径 |
-|---|---|
-| PodGroup API 与 Job 关联 | `staging/src/volcano.sh/apis/pkg/apis/scheduling/v1beta1/types.go`、`pkg/scheduler/api/job_info.go`、`sub_job_info.go` |
-| 调度与 Gang / 拓扑 / 驱逐 | `pkg/scheduler/actions/allocate/`、`gangpreempt/`、`gangreclaim/`、`pkg/scheduler/plugins/gang/`、`network-topology-aware/` |
-| 上游接口占位与 Controller | `pkg/scheduler/plugins/util/k8s/snapshot.go`、`framework.go`、`pkg/controllers/podgroup/` |
-
-</details>
+| 上游 PodGroup 的 API 定义 | kubernetes：`staging/src/k8s.io/api/scheduling/v1beta1/types.go` |
+| 上游的整组调度 | kubernetes：`pkg/scheduler/schedule_one_podgroup.go` |
+| 上游的 gang 检查 | kubernetes：`pkg/scheduler/framework/plugins/gangscheduling/` |
+| 上游的组级抢占 | kubernetes：`pkg/scheduler/framework/preemption/podgrouppreemption.go` |
+| Volcano PodGroup 的 API 定义 | volcano：`staging/src/volcano.sh/apis/pkg/apis/scheduling/v1beta1/types.go` |
+| Volcano 判断 Pod 属于哪个 Job | volcano：`pkg/scheduler/api/job_info.go` 里的 `getJobID` |
+| Volcano 为普通 Pod 创建 PodGroup | volcano：`pkg/controllers/podgroup/` |
+| Volcano 的组级驱逐 | volcano：`pkg/scheduler/actions/gangpreempt/`、`gangreclaim/` |
