@@ -4,17 +4,15 @@ English | [简体中文](./k8s-workload-aware-scheduling-vs-volcano-cn.md)
 
 ## Background
 
-kube-scheduler has always scheduled one pod at a time, and use cases that need a set of pods scheduled together have relied on projects such as Volcano. Since v1.35, kube-scheduler has supported scheduling by workload, known as Workload-Aware Scheduling (WAS). It adds a `PodGroup` API in the `scheduling.k8s.io` group, which shares its name with Volcano's PodGroup and overlaps with it in function.
+Since v1.35, Kubernetes has been adding Workload-Aware Scheduling (WAS) to kube-scheduler along with a native `PodGroup` API under `scheduling.k8s.io`, covering gang scheduling, topology-aware placement, and group-level preemption. While it shares its name and part of its scope with Volcano's `PodGroup`, the two differ substantially in positioning and data model.
 
-This document describes the state of the upstream PodGroup and how kube-scheduler schedules it, compares it with Volcano in terms of PodGroup, subgroups, topology-aware scheduling and preemption, and estimates what it takes for Volcano to support the upstream PodGroup.
+> Note: Upstream details are based on Kubernetes v1.37.2 and the master branch as of November 2026 (v1.38 in development); Volcano details are based on current master.
 
-The upstream part is based on Kubernetes v1.37.2 and the master branch as of November 2026 (v1.38 in development). The Volcano part is based on the current master branch.
+## 1. Upstream PodGroup Status
 
-## 1. Upstream PodGroup status
+### 1.1 API Model
 
-### 1.1 API objects
-
-Consider a training job with 4 pods that must be scheduled all together or not at all, that is, gang scheduling. On a cluster with the feature gates enabled, the user declares `scheduling` on the Job:
+Consider a 4-pod gang training job. On a cluster with the relevant feature gates enabled, a user declares `spec.scheduling` directly on a native `Job`:
 
 ```yaml
 apiVersion: batch/v1
@@ -31,7 +29,7 @@ spec:
     ...
 ```
 
-The Job controller creates a Workload and a PodGroup from it, then creates the pods and sets the PodGroup on each pod (object names are illustrative):
+The Job controller then creates a `Workload`, a `PodGroup`, and the `Pod`s, linking each pod via `pod.spec.schedulingGroup` (object names are illustrative):
 
 ```yaml
 apiVersion: scheduling.k8s.io/v1beta1
@@ -53,7 +51,7 @@ spec:
   workloadRef:
     workloadName: train
     templateName: workers
-  schedulingPolicy:       # copied from the template
+  schedulingPolicy:       # copied from the template at creation time
     gang:
       minCount: 4
 ---
@@ -67,22 +65,21 @@ spec:
   ...
 ```
 
-Three new APIs are involved:
+Core object roles:
 
-- `Workload` is a template that describes which groups make up the workload. Only controllers use it. kube-scheduler never reads it.
-- `PodGroup` is the object the scheduler works with. It stands for a set of pods that are scheduled together. Its spec is mostly immutable: after creation only `minCount` can change.
-- `pod.spec.schedulingGroup` is a new pod field that points to the PodGroup. It cannot be changed after the pod is created.
+- `Workload`: Static template defining a workload's group structure. Consumed only by workload controllers; kube-scheduler does not watch it.
+- `PodGroup`: Runtime scheduling unit consumed by kube-scheduler. Its spec is mostly immutable—only `minCount` can be modified after creation.
+- `pod.spec.schedulingGroup`: Native pod field pointing to its `PodGroup`; immutable once created.
+- `CompositePodGroup`: Used by multi-level workloads such as JobSet and LeaderWorkerSet to organize multiple `PodGroup`s into a tree (see Section 4).
 
-Workloads with more than one level, such as JobSet or LeaderWorkerSet, also use `CompositePodGroup`, which groups several PodGroups together. See section 4.
-
-All of these objects are created by the workload's controller. They refer to each other as follows (an arrow means "refers to"):
+All objects are created by the workload controller; reference relationships are shown below (arrows denote references):
 
 ```mermaid
 flowchart LR
     Pod["Pod"]
     PG["PodGroup"]
-    CPG["CompositePodGroup<br/>only for nested workloads"]
-    W["Workload<br/>template"]
+    CPG["CompositePodGroup<br/>multi-level workloads"]
+    W["Workload<br/>static template"]
 
     Pod --> PG
     PG --> CPG
@@ -90,170 +87,70 @@ flowchart LR
     PG --> W
 ```
 
-### 1.2 Terminology
+### 1.2 Terminology Mapping
 
-| Upstream | Meaning | Volcano counterpart |
+| Upstream Term | Meaning | Volcano Equivalent |
 |---|---|---|
-| WAS | The overall effort to schedule by workload | Volcano's batch scheduling model |
-| `Workload` | Static template of a workload | No separate object |
-| `PodGroup` | A set of pods scheduled together | `PodGroup` |
-| `CompositePodGroup` | A group of PodGroups | `subGroupPolicy` in `PodGroup` |
-| TAS | Topology-aware scheduling | Network topology aware scheduling, based on HyperNode |
-| WAP | Group-level preemption | `preempt` and `reclaim`, plus the group-level `gangpreempt` and `gangreclaim` |
+| WAS | Workload-Aware Scheduling | Volcano batch scheduling model |
+| `Workload` | Static workload scheduling template | No standalone object (embedded in workload spec) |
+| `PodGroup` | Runtime group scheduling unit | `PodGroup` (`scheduling.volcano.sh`) |
+| `CompositePodGroup` | Hierarchical parent group object | `PodGroup.spec.subGroupPolicy` |
+| TAS | Topology-Aware Scheduling | Network Topology Aware Scheduling (HyperNode) |
+| WAP | Workload-Aware Preemption | `preempt` / `reclaim` and `gangpreempt` / `gangreclaim` |
 
-### 1.3 Release status
+### 1.3 Release Progress & Constraints
 
-| Release | Stage | Main changes |
+| Release | Stage | Key Changes |
 |---|---|---|
-| v1.35 | Alpha | Workload API introduced. PodGroup is only a field inside Workload |
-| v1.36 | Alpha | PodGroup becomes its own object and pods join it through `schedulingGroup`. TAS, WAP and Job integration added |
-| v1.37 | Beta | API moves to `v1beta1`. A PodGroup is queued and scheduled as a whole. CompositePodGroup added (Alpha) |
-| v1.38 (in development) | Beta | CompositePodGroup, TAS and Job integration move to Beta. Deployment integration added (Alpha) |
-| v1.39 (planned) | GA | PodGroup, TAS and WAP planned for GA. CompositePodGroup planned for v1.40 |
+| v1.35 | Alpha | Introduced `v1alpha1` Workload API with `PodGroup` embedded in `Workload` |
+| v1.36 | Alpha | `v1alpha2` decoupled `PodGroup` and switched pods to `schedulingGroup`; added TAS, WAP, and Job integration |
+| v1.37 | Beta | Core API promoted to `v1beta1`; group-level queueing and scheduling; `CompositePodGroup` added (Alpha) |
+| v1.38 (in dev) | Beta | `CompositePodGroup`, TAS, and Job integration promoted to Beta; Deployment integration added (Alpha) |
+| v1.39 (planned) | GA | `PodGroup`, TAS, and WAP target GA; `CompositePodGroup` targets v1.40 |
 
-There are two limitations today:
+Two practical constraints apply today:
 
-- The API is not stable yet. It had two incompatible changes between v1.35 and v1.37, and in November 2026 the GA target moved from v1.38 to v1.39.
-- It is off by default. Through v1.38, all related feature gates (`GenericWorkload`, `TopologyAwareWorkloadScheduling`, `CompositePodGroup`, `WorkloadWithJob` and others) are disabled by default and have to be enabled in kube-apiserver, kube-controller-manager and kube-scheduler.
+- **API still settling**: Two breaking revisions occurred between v1.35 and v1.37 (`workloadRef` → `schedulingGroup`, `v1alpha2` → `v1alpha3`), and core GA moved from v1.38 to v1.39 in November 2026.
+- **Feature gates off by default**: Through v1.38, `GenericWorkload`, `TopologyAwareWorkloadScheduling`, `CompositePodGroup`, `WorkloadWithJob`, and related gates are all disabled by default and must be explicitly enabled across kube-apiserver, kube-controller-manager, and kube-scheduler.
 
-### 1.4 Non-goals
+### 1.4 Scope Boundaries (Non-Goals)
 
-KEP-4671 lists queues and fairness as a non-goal:
+KEP-4671 explicitly excludes queues and fairness:
 
 > Bring fairness or multiple workload queues in kube-scheduler. Kueue and Volcano.sh will continue to provide this.
 
-kube-scheduler still has a single scheduling queue ordered by priority. It has no tenant queues, no quota and no reclaim between queues.
+kube-scheduler retains a single priority-ordered queue with no tenant queues, quotas, or cross-queue reclaim. Topology auto-discovery (relies on node labels) and soft/preferred topology constraints are also out of scope.
 
-Upstream also does not discover topology automatically, so topology information only comes from node labels, and soft topology constraints are not supported yet.
+## 2. PodGroup Scheduling in kube-scheduler
 
-## 2. PodGroup scheduling in kube-scheduler
+### 2.1 Scheduling Flow
 
-### 2.1 Scheduling flow
-
-The flow for the 4-pod job in 1.1:
+Using the 4-pod gang job from 1.1 with `GenericWorkload` enabled:
 
 ```mermaid
 flowchart TD
-    A["Pod has schedulingGroup"] --> B["Joins its PodGroup's<br/>queue entry"]
-    B --> C{{"PodGroup exists and<br/>created pods ≥ minCount?"}}
-    C -- No --> D["The group waits<br/>for more pods"]
-    C -- Yes --> E["The group enters activeQ<br/>ordered by group priority"]
-    E --> F["The group is popped<br/>Pods are placed one by one<br/>in a snapshot only"]
-    F --> G{{"Pods that fit ≥ minCount?"}}
-    G -- Yes --> H["Bind the pods one by one"]
-    H --> I["Mark the PodGroup<br/>as scheduled"]
-    G -- No --> J["Bind nothing<br/>Try group preemption once"]
+    A["Pod sets schedulingGroup"] --> B["Merged into root group queue entry<br/>instead of queueing alone"]
+    B --> C{{"PreEnqueue: group objects exist<br/>and created pods ≥ minCount?"}}
+    C -- No --> D["Group waits, not enqueued"]
+    C -- Yes --> E["Group enters activeQ<br/>ordered by root priority"]
+    E --> F["Pop whole group, place pods in order<br/>tentative assume in snapshot only"]
+    F --> G{{"PlacementFeasible:<br/>placed pods ≥ minCount?"}}
+    G -- Yes --> H["Async bind each pod"]
+    H --> I["Set PodGroupInitiallyScheduled=True"]
+    G -- No --> J["Bind nothing<br/>Run group preemption once"]
     J --> K{{"Preemption succeeded?"}}
-    K -- Yes --> L["Evict the victims<br/>Requeue the group"]
-    K -- No --> M["Move to backoffQ<br/>and retry later"]
+    K -- Yes --> L["Evict victims<br/>Set nominatedNodeName & requeue"]
+    K -- No --> M["Move to backoffQ<br/>retry after backoff"]
 ```
 
-The steps are:
+Key steps:
 
-1. Queueing. A pod with `schedulingGroup` does not queue on its own. It joins the queue entry of its PodGroup. One entry stands for one PodGroup, or for the root of the tree when groups are nested. Entries are ordered by group priority, then by time.
-2. Waiting for the pods. Before the group can be scheduled, the PodGroup object must exist and the number of created pods must reach `minCount`. In the example the group waits until all 4 pods have been created. After the check passes, the group enters activeQ, the kube-scheduler queue of entries waiting to be scheduled.
-3. Trial placement. The scheduler pops the whole group and runs the normal Filter and Score for each pod in a fixed order. The results are recorded only in the snapshot of this cycle: later pods see what earlier pods took, but the real scheduler cache is untouched.
-4. Gang check. The check runs after each pod. If the total cannot reach `minCount` even when every remaining pod fits, the cycle stops early.
-5. Bind or preempt. If enough pods fit, each pod starts its own binding and the `PodGroupInitiallyScheduled` condition of the PodGroup is set to True. If not, no pod of the group is bound and the scheduler tries group-level preemption once (section 6). If that fails too, the group moves to backoffQ and is retried after a backoff period.
+1. **Queue aggregation**: Any pod with `schedulingGroup` (whether `basic` or `gang`) joins its root group's queue entry (standalone `PodGroup` or root `CompositePodGroup`), ordered by root priority and timestamp.
+2. **PreEnqueue gate**: The group enters `activeQ` once the `PodGroup` and all ancestor objects exist, created pods reach `minCount`, and no member is held by a scheduling gate.
+3. **Snapshot placement & pruning**: Once popped, the scheduler runs Filter / Score per pod in fixed order, recording tentative assumes in the cycle snapshot (reverted at cycle end without touching real cache). `PlacementFeasible` runs after each pod and short-circuits if `placed + remaining < minCount`.
+4. **Binding & preemption**: If `minCount` is satisfied, placed pods enter async binding cycles and `PodGroupInitiallyScheduled=True` is written; otherwise nothing is bound, group preemption runs once (Section 6), and unschedulable groups move to `backoffQ` (capped at `podMaxBackoff × √groupSize`).
 
-Notes:
-
-- Gang scheduling guarantees that the decision is made for the whole group. Binding is still asynchronous and per pod, and from the code there is no logic that undoes the other pods when one binding fails.
-- `minCount` is checked only at scheduling time. Once the group has been scheduled, `PodGroupInitiallyScheduled` never goes back to False, even if pods are evicted later.
-- The scheduling loop runs in a single goroutine. While a large group is being placed, all other pods and groups wait.
-- Trial placement is greedy, runs in a fixed order and does not backtrack. When the pods of a group have different shapes, it can miss a placement that exists.
-
-### 2.2 Differences between v1.37 and v1.38
-
-The main flow is the same in both releases. The differences are:
-
-| | v1.37 | v1.38 (in development) |
-|---|---|---|
-| Gang implementation | Besides the check during trial placement, pods also wait at Permit, with a 5-minute timeout | The Permit wait is gone. Only the check during trial placement remains |
-| CompositePodGroup | Alpha, up to 4 levels | Beta, up to 5 levels, with status and deletion protection |
-| Candidate topology domains | All are evaluated | Only a share is evaluated when there are many |
-| Workload integration | Job (Alpha) | Job (Beta), Deployment (Alpha) |
-| `preemptionPolicy` field | Behind its own feature gate | Always available |
-
-## 3. Upstream PodGroup vs. Volcano PodGroup
-
-### 3.1 The equivalent objects in Volcano
-
-When the same job is submitted as a Volcano Job, the Volcano Job controller creates the following PodGroup, and pods refer to it through an annotation:
-
-```yaml
-apiVersion: scheduling.volcano.sh/v1beta1
-kind: PodGroup
-metadata:
-  name: train
-spec:
-  queue: default
-  minMember: 4
-  minResources:
-    cpu: "16"
-    memory: 64Gi
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: train-worker-0
-  annotations:
-    scheduling.k8s.io/group-name: train
-spec:
-  schedulerName: volcano
-  ...
-```
-
-The main differences from the upstream PodGroup in 1.1 are:
-
-- A Volcano PodGroup always belongs to a Queue, and scheduling first decides whose turn it is based on queue quota and fairness. Upstream has no queues.
-- Volcano has enqueue admission. A PodGroup starts as Pending. The scheduler moves it to Inqueue once the queue has room for `minResources`, and a Volcano Job creates its pods only after that. Upstream has no such step and the controller creates pods right away.
-- Gang rules are finer in Volcano. Upstream has a single `minCount`. Volcano has `minMember` and also `minTaskMember`, which sets a minimum per role, for example "at least 1 ps and 2 workers".
-- Status means different things. Upstream only records whether the group was ever scheduled. Volcano's `phase` reflects the current state (Pending, Inqueue, Running and so on) and is recomputed in every scheduling cycle.
-
-The Volcano objects relate as follows (solid arrows mean "creates", dashed arrows mean "refers to"). Compared with upstream, there is no Workload or CompositePodGroup, and Queue and HyperNode are added:
-
-```mermaid
-flowchart LR
-    VJ["Volcano Job controller"]
-    PGC["pg-controller<br/>for ordinary pods"]
-    VPod["Pod"]
-    VPG["PodGroup"]
-    Qu["Queue"]
-    HN["HyperNode<br/>topology tree"]
-
-    VJ --> VPG
-    PGC --> VPG
-    VPod -.-> VPG
-    VPG -.-> Qu
-    VPG -.-> HN
-```
-
-### 3.2 Field mapping
-
-| Meaning | Upstream PodGroup | Volcano PodGroup |
-|---|---|---|
-| How a pod joins | `pod.spec.schedulingGroup` | annotation `scheduling.k8s.io/group-name` |
-| Minimum pods | `schedulingPolicy.gang.minCount` | `minMember` |
-| Minimum per role | none | `minTaskMember` |
-| Minimum resources | none | `minResources` |
-| Queue | none | `queue` |
-| Priority | `priorityClassName`, `preemptionPolicy` | `priorityClassName` |
-| Topology constraint | `schedulingConstraints.topology` | `networkTopology` |
-| Subgroups | separate CompositePodGroup objects | `subGroupPolicy` |
-| Unit of preemption | `disruptionMode` | none |
-| DRA devices shared by the group | `resourceClaims` | none |
-| Status | condition `PodGroupInitiallyScheduled` | `phase`, conditions, pod counts |
-| Mutable after creation | only `minCount` | yes |
-
-Two of the upstream-only fields need explanation:
-
-- `disruptionMode` sets the unit in which the group's pods are preempted. See section 6.
-- `resourceClaims` is DRA (Dynamic Resource Allocation) at the PodGroup level. With DRA, each pod normally refers to its own ResourceClaim to request devices such as GPUs. This field declares the ResourceClaim on the PodGroup instead: one ResourceClaim is generated per PodGroup, all pods of the group share the same device allocation, and the claim is created and deleted with the PodGroup. Volcano only supports pod-level ResourceClaims today.
-
-### 3.3 Scheduling process
-
-For the same 4-pod job on a cluster with enough resources, the upstream process is:
+Normal scheduling sequence:
 
 ```mermaid
 sequenceDiagram
@@ -264,73 +161,99 @@ sequenceDiagram
     C->>A: Create Workload and PodGroup
     C->>A: Create 4 pods
     A-->>S: PodGroup and pod events
-    Note over S: All 4 pods exist<br/>The group is queued
-    Note over S: The group is popped<br/>Each pod is placed
-    Note over S: All 4 fit<br/>The gang check passes
-    S->>A: Bind 4 pods
-    S->>A: Mark the PodGroup as scheduled
+    Note over S: PreEnqueue passes<br/>Group enters activeQ
+    Note over S: Pop group<br/>Place pods in snapshot
+    Note over S: minCount met<br/>PlacementFeasible passes
+    S->>A: Bind pods asynchronously
+    S->>A: Set PodGroupInitiallyScheduled=True
 ```
 
-The Volcano process is:
+Four implementation traits to note:
 
-```mermaid
-sequenceDiagram
-    participant C as Volcano Job controller
-    participant A as kube-apiserver
-    participant S as Volcano scheduler
+- **No group bind rollback**: All-or-nothing applies only to the scheduling decision; binding remains async and per pod, so a single bind failure does not undo sibling bindings.
+- **One-way status condition**: `minCount` is enforced only at scheduling time; once `PodGroupInitiallyScheduled` becomes `True`, it never reverts even if members are later evicted.
+- **Single-goroutine evaluation**: Evaluating a large group (`pods × candidate domains`, repeated during preemption) runs in the single scheduling loop and can block other pods/groups.
+- **Greedy, no backtracking**: Sequential placement in fixed order does not guarantee finding a valid solution for heterogeneous groups.
 
-    C->>A: Create PodGroup in Pending
-    A-->>S: PodGroup event
-    Note over S: enqueue<br/>The queue has room<br/>for minResources
-    S->>A: Set PodGroup to Inqueue
-    C->>A: Create 4 pods
-    A-->>S: Pod events
-    Note over S: allocate<br/>The job's turn comes<br/>Pick a node for each pod<br/>Record it in a Statement
-    Note over S: All 4 have a node<br/>Commit the Statement
-    S->>A: Bind 4 pods
-    S->>A: Set PodGroup to Running
-```
+### 2.2 Key Differences: v1.37 vs. v1.38
 
-The main difference is how scheduling is driven. kube-scheduler is event driven: it pops one group from the queue, decides for it, and then pops the next. Volcano is periodic: each cycle takes a snapshot of the cluster and walks through every job in it in queue order and job order, which is what lets it weigh fairness and quota across queues.
+The core flow is unchanged; v1.38 (in development) removes transitional mechanisms and improves scaling:
 
-Other differences:
+| Area | v1.37 | v1.38 (in dev) |
+|---|---|---|
+| Gang enforcement | Kept a 5-minute Permit wait barrier alongside trial checks | Removed Permit barrier; driven solely by the public `PlacementFeasible` extension point |
+| `CompositePodGroup` | Alpha (`v1alpha3` only), max depth 4, no status or delete protection | Beta (`v1beta1`), max depth 5, condition write-back and finalizer protection |
+| Candidate domain search | Evaluates all candidate domains | Adds `percentageOfPlacementsToScore` (adaptive, 5% floor) and multi-plugin intersection |
+| Workload integration | Job (Alpha) | Job (Beta, deletes PodGroup on suspend), Deployment (Alpha) |
+| `preemptionPolicy` | Behind separate feature gate | Gate removed; field active directly |
 
-- When resources are short, upstream tries preemption immediately in the same cycle. Volcano runs preemption and reclaim as separate actions after allocate, and they are enabled by configuration.
-- After a failure, upstream puts the group into backoffQ to retry. Volcano needs no retry queue because the next cycle looks at every unscheduled job again.
+## 3. Upstream PodGroup vs. Volcano PodGroup
 
-In common: both place the whole group on a snapshot first and commit only when the gang rule holds, and both bind pods asynchronously one at a time.
+### 3.1 Fields & Semantics
+
+Although they share a name, upstream `PodGroup` is strictly a placement unit whereas Volcano's `PodGroup` also carries multi-tenant queue ownership, enqueue admission, and a dynamic lifecycle state machine.
+
+| Dimension | Upstream PodGroup (`scheduling.k8s.io/v1beta1`) | Volcano PodGroup (`scheduling.volcano.sh/v1beta1`) |
+|---|---|---|
+| Pod association | `pod.spec.schedulingGroup` (immutable field) | annotation `scheduling.k8s.io/group-name` |
+| Gang granularity | Single `schedulingPolicy.gang.minCount` | `minMember` + per-role `minTaskMember` + subgroup constraints |
+| Queue & admission | No queue or `minResources`; controllers create pods directly | Bound to `queue`; `enqueue` admission via `minResources` |
+| Priority & preemption | `priorityClassName` / `priority` / `preemptionPolicy` | `priorityClassName`, `volcano.sh/preemptable` |
+| Topology | `schedulingConstraints.topology` (1 node label key, hard only) | `networkTopology` (HyperNode-based, hard / soft) |
+| Subgroups | Standalone `CompositePodGroup` object tree | Embedded `subGroupPolicy` |
+| Victim unit | `disruptionMode` (`single` / `all`) | No declarative field (governed by plugins & actions) |
+| PodGroup-level DRA | `resourceClaims` (max 4) | Not supported (pod-level ResourceClaims only) |
+| Status semantics | One-way `PodGroupInitiallyScheduled` (`status` subresource) | Dynamic `phase`, conditions, pod counts (no `status` subresource) |
+| Mutability & protection | Only `minCount` mutable; protection finalizer | Spec mutable; cleanup via `ownerReference` |
+
+Two upstream-only fields warrant note:
+
+- **`disruptionMode`**: Declares the eviction unit when this group is preempted (`single` for individual pods, `all` for the whole group); see Section 6.
+- **`resourceClaims` (PodGroup-level DRA)**: Standard DRA attaches ResourceClaims per pod. This field declares shared ResourceClaims on the `PodGroup` (generated per group and cleaned up with it), letting all pods in the group share one device allocation and bypassing the 256-pod `reservedFor` limit per claim.
+
+### 3.2 Scheduling Mechanics
+
+| Dimension | kube-scheduler | Volcano Scheduler |
+|---|---|---|
+| Scheduling trigger | Event-driven, popping one root group per cycle | Periodic Session evaluating queues and jobs in batch over a snapshot |
+| Transaction model | Snapshot tentative assumes reverted before async pod binding | `Statement` transaction (Commit on `JobReady`, else Discard) |
+| Preemption timing | Inline once per failed group cycle | Separate `preempt` / `reclaim` / `gangpreempt` / `gangreclaim` actions |
+| Retry mechanism | `backoffQ` with backoff (no group queueing hints yet) | Re-evaluated next Session (with optional unschedulable cache) |
+| Binding | Per-pod async binding, no group rollback | Per-pod async binding, no group rollback |
+
+The architectural divide is **event-driven single-group cycles** versus **periodic batch Sessions**: the latter enables cross-queue quota, fairness, and reclaim in one snapshot, while the former focuses on low-latency placement of individual workloads.
 
 ## 4. CompositePodGroup vs. Volcano SubGroup
 
-Workloads such as LeaderWorkerSet and JobSet have two levels. For example, an inference service has 2 replicas of 4 pods each. The 4 pods of a replica must be scheduled together and sit in the same rack, the whole service must sit in the same zone, and the service only counts as scheduled when both replicas are.
+Consider a two-level inference service: 2 replica groups of 4 pods each, where each replica group must stay within the same rack, the whole service within the same zone, and both replicas must be ready to start.
 
-Upstream models this with separate objects: each replica is a PodGroup, with a CompositePodGroup above them.
+Upstream builds a tree of standalone objects (leaf `PodGroup`s under a `CompositePodGroup`):
 
 ```mermaid
 flowchart TD
-    Root["CompositePodGroup<br/>at least 2 child groups<br/>same zone"]
-    R0["PodGroup replica-0<br/>at least 4 pods<br/>same rack"]
-    R1["PodGroup replica-1<br/>at least 4 pods<br/>same rack"]
+    Root["CompositePodGroup<br/>minGroupCount = 2<br/>topology: zone"]
+    R0["PodGroup: replica-0<br/>minCount = 4<br/>topology: rack"]
+    R1["PodGroup: replica-1<br/>minCount = 4<br/>topology: rack"]
     Root --> R0
     Root --> R1
     R0 --> P0["4 pods"]
     R1 --> P1["4 pods"]
 ```
 
-Volcano uses a single PodGroup, whose `subGroupPolicy` defines how pods are split into subgroups by pod label (here, one subgroup per 4 pods and at least 2 subgroups). A subgroup has no object of its own.
+Volcano defines subgroups inside one `PodGroup` via `subGroupPolicy` and pod labels, with no standalone subgroup objects:
 
 ```mermaid
 flowchart TD
-    VPG["PodGroup<br/>at least 8 pods<br/>same zone"]
-    S0["Subgroup 0<br/>group-index=0<br/>same rack"]
-    S1["Subgroup 1<br/>group-index=1<br/>same rack"]
+    VPG["PodGroup<br/>minMember = 8<br/>networkTopology: zone tier"]
+    S0["SubGroup 0<br/>group-index=0<br/>networkTopology: rack tier"]
+    S1["SubGroup 1<br/>group-index=1<br/>networkTopology: rack tier"]
     VPG --> S0
     VPG --> S1
     S0 --> VP0["4 pods"]
     S1 --> VP1["4 pods"]
 ```
 
-The YAML for each is shown below. Upstream is a Workload template, from which the controller creates 1 CompositePodGroup and 2 PodGroups:
+Side-by-side YAML comparison. Upstream declares a `Workload` template that the controller expands into 1 `CompositePodGroup` and 2 `PodGroup`s:
 
 ```yaml
 apiVersion: scheduling.k8s.io/v1beta1
@@ -356,7 +279,7 @@ spec:
         - key: topology.example.com/rack
 ```
 
-In Volcano it is one PodGroup, provided the cluster already has HyperNodes for those levels:
+Volcano uses a single `PodGroup` (assuming matching HyperNode tiers exist):
 
 ```yaml
 apiVersion: scheduling.volcano.sh/v1beta1
@@ -368,7 +291,7 @@ spec:
   minMember: 8
   networkTopology:
     mode: hard
-    highestTierAllowed: 2        # assuming tier 2 is the zone
+    highestTierAllowed: 2        # assuming tier 2 maps to zone
   subGroupPolicy:
   - name: replica
     subGroupSize: 4
@@ -377,33 +300,31 @@ spec:
       matchLabels:
         app: serving
     matchLabelKeys:
-    - group-index                # pods with the same value form one subgroup
+    - group-index
     networkTopology:
       mode: hard
-      highestTierAllowed: 1      # assuming tier 1 is the rack
+      highestTierAllowed: 1      # assuming tier 1 maps to rack
 ```
 
-The differences between the two models:
+Key differences between the two hierarchy models:
 
-- Depth. Upstream can keep nesting, because a child of a CompositePodGroup can be another CompositePodGroup. The limit is 4 levels in v1.37 and 5 on master. A three-level shape such as JobSet → ReplicatedJob → Job can be expressed directly. Volcano always has two levels.
-- Subgroup size. Upstream subgroups are separate objects and each can have its own `minCount`. In Volcano, all subgroups under one policy have the same size, so different sizes need several policies.
-- Counting "at least N subgroups". Upstream `minGroupCount` counts all children of the parent together. Volcano `minSubGroups` counts per policy.
+- **Nesting depth**: `CompositePodGroup` nests recursively (up to 4 levels in v1.37, 5 on master), directly modeling 3-level trees like `JobSet → ReplicatedJob → Job`; Volcano is fixed at 2 levels.
+- **Heterogeneous subgroups**: Each upstream child is an independent object with its own `minCount`; in Volcano, all subgroups under one `subGroupPolicy` share a uniform `subGroupSize`, requiring separate policies for different sizes.
+- **Minimum child counting**: Upstream `minGroupCount` counts across all children of a parent regardless of template; Volcano `minSubGroups` counts per policy.
 
-How upstream shapes map to Volcano's current model:
+Mapping upstream shapes onto Volcano's current model:
 
-| Upstream shape | Can Volcano's current model express it? |
+| Upstream Shape | Volcano Compatibility |
 |---|---|
-| A single PodGroup | Yes. `minCount` maps to `minMember` |
-| One CompositePodGroup over identical PodGroups | Yes. It maps to one `subGroupPolicy` |
-| One CompositePodGroup over different PodGroups, all required | Yes. One policy per kind of PodGroup |
-| The same, but only some of them required | Not exactly |
-| Three or more levels | No |
+| Single `PodGroup` | Supported (`minCount` → `minMember`) |
+| Single-level `CompositePodGroup` + homogeneous `PodGroup`s | Supported (single `subGroupPolicy`) |
+| Single-level `CompositePodGroup` + heterogeneous `PodGroup`s (all required) | Supported (one policy per template, or with `minTaskMember`) |
+| Single-level `CompositePodGroup` + heterogeneous `PodGroup`s (partial count) | Cannot be expressed accurately (cross-template count mismatch) |
+| Three or more levels | Unsupported |
 
-## 5. Topology-aware scheduling (TAS)
+## 5. Topology-Aware Scheduling (TAS) Comparison
 
-The goal is the same on both sides: place the pods of a group on nodes that are close to each other in the network. The difference is how topology is described.
-
-Upstream has no topology object and uses node labels directly. A PodGroup names one label key, which means "all pods of the group must be on nodes with the same value for this label". At scheduling time each value of the label is a candidate domain. The scheduler tries the group in each domain and picks the best-scoring domain among those where it fits.
+Upstream TAS introduces no topology CRD; candidate domains are derived directly from node label values. A `PodGroup` names a single label key requiring all its pods to share the same label value, and the scheduler evaluates candidate values and picks the highest-scoring feasible domain (`PodGroupPodsCount` + `NodeResourcesFit` MostAllocated).
 
 ```mermaid
 flowchart LR
@@ -420,13 +341,13 @@ flowchart LR
     R1 ~~~ R2
 ```
 
-Volcano models topology explicitly as a tree, using the HyperNode CRD. A PodGroup states the highest tier it may spread to. At scheduling time the search starts from the lowest tier and stops at the lowest one where the whole group fits.
+Volcano models topology explicitly as a HyperNode tree, supporting `hard`/`soft` constraints and bottom-up search for the lowest feasible tier:
 
 ```mermaid
 flowchart TD
-    H2["HyperNode zone-a<br/>tier 2"]
-    H11["HyperNode rack-r1<br/>tier 1"]
-    H12["HyperNode rack-r2<br/>tier 1"]
+    H2["HyperNode: zone-a<br/>tier 2"]
+    H11["HyperNode: rack-r1<br/>tier 1"]
+    H12["HyperNode: rack-r2<br/>tier 1"]
     VN1["node-1"]
     VN2["node-2"]
     VN3["node-3"]
@@ -437,87 +358,85 @@ flowchart TD
     H12 --> VN3
 ```
 
-| | Upstream TAS | Volcano |
+| Dimension | Upstream TAS | Volcano Network Topology |
 |---|---|---|
-| Source of topology | Node labels | HyperNodes, created by hand or discovered from UFM or node labels |
-| How a constraint is written | One label key | `highestTierAllowed` or `highestTierName` |
-| Hard and soft constraints | Hard only | Both |
-| Multi-level constraints | Nested CompositePodGroups, one key per level | One at job level and one at subgroup level |
-| How a domain is chosen | Try each domain, take the best score | Search upward from the lowest tier and stop at the first fit |
+| Topology source | Node labels (no extra objects) | HyperNode CRD (manual or `ufm`/`label` discovery) |
+| Constraint syntax | Single node label key | `highestTierAllowed` / `highestTierName` |
+| Hard vs. soft | Hard only | `hard` and `soft` |
+| Multi-level constraints | Per-level keys on nested `CompositePodGroup`s | Job-level + SubGroup-level (2 levels) |
+| Domain selection | Evaluates candidate domains, picks best score (v1.38 adds cutoff) | Bottom-up tier search, stopping at lowest feasible tier |
 
-The upstream approach is lighter. It works as soon as nodes are labelled and needs no extra objects, but it can only express "must be in the same domain". Volcano needs HyperNodes to be created first, but it can express "as close as possible, and one tier up if that does not fit".
+Upstream TAS is lightweight—working out of the box on labeled nodes—but limited to single-key hard constraints. Volcano carries more setup overhead via HyperNodes in exchange for tightest-tier preference, soft fallback, and auto-discovery. For compatibility, the main gap is bridging upstream label keys to Volcano HyperNode tiers (see 7.4).
 
-For compatibility, the two forms have to be reconciled: upstream uses a label key and Volcano uses a tier, so a mapping is needed. See 7.4.
+## 6. Preemption Comparison (WAP)
 
-## 6. Preemption (WAP)
-
-Upstream group preemption runs after a whole group fails to schedule, once per group:
+Upstream WAP (Workload-Aware Preemption) triggers inline via `PodGroupPostFilter` once per failed group scheduling cycle:
 
 ```mermaid
 flowchart TD
-    A["Group scheduling fails"] --> B["Find lower-priority pods<br/>or groups in the cluster"]
-    B --> C["Remove them in a snapshot<br/>and place the group again"]
-    C --> D{{"Does the group fit?"}}
+    A["Group scheduling fails"] --> B["Collect lower-priority victim<br/>pods or groups cluster-wide"]
+    B --> C["Remove all victims in snapshot<br/>and rerun group scheduling"]
+    C --> D{{"Group fits?"}}
     D -- No --> E["Give up, evict nothing"]
-    D -- Yes --> F["Put back the victims<br/>that need not go"]
-    F --> G["Evict the other victims<br/>Requeue the group"]
+    D -- Yes --> F["Reprieve unnecessary victims<br/>by priority & PDB violation"]
+    F --> G["Evict remaining victims<br/>Set nominatedNodeName & requeue"]
 ```
 
-Volcano preemption is done by separate actions: the original `preempt` and `reclaim`, and the group-level `gangpreempt` and `gangreclaim`. The flow of `gangpreempt` is as follows (without HyperNodes, the whole cluster is one domain):
+Alongside legacy `preempt`/`reclaim`, Volcano provides group-level eviction actions (`gangpreempt`/`gangreclaim`). The `gangpreempt` flow:
 
 ```mermaid
 flowchart TD
-    A["A job is short of resources"] --> B["Split nodes into domains<br/>by HyperNode"]
-    B --> C["Pick victims job by job<br/>Prefer keeping their gang"]
-    C --> D["Simulate in a Statement<br/>Evict and reserve resources"]
-    D --> E{{"Does the whole job fit?"}}
-    E -- No --> F["Undo, try the next domain"]
-    E -- Yes --> G["Commit and evict<br/>Placement finishes<br/>in the next cycle"]
+    A["Job is starving"] --> B["Partition candidates by HyperNode<br/>whole cluster if no topology"]
+    B --> C["Build per-victim bundles in domain<br/>prefer keeping victim gang intact"]
+    C --> D["Simulate eviction & reservation<br/>in a Statement"]
+    D --> E{{"Preemptor reaches JobPipelined?"}}
+    E -- No --> F["Discard & try next domain"]
+    E -- Yes --> G["Commit & evict victims<br/>allocate fulfills in next cycle"]
 ```
 
-Both follow the same idea: simulate on a snapshot first, and evict only when the whole preempting group fits. The differences are:
+Both make whole-group decisions for the preemptor and avoid partial evictions on failure. Key differences:
 
-| | Upstream WAP | Volcano |
+| Dimension | Upstream WAP | Volcano Preemption / Reclaim |
 |---|---|---|
-| Trigger | Priority | Priority, and queue quota |
-| Victim unit | A pod or a whole group, set by `disruptionMode` | A pod. In the group-level actions, a victim job |
-| Protects the victim's gang by default | No | Yes |
-| Search scope | The whole cluster | Per node. Per HyperNode domain in the group-level actions |
-| When it runs | Right after scheduling fails | As a separate action, enabled by configuration |
+| Trigger driver | Priority only | Priority (preemption) + queue quota (cross-queue reclaim) |
+| Victim unit | `disruptionMode`: `single` (pod) or `all` (highest `all` ancestor) | Legacy: single task; `gang*`: safe or whole bundle |
+| Default victim gang protection | **No** (`single` default allows splitting running gangs) | **Yes** (protects `minAvailable` by default) |
+| Search scope | Cluster-wide (reruns TAS placements when enabled) | Per node; per HyperNode domain in `gang*` actions |
+| PDB handling | Best-effort (prefers reprieving, does not hard-block) | Filtered by `pdb` plugin |
 
-More detail on two of them:
+Two semantic differences matter most for compatibility:
 
-- Trigger. Upstream only has priority-based preemption. Volcano also reclaims across queues: when a queue uses more than its share, other queues can take the resources back when they need them. Upstream has no queues, so it has no equivalent.
-- Default behaviour towards the victim's gang is opposite. Upstream `disruptionMode` defaults to `single`, so the victim unit is a single pod and a running gang can lose some of its pods. Evicting the group as a whole requires setting `all` explicitly. Volcano protects the victim job by default: evictions do not take it below `minAvailable`, and a whole job is evicted only when that is explicitly allowed.
+- **Cross-queue reclaim**: Upstream has no multi-tenant queues and thus only supports priority-based preemption.
+- **Opposite defaults for victims**: Upstream allows splitting lower-priority running gangs by default unless `disruptionMode: all` is set; Volcano preserves victim `minAvailable` by default and evicts a whole gang only when explicitly enabled.
 
-## 7. Supporting the upstream PodGroup in Volcano
+## 7. Volcano Compatibility Assessment
 
-### 7.1 Current state
+### 7.1 Current State
 
-Volcano does not recognise the upstream PodGroup. To decide which job a pod belongs to, the scheduler only looks at the `scheduling.k8s.io/group-name` annotation. It does not read `pod.spec.schedulingGroup` and does not watch upstream PodGroups.
+Volcano does not consume upstream `PodGroup`s today:
 
-If the Job in 1.1 is given `schedulerName: volcano`, the current code treats its pods as ordinary pods: pg-controller creates a Volcano PodGroup with `minMember=1` for them, the 4 pods are scheduled one by one, and the gang rule has no effect.
+- Although its Kubernetes dependencies include the upstream types, `pkg/scheduler/plugins/util/k8s/snapshot.go` and `framework.go` stub out `PodGroupStates` and `PodGroupManager`.
+- `getJobID` only inspects the `scheduling.k8s.io/group-name` annotation and never reads `pod.spec.schedulingGroup`; no informers or RBAC exist for upstream objects.
+- Submitting a pod with `schedulingGroup` and `schedulerName: volcano` falls back to `pg-controller` creating a `minMember=1` Volcano PodGroup, ignoring upstream gang, topology, and preemption semantics.
 
-### 7.2 Compatibility targets
+### 7.2 Compatibility Phases
 
-Support can be added in three steps, each of which can ship on its own:
+Because upstream lacks `queue`, `minResources`, `minTaskMember`, soft topology, and dynamic lifecycle phases, **replacing Volcano's PodGroup with the upstream one is not considered**. Compatibility can proceed in three deliverable phases:
 
-| | What it covers | Workloads it enables |
+| Phase | Scope | Workloads Enabled |
 |---|---|---|
-| Step 1 | Recognise `schedulingGroup`, honour `minCount` and priority, write status back to the upstream PodGroup | Native Jobs and Deployments with `spec.scheduling` |
-| Step 2 | `disruptionMode`, topology constraints and two-level CompositePodGroups | Common LeaderWorkerSet and JobSet setups |
-| Step 3 | CompositePodGroups of any depth and PodGroup-level DRA | Every workload that uses the upstream API |
+| Phase 1 | Recognize `schedulingGroup`, honor `minCount`, priority, and write back `PodGroupInitiallyScheduled` | Native Jobs / Deployments with `spec.scheduling` |
+| Phase 2 | Support `disruptionMode`, `preemptionPolicy`, topology label mapping, and two-level `CompositePodGroup` | Common two-level LeaderWorkerSet and JobSet workloads |
+| Phase 3 | Support arbitrary-depth `CompositePodGroup` and PodGroup-level DRA | All workloads using upstream WAS APIs |
 
-Replacing the Volcano PodGroup with the upstream one is not considered: upstream has no `queue`, `minResources` or `minTaskMember`, so features would be lost.
+### 7.3 Architectural Options
 
-### 7.3 Implementation options
-
-Option A translates in a controller. pg-controller watches upstream PodGroups, creates a matching Volcano PodGroup for each, and adds the `group-name` annotation to the pods. After scheduling it writes the status back to the upstream PodGroup. The scheduler hardly changes.
+**Option A (Controller Mirroring)**: `pg-controller` watches upstream objects, mirrors them into Volcano `PodGroup`s, stamps `group-name` (and subgroup labels) on pods, and syncs status back. Scheduler core changes stay minimal.
 
 ```mermaid
 flowchart LR
     UA["Upstream PodGroup"]
-    MC["pg-controller<br/>translation"]
+    MC["pg-controller<br/>mirroring"]
     VA["Volcano PodGroup"]
     SA["Volcano scheduler"]
     UA <--> MC
@@ -525,122 +444,110 @@ flowchart LR
     VA <--> SA
 ```
 
-Option B lets the scheduler read upstream objects directly. The scheduler cache watches upstream PodGroups, turns them into its internal JobInfo, and the scheduler writes the status back itself.
+**Option B (Native Scheduler Support)**: Scheduler Cache watches upstream objects directly, converts them into internal `JobInfo`, and updates upstream status directly.
 
 ```mermaid
 flowchart LR
     UB["Upstream PodGroup"]
-    CB["Scheduler cache"]
+    CB["Scheduler Cache"]
     JB["JobInfo"]
-    SB["Actions and plugins"]
+    SB["Actions / Plugins"]
     UB <--> CB
     CB --> JB
     JB --> SB
 ```
 
-| | Option A: translate in a controller | Option B: support in the scheduler |
+| Dimension | Option A: Controller Mirroring | Option B: Native Scheduler |
 |---|---|---|
-| Scheduler changes | Few | Many: cache, JobInfo, status updates, queue accounting |
-| Extra objects | One Volcano PodGroup per upstream PodGroup | None |
-| Consistency | The two objects can be briefly out of sync | A single source of data |
-| Depth supported | Two levels | Any depth, once subgroups become recursive |
-| PodGroup-level DRA | Not possible | Possible |
+| Scheduler impact | Minimal | Broad (Cache, JobInfo, status sync, queue metrics) |
+| Extra API objects | One mirrored Volcano PodGroup per upstream group | None |
+| Consistency | Sync lag between mirrored objects | Single source of truth |
+| Depth ceiling | Limited to two-level `subGroupPolicy` | Arbitrary depth with recursive SubJob |
+| PodGroup-level DRA | Unsupported | Supported (requires implementing `PodGroupManager`) |
 
-Option A is recommended as the starting point. The upstream API is still Beta, off by default, and has already changed twice. With the adaptation in a controller, the scheduler does not have to change when upstream changes again.
+While upstream remains Beta, off by default, and subject to API churn, **Option A** isolates adaptation in the controller layer and protects the scheduler core from rework.
 
-### 7.4 Open questions
+### 7.4 Key Design Questions
 
-Both options need the following questions to be settled first.
+- **Queue assignment**: Reuse Volcano's plain-pod convention—read `scheduling.volcano.sh/queue-name` from the pod or owning workload, falling back to `default`.
+- **Computing `minResources`**: Aggregate resource requests from created pods in the controller so Volcano's `enqueue` admission continues to work.
+- **Resource name collision**: Both CRDs/resources are named `podgroups` (`kubectl get podgroups` is ambiguous); mirrored Volcano PodGroups in Option A need a naming prefix to avoid collisions.
+- **Mapping `disruptionMode`**: Map `all` onto Volcano's whole-job eviction (disabling safe bundles); treat `single` as permitting rather than requiring splits, preserving Volcano's default gang protection.
+- **Topology label key mapping**: Pair the `label` HyperNode discoverer with a label-key → tier mapping, aligned with [#6161](https://github.com/volcano-sh/volcano/issues/6161).
+- **Unsupported structures**: Explicitly reject 3+ levels and cross-template partial `minGroupCount` in Phase 2 with a clear upstream status condition instead of silently downgrading.
+- **Version & gate isolation**: Target `v1beta1+` only; detect API availability via discovery at startup and gate the feature behind a Volcano feature gate that is off by default.
 
-**Queue source.** The upstream PodGroup has no queue field. Volcano can do what it does for ordinary pods today: read the `scheduling.volcano.sh/queue-name` annotation on the pod or its owning workload, and fall back to the default queue.
+### 7.5 Effort Estimate
 
-**Computing `minResources`.** Upstream has no such field, and Volcano's enqueue admission needs it. The controller can add up the resource requests of the pods that have been created.
+Estimates are in person-weeks for engineers familiar with the Volcano scheduler, covering unit tests, e2e tests, cluster verification, and docs (excluding community review cycles).
 
-**Name clashes.** Both kinds of PodGroup use the resource name `podgroups`, so `kubectl get podgroups` is ambiguous. The Volcano PodGroup created in option A must also not collide with a PodGroup the user already has, so a naming rule is needed.
-
-**Mapping `disruptionMode`.** `all` requires the whole group to be evicted together. Volcano's group-level eviction can already evict by job, and this can build on it. `single` means the group may be split, not that it must be, so Volcano can keep protecting the victim job as it does today.
-
-**Mapping topology label keys to HyperNode tiers.** HyperNodes can already be generated from node labels. What is missing is a mapping that says which label key is which tier. This is in line with [#6161](https://github.com/volcano-sh/volcano/issues/6161).
-
-**Shapes that cannot be expressed.** Volcano's current model cannot express more than two levels, or a `minGroupCount` that requires only some of the children. Those should be rejected with the reason written to the status of the upstream PodGroup, not scheduled under different rules.
-
-**Clusters without the upstream API.** The API only exists on v1.37 and later clusters with the feature gates on. Volcano has to detect it at startup, and the whole feature should sit behind a Volcano feature gate that is off by default.
-
-### 7.5 Effort
-
-The unit is person-weeks, for engineers who know the Volcano scheduler. Unit tests, e2e tests and docs are included. Community review time is not.
-
-| Goal | Option | Effort |
+| Target | Option | Estimated Effort |
 |---|---|---|
-| Step 1: gang scheduling works for native Jobs on Volcano | A | 4–6 person-weeks |
-| Step 2: add preemption semantics, topology constraints and two-level subgroups | A | 12–20 person-weeks in total |
-| Step 3: support in the scheduler, any depth and PodGroup-level DRA | B | 33–51 person-weeks, about 8–12 person-months |
+| Phase 1: Flat gang scheduling for native Jobs | A | 4–6 person-weeks |
+| Phase 2: Preemption, topology mapping, and two-level subgroups | A | 12–20 person-weeks total |
+| Phase 3: Native scheduler support (any depth + PodGroup-level DRA) | B | 33–51 person-weeks (~8–12 person-months) |
 
-The figure for step 3 is for building option B from scratch. It is not an increment on top of the first two steps.
+*Note: Phase 3 reflects building Option B from scratch rather than an increment on Phase 2. Budget an additional 1–2 person-weeks per Kubernetes release to track upstream changes prior to GA.*
 
-The work breaks down like this:
+Breakdown (person-weeks):
 
-| Work item | Option A | Option B |
+| Work Item | Option A | Option B |
 |---|---|---|
-| Groundwork: detect the upstream API, informers, RBAC, feature gate, e2e environment | 1–2 | 1–2 |
-| Single PodGroup: pod association, `minCount`, priority, queue, status write-back | 3–4 | 6–8 |
-| Wire `preemptionPolicy` and `disruptionMode` into preemption and reclaim | 2–4 | 2–4 |
-| Map topology label keys to HyperNode tiers | 2–3 | 2–3 |
-| Build domains straight from node labels when there are no HyperNodes | not planned | 3–4 |
-| Map two-level CompositePodGroups to `subGroupPolicy` | 3–5 | 4–6 |
-| Any depth: make subgroups recursive | not possible | 10–16 |
-| PodGroup-level DRA | not possible | 4–6 |
-| User documentation | 1–2 | 1–2 |
+| Groundwork: API discovery, informers, RBAC, feature gate, e2e setup | 1–2 | 1–2 |
+| Flat PodGroup: pod binding, `minCount`, priority, queue source, status sync | 3–4 | 6–8 |
+| Wire `preemptionPolicy` and `disruptionMode` into preemption/reclaim | 2–4 | 2–4 |
+| Topology label key to HyperNode tier mapping | 2–3 | 2–3 |
+| Direct label-based domains when HyperNodes are absent | Optional | 3–4 |
+| Two-level `CompositePodGroup` mapping to `subGroupPolicy` | 3–5 | 4–6 |
+| Arbitrary depth: recursive SubJob model | N/A | 10–16 |
+| PodGroup-level DRA (`PodGroupManager` / `PodGroupState`) | N/A | 4–6 |
+| User documentation & semantic differences | 1–2 | 1–2 |
 
-Option B costs more for two reasons:
-
-- The scheduler uses the Volcano PodGroup directly in many places, 44 non-test files in all, and each has to be checked against upstream objects.
-- Supporting any depth means turning the current two-level subgroup model into a recursive one, which touches allocate, gang, network topology and group-level eviction.
-
-In addition, until the upstream API reaches GA, each Kubernetes release is expected to take 1–2 person-weeks to keep up with changes.
+Two factors drive Option B's cost:
+- 44 non-test scheduler files reference Volcano PodGroups directly and must be audited for multi-source support.
+- Arbitrary depth requires refactoring the two-level SubJob model into a recursive tree across `allocate`, `gang`, `network-topology-aware`, and group eviction.
 
 ### 7.6 Recommendation
 
-- Step 1 can start now, behind a feature gate that is off by default. The cost is small, and it lets native Jobs with `spec.scheduling` be gang scheduled by Volcano and use Volcano queues.
-- Step 2 depends on demand: it is worth doing when users run LeaderWorkerSet or JobSet through the upstream API and want Volcano to schedule them.
-- Step 3 should be reassessed after upstream reaches GA. The API may still change, and few clusters use it while it is off by default.
+- **Short term**: Deliver Phase 1 (Option A) behind an off-by-default feature gate to enable native `Job.spec.scheduling` with Volcano queues at low cost.
+- **Medium term**: Proceed to Phase 2 as user demand emerges for LeaderWorkerSet or JobSet via upstream APIs.
+- **Long term**: Re-evaluate Option B once upstream reaches GA (currently targeting v1.39) and ecosystem adoption is clear.
 
-On the ecosystem side, JobSet, LeaderWorkerSet, Kubeflow Trainer, KubeRay and Spark Operator are all integrating with the upstream Workload API. If these projects later declare gang scheduling through the upstream API by default and Volcano does not recognise it, their workloads would be scheduled pod by pod on Volcano. Kueue is working on a similar integration, see [kubernetes-sigs/kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871).
+Ecosystem momentum in JobSet, LeaderWorkerSet, Kubeflow Trainer, KubeRay, and Spark Operator is worth tracking—if upstream WAS APIs become their default gang interface, Volcano compatibility prevents those workloads from degrading to per-pod scheduling. Kueue's parallel integration plan provides a useful reference: [kubernetes-sigs/kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871).
 
 ## 8. Summary
 
-- Upstream only decides where the pods of one workload go: gang scheduling, topology constraints and group-level preemption. Queues, quota and fairness are out of scope, and the KEP says Kueue and Volcano will keep providing them.
-- The upstream API is `v1beta1`, but every related feature gate is still off by default in v1.38. GA is planned for v1.39 at the earliest.
-- Volcano already has an equivalent for almost everything upstream offers, plus queues, enqueue admission, soft topology constraints and cross-queue reclaim. Upstream has three capabilities that Volcano lacks: group nesting deeper than two levels, a declarative preemption unit (`disruptionMode`), and PodGroup-level DRA.
-- Volcano does not recognise the upstream PodGroup today. A pod with `schedulingGroup` that is handed to Volcano is treated as an ordinary pod.
-- Support can be added in steps. Translating upstream PodGroups into Volcano PodGroups in a controller takes 4–6 person-weeks and makes gang scheduling work for native Jobs on Volcano. Having the scheduler consume upstream objects directly takes 8–12 person-months, and that decision is better left until upstream reaches GA.
+- **Complementary scope**: Upstream WAS covers single-workload placement (gang, hard topology, priority preemption); multi-tenant queues, fairness, and cross-queue reclaim remain with Volcano and Kueue.
+- **Early maturity**: Core APIs are `v1beta1`, but all related feature gates stay off by default through v1.38, with GA targeting v1.39 at the earliest.
+- **Capability delta**: Volcano already covers most upstream features while adding queue admission, soft topology, and reclaim; upstream adds 3+ level nesting, declarative `disruptionMode`, and PodGroup-level DRA.
+- **Adoption strategy**: Volcano does not yet read `pod.spec.schedulingGroup`. Mirroring in `pg-controller` is the pragmatic path for flat gang (4–6 pw) and two-level support (12–20 pw), deferring native scheduler support (8–12 pm) until after GA.
 
 ## References
 
-Upstream design documents:
+Upstream design docs:
 
-- [KEP-4671 Gang Scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling): the Workload and PodGroup API
+- [KEP-4671 Gang Scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling) (Workload & PodGroup API)
 - [KEP-6012 CompositePodGroup API](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6012-composite-podgroup-api)
 - [KEP-5732 Topology-aware workload scheduling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5732-topology-aware-workload-scheduling)
 - [KEP-5710 Workload-aware preemption](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/5710-workload-aware-preemption)
-- [KEP-6089 WAS Controller APIs](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6089-was-controller-apis): where `Job.spec.scheduling` and similar fields come from
+- [KEP-6089 WAS Controller APIs](https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/6089-was-controller-apis) (embeddable types such as `Job.spec.scheduling`)
 - [KEP-5547 Integrate Workload APIs with Job controller](https://github.com/kubernetes/enhancements/tree/master/keps/sig-apps/5547-integrate-workload-with-job)
-- [Kubernetes v1.37: Advancing Workload-Aware Scheduling](https://kubernetes.io/blog/2026/09/08/kubernetes-v1-37-advancing-workload-aware-scheduling/) (official blog)
+- [Kubernetes v1.37: Advancing Workload-Aware Scheduling](https://kubernetes.io/blog/2026/09/08/kubernetes-v1-37-advancing-workload-aware-scheduling/)
 
-Volcano design documents:
+Volcano design docs:
 
 - [Network Topology Aware Scheduling](../design/Network%20Topology%20Aware%20Scheduling.md)
 - [gang-aware-eviction-design](../design/gang-aware-eviction-design.md)
 
-Related code:
+Code entry points:
 
-| What | Where |
+| Component | Path |
 |---|---|
 | Upstream PodGroup API | kubernetes: `staging/src/k8s.io/api/scheduling/v1beta1/types.go` |
 | Upstream group scheduling | kubernetes: `pkg/scheduler/schedule_one_podgroup.go` |
-| Upstream gang check | kubernetes: `pkg/scheduler/framework/plugins/gangscheduling/` |
+| Upstream gang plugin | kubernetes: `pkg/scheduler/framework/plugins/gangscheduling/` |
 | Upstream group preemption | kubernetes: `pkg/scheduler/framework/preemption/podgrouppreemption.go` |
 | Volcano PodGroup API | volcano: `staging/src/volcano.sh/apis/pkg/apis/scheduling/v1beta1/types.go` |
-| How Volcano maps a pod to a job | volcano: `getJobID` in `pkg/scheduler/api/job_info.go` |
-| How Volcano creates PodGroups for ordinary pods | volcano: `pkg/controllers/podgroup/` |
+| Volcano pod-to-job mapping | volcano: `pkg/scheduler/api/job_info.go` (`getJobID`) |
+| Volcano auto PodGroup controller | volcano: `pkg/controllers/podgroup/` |
 | Volcano group-level eviction | volcano: `pkg/scheduler/actions/gangpreempt/`, `gangreclaim/` |
