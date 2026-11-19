@@ -10,9 +10,9 @@ Kubernetes 自 v1.35 起在 kube-scheduler 中推进 Workload-Aware Scheduling�
 
 ## 1. 上游 PodGroup 现状
 
-### 1.1 API 模型
+### 1.1 API 模型与分层设计
 
-以一个 4 Pod 的 Gang 训练任务为例。在开启 `GenericWorkload` 与 `WorkloadWithJob`（如使用拓扑约束还需开启 `TopologyAwareWorkloadScheduling`）的集群中，用户可在原生 `Job` 中直接声明 `spec.scheduling`：
+以一个 4 Pod 的 Gang 训练任务为例。在开启 `GenericWorkload` 与 `WorkloadWithJob`（若使用拓扑约束还需开启 `TopologyAwareWorkloadScheduling`）的集群中，用户可在原生 `Job` 中直接声明 `spec.scheduling`：
 
 ```yaml
 apiVersion: batch/v1
@@ -65,13 +65,6 @@ spec:
   ...
 ```
 
-核心对象职责如下：
-
-- `Workload`：静态模板，定义工作负载包含的组结构。仅由工作负载控制器消费，kube-scheduler 不 watch 该对象。
-- `PodGroup`：调度器消费的运行时调度单元。spec 基本不可变，创建后仅 `minCount` 支持修改。
-- `pod.spec.schedulingGroup`：Pod 关联 `PodGroup` 的原生字段，创建后不可变。
-- `CompositePodGroup`：用于 JobSet、LeaderWorkerSet 等多层级工作负载，将多个 `PodGroup` 组合为树状结构（见第 4 节）。
-
 上述对象均由工作负载控制器创建，引用关系如下（箭头表示引用）：
 
 ```mermaid
@@ -86,6 +79,19 @@ flowchart LR
     CPG --> W
     PG --> W
 ```
+
+**为什么要拆分为 `Workload` 与 `PodGroup` 两层？**
+
+上游采用类似 `Deployment`（模板）与 `ReplicaSet`（实例）的「意图层 / 运行时层」分离架构：
+
+- **`Workload`（静态调度模板层）**：由最顶层工作负载控制器（Job、Deployment、JobSet、LWS 等）编译生成，描述整个工作负载包含哪些组模板（`podGroupTemplates` / `compositePodGroupTemplates`），并通过 `spec.controllerRef` 指向业务工作负载。它没有 `status`，kube-scheduler 也不 watch 它，主要面向**控制器、CLI 以及上层队列/编排系统（如 Kueue）**提供统一的工作负载调度抽象，使外围生态无需逐一适配各类 CRD 即可识别工作负载结构。
+- **`PodGroup`（运行时调度实例层）**：调度器真正消费的对象，对应一次具体的组调度实例（同一 `Workload` 模板在扩缩容、滚动升级或重建时可实例化出多个 `PodGroup`）。创建时将模板中的策略直接复制到 `PodGroup.spec`（修改 `Workload` 只影响新建实例，不扰动存量组），使每个 `PodGroup` 成为自包含的调度与状态单元：
+  - 避免把所有运行态与状态回写堆在单一 `Workload` 上，规避大对象写竞争与 etcd 单对象体积上限；
+  - 可作为组级附属资源（如 DRA `ResourceClaim`）的独立 Owner，配合 `PodGroupProtection` finalizer 在组内 Pod 全部终止后自动清理与释放设备。
+- **`CompositePodGroup`**：多层级工作负载的父级运行时节点，将多个 `PodGroup` 或子 `CompositePodGroup` 组织成树（见第 4 节）。
+- **`pod.spec.schedulingGroup`**：Pod 指向 `PodGroup` 的不可变字段。相比 label/annotation 或 `PodGroupSelector`，不可变字段从 API 层禁止 Pod 在调度中途切换或脱离所属组，避免成员动态变动引入的一致性边界问题。
+
+此外，面向工作负载 API 的公共嵌入结构（如 `Job.spec.scheduling`）在 v1.38 中直接进入 `scheduling.k8s.io/v1`（KEP-6089），以便已 GA 的 `batch/v1` Job 及生态控制器复用统一的声明格式。
 
 ### 1.2 术语对照
 
@@ -108,19 +114,20 @@ flowchart LR
 | v1.38（开发中） | Beta | `CompositePodGroup`、TAS、Job 集成升至 Beta；新增 Deployment 集成（Alpha）；公共嵌入类型进入 `scheduling.k8s.io/v1` |
 | v1.39（计划） | GA | `PodGroup`、TAS、WAP 目标 GA；`CompositePodGroup` 目标 v1.40 |
 
-截至 v1.38，所有工作负载调度相关的 Feature Gate **均默认关闭**，需在 kube-apiserver、kube-controller-manager 和 kube-scheduler 上显式启用：
+截至 v1.38，**所有 WAS 核心功能相关的 Feature Gate 均仍为默认关闭（`default: false`）**，没有任何一项工作负载调度能力默认生效；对应调度插件（`GangScheduling`、`TopologyPlacement`、`PodGroupPodsCount`）也仅在对应 gate 显式开启后才会注册到默认 Profile：
 
-| Feature Gate | v1.37 | v1.38（开发中） | 依赖关系与说明 |
-|---|---|---|---|
-| `GenericWorkload` | Beta（默认关） | Beta（默认关） | 核心开关；v1.37 起已合并原 `GangScheduling` 与 `WorkloadAwarePreemption` |
-| `TopologyAwareWorkloadScheduling` | Alpha | Beta（默认关） | 拓扑感知调度（TAS），依赖 `GenericWorkload` |
-| `CompositePodGroup` | Alpha | Beta（默认关） | 多层级组模型，同时依赖 `GenericWorkload` 与 `TopologyAwareWorkloadScheduling` |
-| `PodGroupPreemptionPolicy` | Alpha | 已移除 | v1.38 起移除该 gate，`PodGroup.spec.preemptionPolicy` 直接生效 |
-| `DRAWorkloadResourceClaims` | Beta（默认关） | Beta（默认关） | PodGroup 级共享 DRA ResourceClaim |
-| `WorkloadWithJob` | Alpha | Beta（默认关） | 原生 Job controller 集成，依赖 `GenericWorkload`（`v1.38.0-beta.0` 中仍为 Alpha） |
-| `WorkloadWithDeployment` | — | Alpha | Deployment / ReplicaSet 集成，依赖 `GenericWorkload`；Gang 场景要求 `strategy.type: Recreate` |
+| Feature Gate | v1.37 | v1.38（开发中） | 默认值（v1.38） | 依赖关系与说明 |
+|---|---|---|---|---|
+| `GenericWorkload` | Beta | Beta | **`false`（需显式开启）** | 核心开关；v1.37 起已合并原 `GangScheduling` 与 `WorkloadAwarePreemption` |
+| `TopologyAwareWorkloadScheduling` | Alpha | Beta | **`false`（需显式开启）** | 拓扑感知调度（TAS），依赖 `GenericWorkload` |
+| `CompositePodGroup` | Alpha | Beta | **`false`（需显式开启）** | 多层级组模型，同时依赖 `GenericWorkload` 与 `TopologyAwareWorkloadScheduling` |
+| `DRAWorkloadResourceClaims` | Beta | Beta | **`false`（需显式开启）** | PodGroup 级共享 DRA ResourceClaim |
+| `WorkloadWithJob` | Alpha | Beta | **`false`（需显式开启）** | 原生 Job controller 集成，依赖 `GenericWorkload`（`v1.38.0-beta.0` 中仍为 Alpha） |
+| `WorkloadWithDeployment` | — | Alpha | **`false`（需显式开启）** | Deployment / ReplicaSet 集成，依赖 `GenericWorkload`；Gang 场景要求 `strategy.type: Recreate` |
+| `PodGroupPreemptionPolicy` | Alpha（`false`） | 已移除 | **直接生效（随 `GenericWorkload`）** | v1.38 移除独立 gate，开启 `GenericWorkload` 后 `PodGroup.spec.preemptionPolicy` 直接生效 |
+| `SchedulerPreQueueingHints` | Alpha（`false`） | Beta | **`true`（默认开启）** | 调度队列通用预入队优化（非 WAS 开关），v1.38 已默认开启 |
 
-此外，API 在 v1.35 至 v1.37 间经历了两次不兼容变更（`workloadRef` → `schedulingGroup`、`v1alpha2` → `v1alpha3` 且无版本转换），核心 API 的 GA 目标也在 2026 年 11 月从 v1.38 推迟至 v1.39。
+需在 kube-apiserver、kube-controller-manager 和 kube-scheduler 上显式启用上述 `default: false` 的 gate 才能使用对应能力。此外，核心 API 在 v1.35 至 v1.37 间经历了两次不兼容变更（`workloadRef` → `schedulingGroup`、`v1alpha2` → `v1alpha3` 且无版本转换），GA 目标也在 2026 年 11 月从 v1.38 推迟至 v1.39。
 
 ### 1.4 范围边界（非目标）
 
@@ -189,7 +196,7 @@ sequenceDiagram
 实现层面需注意五点约束与局限：
 
 - **无组级绑定回滚**：all-or-nothing 仅覆盖调度决策阶段，绑定仍为逐 Pod 异步执行，单个成员绑定失败不会撤销其余成员。
-- **状态单向不可逆**：`minCount` 仅在调度期校验；`PodGroupInitiallyScheduled` 一旦置为 `True` 不再回退，即使后续成员被驱逐。
+- **状态单向不可逆**：上游将 `PodGroup` 定位为**初始放置**的协调机制而非持续副本控制器——`minCount` 仅在调度期校验，`PodGroupInitiallyScheduled` 一旦置为 `True` 不再回退；后续驱逐或节点故障后的恢复仍交由工作负载控制器处理。
 - **单协程串行评估**：大组评估（Pod 数 × 候选拓扑域，抢占时还需重跑）在单协程调度循环内完成，可能阻塞同集群其他调度。
 - **贪心不回溯与同质约束**：按固定顺序逐 Pod 决策，异构组不保证一定找到可行解；且同一层级内所有 Pod 必须使用相同的 `schedulerName`、优先级与抢占策略。
 - **DRA 组合限制**：`DynamicResources` 的 `PodGroupPostFilter` 暂不支持带拓扑约束的 `PodGroup` 以及 `CompositePodGroup`。
@@ -329,7 +336,7 @@ spec:
 两种层级模型的核心差异：
 
 - **嵌套深度**：`CompositePodGroup`（需开启 `CompositePodGroup`、`GenericWorkload` 与 `TopologyAwareWorkloadScheduling`）支持递归嵌套（v1.37 上限 4 层，master 扩至 5 层），可直接表达 `JobSet → ReplicatedJob → Job` 等三层结构；Volcano 固定为两层。
-- **子组异构性**：上游每个子组为独立对象，可设置各自的 `minCount`；Volcano 同一 `subGroupPolicy` 下各子组大小固定为 `subGroupSize`，异构子组需拆分多条 policy。
+- **子组异构性**：上游建议将不同角色（如 Driver 与 Workers）拆分为独立的同构 `PodGroup` 挂在同一 `CompositePodGroup` 下，各自设置 `minCount`、拓扑与 `disruptionMode`，同时控制贪心调度与多层拓扑搜索的复杂度；Volcano 同一 `subGroupPolicy` 下各子组大小固定为 `subGroupSize`，异构子组需拆分多条 policy。
 - **最小子组计数语义**：上游 `minGroupCount` 跨模板统一计数父节点下全部子组；Volcano `minSubGroups` 按每条 policy 独立计数。
 - **优先级与抢占约束**：上游整棵树的优先级必须一致，且 `disruptionMode: all` 的父节点下不允许嵌套 `single` 的子节点；Volcano 无声明式 `disruptionMode` 字段。
 

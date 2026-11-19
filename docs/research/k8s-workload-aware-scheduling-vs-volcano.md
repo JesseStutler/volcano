@@ -10,7 +10,7 @@ Since v1.35, Kubernetes has been adding Workload-Aware Scheduling (WAS) to kube-
 
 ## 1. Upstream PodGroup Status
 
-### 1.1 API Model
+### 1.1 API Model & Layered Design
 
 Consider a 4-pod gang training job. On a cluster with `GenericWorkload` and `WorkloadWithJob` enabled (plus `TopologyAwareWorkloadScheduling` if topology constraints are used), a user declares `spec.scheduling` directly on a native `Job`:
 
@@ -65,13 +65,6 @@ spec:
   ...
 ```
 
-Core object roles:
-
-- `Workload`: Static template defining a workload's group structure. Consumed only by workload controllers; kube-scheduler does not watch it.
-- `PodGroup`: Runtime scheduling unit consumed by kube-scheduler. Its spec is mostly immutable—only `minCount` can be modified after creation.
-- `pod.spec.schedulingGroup`: Native pod field pointing to its `PodGroup`; immutable once created.
-- `CompositePodGroup`: Used by multi-level workloads such as JobSet and LeaderWorkerSet to organize multiple `PodGroup`s into a tree (see Section 4).
-
 All objects are created by the workload controller; reference relationships are shown below (arrows denote references):
 
 ```mermaid
@@ -86,6 +79,19 @@ flowchart LR
     CPG --> W
     PG --> W
 ```
+
+**Why separate `Workload` and `PodGroup` into two layers?**
+
+Upstream follows a template-versus-instance separation similar to `Deployment` and `ReplicaSet`:
+
+- **`Workload` (static intent / template layer)**: Compiled by the root workload controller (Job, Deployment, JobSet, LWS, etc.) to describe the group templates (`podGroupTemplates` / `compositePodGroupTemplates`) of the workload, with `spec.controllerRef` pointing back to the owning workload. It has no `status` and is never watched by kube-scheduler. Its role is to give **controllers, CLIs, and higher-level queueing/orchestration systems (such as Kueue)** a uniform scheduling representation without having to understand each workload CRD.
+- **`PodGroup` (runtime scheduling instance layer)**: The object kube-scheduler actually consumes, representing one concrete scheduling instance (a single `Workload` template can spawn multiple `PodGroup`s across scaling, rolling updates, or retries). Policy fields are copied from the template into `PodGroup.spec` at creation time (edits to `Workload` affect only newly created instances), making each `PodGroup` a self-contained scheduling and status unit:
+  - Avoids concentrating all transient runtime state and status updates onto a single `Workload` object (preventing write contention and etcd object-size limits).
+  - Provides per-group resource ownership (e.g., owning group-scoped DRA `ResourceClaim`s) with `PodGroupProtection` finalizers so devices and claims are released cleanly once all pods in the group terminate.
+- **`CompositePodGroup`**: Non-leaf runtime node for multi-level workloads, organizing multiple `PodGroup`s or child `CompositePodGroup`s into a tree (see Section 4).
+- **`pod.spec.schedulingGroup`**: An immutable pod field linking to its `PodGroup`. Unlike labels/annotations or a `PodGroupSelector`, immutability prevents a pod from leaving or switching groups mid-scheduling and avoids dynamic selector ambiguity.
+
+In addition, embeddable controller building blocks (used by `Job.spec.scheduling`) graduate directly to `scheduling.k8s.io/v1` in v1.38 (KEP-6089) so GA APIs like `batch/v1` Job and ecosystem controllers can share a stable wire format.
 
 ### 1.2 Terminology Mapping
 
@@ -108,19 +114,20 @@ flowchart LR
 | v1.38 (in dev) | Beta | `CompositePodGroup`, TAS, and Job integration promoted to Beta; Deployment integration added (Alpha); embeddable controller structs moved to `scheduling.k8s.io/v1` |
 | v1.39 (planned) | GA | `PodGroup`, TAS, and WAP target GA; `CompositePodGroup` targets v1.40 |
 
-Through v1.38, every workload-scheduling feature gate is **off by default** and must be explicitly enabled on kube-apiserver, kube-controller-manager, and kube-scheduler:
+Through v1.38, **all core WAS feature gates remain off by default (`default: false`)**—none of the workload-scheduling capabilities are active out of the box, and the corresponding plugins (`GangScheduling`, `TopologyPlacement`, `PodGroupPodsCount`) are only registered in the default scheduler profile when their gates are enabled:
 
-| Feature Gate | v1.37 | v1.38 (in dev) | Dependencies & Notes |
-|---|---|---|---|
-| `GenericWorkload` | Beta (off) | Beta (off) | Core switch; merged `GangScheduling` and `WorkloadAwarePreemption` in v1.37 |
-| `TopologyAwareWorkloadScheduling` | Alpha | Beta (off) | Topology-aware scheduling (TAS); depends on `GenericWorkload` |
-| `CompositePodGroup` | Alpha | Beta (off) | Multi-level group tree; depends on `GenericWorkload` and `TopologyAwareWorkloadScheduling` |
-| `PodGroupPreemptionPolicy` | Alpha | Removed | Removed in v1.38; `PodGroup.spec.preemptionPolicy` takes effect directly |
-| `DRAWorkloadResourceClaims` | Beta (off) | Beta (off) | Shared PodGroup-level DRA ResourceClaims |
-| `WorkloadWithJob` | Alpha | Beta (off) | Native Job controller integration; depends on `GenericWorkload` (still Alpha in `v1.38.0-beta.0`) |
-| `WorkloadWithDeployment` | — | Alpha | Deployment / ReplicaSet integration; depends on `GenericWorkload`; gang requires `strategy.type: Recreate` |
+| Feature Gate | v1.37 | v1.38 (in dev) | Default (v1.38) | Dependencies & Notes |
+|---|---|---|---|---|
+| `GenericWorkload` | Beta | Beta | **`false` (opt-in)** | Core switch; merged `GangScheduling` and `WorkloadAwarePreemption` in v1.37 |
+| `TopologyAwareWorkloadScheduling` | Alpha | Beta | **`false` (opt-in)** | Topology-aware scheduling (TAS); depends on `GenericWorkload` |
+| `CompositePodGroup` | Alpha | Beta | **`false` (opt-in)** | Multi-level group tree; depends on `GenericWorkload` and `TopologyAwareWorkloadScheduling` |
+| `DRAWorkloadResourceClaims` | Beta | Beta | **`false` (opt-in)** | Shared PodGroup-level DRA ResourceClaims |
+| `WorkloadWithJob` | Alpha | Beta | **`false` (opt-in)** | Native Job controller integration; depends on `GenericWorkload` (still Alpha in `v1.38.0-beta.0`) |
+| `WorkloadWithDeployment` | — | Alpha | **`false` (opt-in)** | Deployment / ReplicaSet integration; depends on `GenericWorkload`; gang requires `strategy.type: Recreate` |
+| `PodGroupPreemptionPolicy` | Alpha (`false`) | Removed | **Always active (with `GenericWorkload`)** | Separate gate removed in v1.38; `PodGroup.spec.preemptionPolicy` works directly once `GenericWorkload` is on |
+| `SchedulerPreQueueingHints` | Alpha (`false`) | Beta | **`true` (enabled by default)** | Generic queue pre-enqueue optimization (not a WAS gate); enabled by default in v1.38 |
 
-In addition, two breaking revisions occurred between v1.35 and v1.37 (`workloadRef` → `schedulingGroup`, `v1alpha2` → `v1alpha3` without conversion), and core GA moved from v1.38 to v1.39 in November 2026.
+The `default: false` gates above must be explicitly enabled on kube-apiserver, kube-controller-manager, and kube-scheduler. In addition, two breaking revisions occurred between v1.35 and v1.37 (`workloadRef` → `schedulingGroup`, `v1alpha2` → `v1alpha3` without conversion), and core GA moved from v1.38 to v1.39 in November 2026.
 
 ### 1.4 Scope Boundaries (Non-Goals)
 
@@ -189,7 +196,7 @@ sequenceDiagram
 Five implementation constraints to note:
 
 - **No group bind rollback**: All-or-nothing applies only to the scheduling decision; binding remains async and per pod, so a single bind failure does not undo sibling bindings.
-- **One-way status condition**: `minCount` is enforced only at scheduling time; once `PodGroupInitiallyScheduled` becomes `True`, it never reverts even if members are later evicted.
+- **One-way status condition**: Upstream scopes `PodGroup` to **initial placement** rather than continuous replica reconciliation—`minCount` is enforced only at scheduling time, `PodGroupInitiallyScheduled` never reverts once `True`, and recovery after evictions or node failures remains the workload controller's job.
 - **Single-goroutine evaluation**: Evaluating a large group (`pods × candidate domains`, repeated during preemption) runs in the single scheduling loop and can block other pods/groups.
 - **Greedy & uniform-hierarchy constraints**: Sequential placement in fixed order does not guarantee a valid solution for heterogeneous groups, and all pods in a hierarchy must share the same `schedulerName`, priority, and preemption policy.
 - **DRA combination limit**: `DynamicResources`'s `PodGroupPostFilter` does not yet support topology-constrained `PodGroup`s or `CompositePodGroup`s.
@@ -329,7 +336,7 @@ spec:
 Key differences between the two hierarchy models:
 
 - **Nesting depth**: `CompositePodGroup` (requires `CompositePodGroup`, `GenericWorkload`, and `TopologyAwareWorkloadScheduling`) nests recursively (up to 4 levels in v1.37, 5 on master), directly modeling 3-level trees like `JobSet → ReplicatedJob → Job`; Volcano is fixed at 2 levels.
-- **Heterogeneous subgroups**: Each upstream child is an independent object with its own `minCount`; in Volcano, all subgroups under one `subGroupPolicy` share a uniform `subGroupSize`, requiring separate policies for different sizes.
+- **Heterogeneous subgroups**: Upstream recommends splitting distinct roles (e.g., driver vs. workers) into separate homogeneous `PodGroup`s under one `CompositePodGroup`, allowing independent `minCount`, topology, and `disruptionMode` while keeping greedy placement and multi-level topology search tractable; in Volcano, all subgroups under one `subGroupPolicy` share a uniform `subGroupSize`, requiring separate policies for different sizes.
 - **Minimum child counting**: Upstream `minGroupCount` counts across all children of a parent regardless of template; Volcano `minSubGroups` counts per policy.
 - **Priority & preemption constraints**: Upstream requires uniform priority across the entire tree, and a parent with `disruptionMode: all` cannot contain a `single` child; Volcano has no declarative `disruptionMode` field.
 
