@@ -185,7 +185,7 @@ type SchedulingBlocker struct {
 
 **A blocker identifies the affected Pod and the HyperNode where the check failed.** `TaskID` refers to the member in `job.Tasks`. `HyperNodeName` names the domain actually checked: H1 for a Job-level check, or H1-a when a SubJob checks that child HyperNode. A capacity rejection before individual node checks leaves `TaskID` empty. Scheduling without HyperNodes leaves `HyperNodeName` empty.
 
-The publisher resolves the Pod name and uses the checked HyperNode name in its explanation. Candidate handling retains the Job/SubJob call context with each attempt, and logs record the parent-child search path, individual trial Nodes and rollback operations. Section 3 shows how the Job selects the records to publish.
+The publisher resolves the Pod name. `HyperNodeName` keeps failures from different domains apart while candidates are selected and combined, and the published message leaves the candidate names out. Candidate handling retains the Job/SubJob call context with each attempt, and logs record the checked HyperNodes, the parent-child search path, individual trial Nodes and rollback operations. Section 3 shows how the Job selects the records to publish.
 
 The field has three states. The examples after the table describe each one:
 
@@ -208,7 +208,7 @@ The field has three states. The examples after the table describe each one:
     }
     ```
 
-    The publisher generates `Gang requirements are not satisfied. HyperNode H1 has insufficient GPU capacity. Pod ns/A has no node satisfying node affinity within HyperNode H2.`. PodGroup condition and Event use that explanation. H1 was rejected before checking A, so this describes A's failure within H2. It gives the user a concrete Pod and domain to inspect without claiming that A failed across all permitted nodes.
+    The publisher generates `Gang requirements are not satisfied. Insufficient HyperNode GPU capacity. Pod ns/A has no node satisfying node affinity within the checked HyperNodes.`. PodGroup condition and Event use that explanation. H1 was rejected before checking A, so this describes A's failure within the HyperNodes that checked it. It gives the user a concrete Pod to inspect without claiming that A failed across all permitted nodes. The logs name H1 and H2.
 
 - **The previous blockers are gone:** A completed evaluation establishes that those constraints are satisfied. The action replaces the previous result with an empty diagnostic:
 
@@ -461,7 +461,7 @@ GroupDiagnostic.Blockers:
     HyperNodeName: H2-b
 ```
 
-A's own condition explains its confirmed affinity failure. B and C refer to the PodGroup. The group message identifies A and the checked domains: `Pod ns/A has no node satisfying node affinity within HyperNodes H1-a, H1-b, H2-a, H2-b.`. Matching causes for the same Pod share a sorted HyperNode list. Case 3 shows the different result when one Job candidate is rejected before A's node checks.
+A's own condition explains its confirmed affinity failure. B and C refer to the PodGroup. The group message identifies A: `Pod ns/A has no node satisfying node affinity within the checked HyperNodes.`. The four blockers share the Pod, scope, reason and resource, so they produce one sentence. Case 3 shows the different result when one Job candidate is rejected before A's node checks.
 
 The same diagnostic result applies when A is checked directly in H1 and H2 and those checks cover all its permitted nodes. A receives `PendingTaskFailure`, B/C receive `PendingGangWaiting`, and the group blockers use `HyperNodeName=H1` and `HyperNodeName=H2`. The checked domains differ, but the decision to report A's own failure is the same.
 
@@ -483,11 +483,11 @@ GroupDiagnostic.Blockers:
     HyperNodeName: H2
 ```
 
-**The PodGroup identifies A and H2 even though A's Pod condition reports gang waiting.** A was checked only in H2. H1's aggregate shortage does not establish whether A can satisfy affinity there. The publisher explains the two failed placements directly:
+**The PodGroup identifies A even though A's Pod condition reports gang waiting.** A was checked only in H2. H1's aggregate shortage does not establish whether A can satisfy affinity there. The publisher reports the two blockers:
 
-> Gang requirements are not satisfied. HyperNode H1 has insufficient GPU capacity. Pod ns/A has no node satisfying node affinity within HyperNode H2.
+> Gang requirements are not satisfied. Insufficient HyperNode GPU capacity. Pod ns/A has no node satisfying node affinity within the checked HyperNodes.
 
-The user can check H1's capacity and compare A's affinity configuration with H2's node labels.
+The user can check HyperNode GPU capacity and A's affinity configuration. The logs show that H1 failed the capacity check and that A was checked within H2.
 
 #### Case 4: B satisfies the Job minimum while A remains Pending
 
@@ -515,7 +515,7 @@ Convert completed checks into `SchedulingBlocker` records in `api/unschedule_inf
 - **Member failure:** Use `MemberScope`, the task UID and a category such as `NodeAffinity`, `TaintToleration`, `PodAffinity` or `InsufficientResources`. Record the resource name for a resource failure. Add the blocker when the member's node search in that domain fails.
 - **Job HyperNode rejection:** Use `HyperNodeScope` and `HyperNodeName`. Capacity screening supplies `InsufficientResources` and the resource name. Eligibility checks supply `PlacementRejected`.
 - **SubJob HyperNode rejection:** Set `HyperNodeName` to the child HyperNode that failed the check. Keep the record with its parent candidate during selection. A successful alternative child placement replaces those failed child results.
-- **Unclassified member rejection:** Use `PredicateRejected` with the member and checked scope. The Pod's applicable individual error and the logs retain the detailed failure. A resource error with an unknown dimension has an empty resource name.
+- **Unclassified member rejection:** Use `PredicateRejected` with the member and checked scope. The logs retain the detailed failure. A resource error with an unknown dimension has an empty resource name.
 
 **Deduplicate by `(Scope, Reason, ResourceName, TaskID, HyperNodeName)`.** A's affinity failures in H1 and H2 share a category but describe two checked domains. Repeated failures for A within H2 collapse to one record. A rejected Node followed by a feasible Node creates no member blocker for that domain.
 
@@ -528,11 +528,15 @@ for _, candidate := range failedCandidates {
 }
 ```
 
-After the Job search fails, include screening rejections and copy the keys into `GroupDiagnostic.Blockers`. Resolve Pod names, sort by HyperNode name, Pod name, scope, reason and resource, then format the message. Merge HyperNode lists only when the Pod, scope, reason and resource match. This preserves the difference between A failing in one domain and B failing in another. PodGroup condition and Event share the formatted message.
+After the Job search fails, include screening rejections and copy the keys into `GroupDiagnostic.Blockers`.
+
+**Publish one sentence for each Pod, scope, reason and resource.** Resolve Pod names and group the blockers without `HyperNodeName`. Put HyperNode-scope sentences first, then member sentences sorted by Pod name, reason and resource. This preserves the difference between A failing and B failing.
+
+The message leaves the candidate HyperNode names out. HyperNode search tries most candidates, so a list of them would grow with the topology and change whenever another domain fails for a reason already reported. A member blocker found during a HyperNode search ends with `within the checked HyperNodes`, and the logs list those domains. When an established placement restricts scheduling to one HyperNode, the message names that HyperNode, because it is the actual scope of the constraint. PodGroup condition and Event share the formatted message.
 
 #### Retry scheduling
 
-**Publish the completed Job result at session close, after candidate selection and rollback have finished.** When the confirmed member and domain failures are the same, changing trial Nodes, candidate iteration order or rejection counts produces the same deduplicated records and sorted message. In Case 3, H1 still contributes its GPU shortage and H2 still contributes A's affinity failure, regardless of which one was visited first. After informer convergence, identical selected conditions produce no additional diagnostic status writes or Pod Events.
+**Publish the completed Job result at session close, after candidate selection and rollback have finished.** When the confirmed member and domain failures are the same, changing trial Nodes, candidate iteration order or rejection counts produces the same deduplicated records and sorted message. In Case 3, H1 still contributes its GPU shortage and H2 still contributes A's affinity failure, regardless of which one was visited first. Another HyperNode failing for a reason already reported adds a record and leaves the message unchanged. After informer convergence, identical selected conditions produce no additional diagnostic status writes or Pod Events.
 
 A random search can also find different blocking members or constraints. Those are different recorded results, and their group explanation can change. Sorting does not eliminate this source of variation. The validation must distinguish stable results visited in a different order from different results exposed by early exit. Individual trial Nodes, scores, attempt counts and rollback operations belong in logs.
 
@@ -578,7 +582,7 @@ condition := &v1.PodCondition{
 switch diagnostic.Kind {
 case api.PendingTaskFailure:
     condition.Reason = diagnostic.Reason
-    condition.Message = diagnostic.Failure.Error()
+    condition.Message = formatTaskFailure(diagnostic.Failure)
 case api.PendingGangWaiting:
     condition.Reason = api.PodReasonUnschedulable
     condition.Message = fmt.Sprintf(
@@ -593,7 +597,11 @@ return condition
 
 For Case 2, A's retained affinity error becomes A's condition message, and B/C receive the group-waiting message. For Case 3, A/B/C receive that same waiting message and the scoped failures appear on the PodGroup. If a later action retains a Pipeline for B, live-state selection gives B the resource-waiting condition instead.
 
-Make `FitErrors.Error()` read-only by calculating its default prefix in a local variable instead of assigning to `f.err`. Formatting then leaves the retained failure data unchanged. This separation of failure recording and condition construction also appears in kube-scheduler's [`handleSchedulingFailure()`](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/scheduler/schedule_one.go#L1043-L1170). Volcano constructs these conditions at session close.
+`formatTaskFailure()` is the proposed formatter for a Pod's own failure. For `FitErrors`, it classifies each node failure with the categories used for member blockers, removes duplicates, sorts them and names the constraints that no node satisfies. An affinity failure produces `No eligible node satisfies this Pod's node affinity.`. Two categories produce `No eligible node satisfies this Pod's GPU request and node affinity.`. An explicit scheduler or admission error uses its own text.
+
+**The message has no node totals, per-reason counts, Node names or HyperNode names.** Adding a node that fails the same constraint leaves the condition unchanged. The logs keep the detailed fit errors.
+
+Make `FitErrors.Error()` read-only by calculating its default prefix in a local variable instead of assigning to `f.err`. Logging the detailed error then leaves the retained failure data unchanged. This separation of failure recording and condition construction also appears in kube-scheduler's [`handleSchedulingFailure()`](https://github.com/kubernetes/kubernetes/blob/v1.34.0/pkg/scheduler/schedule_one.go#L1043-L1170). Volcano constructs these conditions at session close.
 
 #### Publish the Pod condition and Event
 
@@ -644,7 +652,7 @@ if err := ssn.UpdatePodGroupCondition(job, condition); err != nil {
 }
 ```
 
-`formatGroupSchedulingFailure()` is the proposed formatter for actual gang requirements and the sorted blocker records. Here it produces `Gang requirements are not satisfied. HyperNode H1 has insufficient GPU capacity. Pod ns/A has no node satisfying node affinity within HyperNode H2.`. Admission rejections use the explicit condition prepared by the rejecting plugin.
+`formatGroupSchedulingFailure()` is the proposed formatter for actual gang requirements and the sorted blocker records. Here it produces `Gang requirements are not satisfied. Insufficient HyperNode GPU capacity. Pod ns/A has no node satisfying node affinity within the checked HyperNodes.`. Admission rejections use the explicit condition prepared by the rejecting plugin.
 
 #### Publish the PodGroup condition and Event
 
@@ -670,7 +678,7 @@ Equal-score choices and gang early exit can expose different blocking members on
 
 A failure in one HyperNode may apply only to that domain. Preserve the affected Pod and checked HyperNode in the group blocker. Publish the Pod's own fit error only when the completed checks establish failure across its permitted nodes.
 
-For a constraint without a structured category, use `PredicateRejected` and retain the detailed error in logs and the applicable Pod failure. Add plugin-specific categories where users need a more precise group explanation.
+For a constraint without a structured category, use `PredicateRejected` and retain the detailed error in logs. Add plugin-specific categories where users need a more precise explanation.
 
 ### Retained errors and memory
 
@@ -697,8 +705,8 @@ Saving errors and task IDs also consumes memory. Measure retained heap, allocati
 
 #### Conditions and Events
 
-- A live Pipeline replaces an earlier no-fit condition. A confirmed task failure uses its own error. A skipped Pending task keeps its observed condition. Allocation and binding errors identify the member that failed.
-- Deduplicate complete blocker keys and sort the result. Reverse candidate order and verify the same message, preserving each Pod's association with its checked domains. A rejected node followed by a feasible node produces no member blocker for that domain.
+- A live Pipeline replaces an earlier no-fit condition. A confirmed task failure uses its own error. Adding a node that fails the same constraint leaves that message unchanged. A skipped Pending task keeps its observed condition. Allocation and binding errors identify the member that failed.
+- Deduplicate complete blocker keys and sort the result. Reverse candidate order and verify the same message. Fail another HyperNode for a reason already reported and verify that the records keep each Pod's checked domains while the message stays the same. A rejected node followed by a feasible node produces no member blocker for that domain.
 - Use the selected condition message for its Event. Check reasons, transition timestamps and nomination-only updates. After informer convergence, an unchanged Pod diagnostic produces no status or Event request.
 - Exercise API write failures and delayed informer observations. Check PodGroup status comparison separately from Event delivery, which may still issue recorder requests.
 
