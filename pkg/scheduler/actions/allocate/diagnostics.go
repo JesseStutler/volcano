@@ -232,9 +232,9 @@ func (d *candidateDiagnostics) applyTask(job *api.JobInfo, id api.TaskID, placed
 // recordExcludedHyperNodes records the candidate HyperNodes that were excluded
 // before any member was checked: those the gradient plugins rejected and those
 // whose resources cannot hold the minimum request.
-func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, stats *api.HyperNodeGradientStats, resources *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, queues ...*util.PriorityQueue) {
-	if stats != nil {
-		for name := range stats.ExcludedByReason {
+func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, gradientStats *api.HyperNodeGradientStats, minResourceStats *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, queues ...*util.PriorityQueue) {
+	if gradientStats != nil {
+		for name := range gradientStats.ExcludedByReason {
 			if name == framework.ClusterTopHyperNode {
 				continue
 			}
@@ -244,10 +244,10 @@ func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, 
 			d.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", name)
 		}
 	}
-	if resources == nil || minimum == nil {
+	if minResourceStats == nil || minimum == nil {
 		return
 	}
-	for name := range resources.ExcludedByReason {
+	for name := range minResourceStats.ExcludedByReason {
 		for _, queue := range queues {
 			d.includeScope(queue, name, ssn.RealNodesList[name])
 		}
