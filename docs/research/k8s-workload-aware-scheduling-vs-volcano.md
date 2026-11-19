@@ -506,7 +506,7 @@ Support can be added in three steps, each of which can ship on its own:
 |---|---|---|
 | Step 1 | Recognise `schedulingGroup`, honour `minCount` and priority, write status back to the upstream PodGroup | Native Jobs and Deployments with `spec.scheduling` |
 | Step 2 | `disruptionMode`, topology constraints and two-level CompositePodGroups | Common LeaderWorkerSet and JobSet setups |
-| Step 3 | CompositePodGroups of any depth and PodPodGroup-level DRA | Every workload that uses the upstream API |
+| Step 3 | CompositePodGroups of any depth and PodGroup-level DRA | Every workload that uses the upstream API |
 
 Replacing the Volcano PodGroup with the upstream one is not considered: upstream has no `queue`, `minResources` or `minTaskMember`, so features would be lost.
 
@@ -574,7 +574,7 @@ The unit is person-weeks, for engineers who know the Volcano scheduler. Unit tes
 |---|---|---|
 | Step 1: gang scheduling works for native Jobs on Volcano | A | 4–6 person-weeks |
 | Step 2: add preemption semantics, topology constraints and two-level subgroups | A | 12–20 person-weeks in total |
-| Step 3: support in the scheduler, any depth and PodPodGroup-level DRA | B | 33–51 person-weeks, about 8–12 person-months |
+| Step 3: support in the scheduler, any depth and PodGroup-level DRA | B | 33–51 person-weeks, about 8–12 person-months |
 
 The figure for step 3 is for building option B from scratch. It is not an increment on top of the first two steps.
 
@@ -611,7 +611,7 @@ On the ecosystem side, JobSet, LeaderWorkerSet, Kubeflow Trainer, KubeRay and Sp
 
 - Upstream only decides where the pods of one workload go: gang scheduling, topology constraints and group-level preemption. Queues, quota and fairness are out of scope, and the KEP says Kueue and Volcano will keep providing them.
 - The upstream API is `v1beta1`, but every related feature gate is still off by default in v1.38. GA is planned for v1.39 at the earliest.
-- Volcano already has an equivalent for almost everything upstream offers, plus queues, enqueue admission, soft topology constraints and cross-queue reclaim. Upstream has three capabilities that Volcano lacks: group nesting deeper than two levels, a declarative preemption unit (`disruptionMode`), and PodPodGroup-level DRA.
+- Volcano already has an equivalent for almost everything upstream offers, plus queues, enqueue admission, soft topology constraints and cross-queue reclaim. Upstream has three capabilities that Volcano lacks: group nesting deeper than two levels, a declarative preemption unit (`disruptionMode`), and PodGroup-level DRA.
 - Volcano does not recognise the upstream PodGroup today. A pod with `schedulingGroup` that is handed to Volcano is treated as an ordinary pod.
 - Support can be added in steps. Translating upstream PodGroups into Volcano PodGroups in a controller takes 4–6 person-weeks and makes gang scheduling work for native Jobs on Volcano. Having the scheduler consume upstream objects directly takes 8–12 person-months, and that decision is better left until upstream reaches GA.
 
