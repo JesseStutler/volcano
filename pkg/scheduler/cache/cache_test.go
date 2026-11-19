@@ -1147,47 +1147,85 @@ func TestUpdateJobInfoPreservesNewerTaskPlacement(t *testing.T) {
 	assert.False(t, cached.AllocatedHyperNodeDirty)
 }
 
-// A later session compares its selected explanation with the informer-observed
-// condition. Trial-node changes alone must not generate another write or Event.
-func TestStableSchedulingPublication(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		changed bool
+// The condition selected by a session is compared with the one observed through
+// the informer, so an unchanged diagnostic costs neither a status write nor an Event.
+func TestUpdateTaskSchedulingStatus(t *testing.T) {
+	const (
+		gangWaiting     = "Waiting for PodGroup ns/job to satisfy gang requirements."
+		affinityFailure = "No eligible node satisfies this Pod's node affinity."
+		nominatedNode   = "node-1"
+	)
+	unscheduled := func(message string) *v1.PodCondition {
+		return &v1.PodCondition{Type: v1.PodScheduled, Status: v1.ConditionFalse, Reason: v1.PodReasonUnschedulable, Message: message}
+	}
+
+	tests := []struct {
+		name string
+		// observed is the PodScheduled condition already published on the Pod.
+		observed *v1.PodCondition
+		// selected is the condition chosen by this session. Nil keeps the observed one.
+		selected      *v1.PodCondition
+		nominatedNode string
+		wantWrites    int
+		// wantEvent is the message of the FailedScheduling Event, or empty for none.
+		wantEvent string
 	}{
-		{name: "unchanged rollback"}, {name: "new blocker", changed: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+		{
+			name:       "first report",
+			selected:   unscheduled(gangWaiting),
+			wantWrites: 1,
+			wantEvent:  gangWaiting,
+		},
+		{
+			name:     "unchanged condition",
+			observed: unscheduled(gangWaiting),
+			selected: unscheduled(gangWaiting),
+		},
+		{
+			name:       "changed message",
+			observed:   unscheduled(gangWaiting),
+			selected:   unscheduled(affinityFailure),
+			wantWrites: 1,
+			wantEvent:  affinityFailure,
+		},
+		{
+			name:     "no new condition",
+			observed: unscheduled(gangWaiting),
+		},
+		{
+			name:          "nomination alone repeats the observed message",
+			observed:      unscheduled(gangWaiting),
+			nominatedNode: nominatedNode,
+			wantWrites:    1,
+			wantEvent:     gangWaiting,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			pod := buildPod("ns", "p", "", v1.PodPending, api.BuildResourceList("1", "1G"), []metav1.OwnerReference{buildOwnerReference("job")}, nil)
-			task := api.NewTaskInfo(pod)
-			job := api.NewJobInfo(task.Job, task)
-			job.Namespace, job.Name = "ns", "job"
-			job.SetPendingTaskDiagnostic(task.UID, api.PendingTaskDiagnostic{Kind: api.PendingGangWaiting})
-			recorder := record.NewFakeRecorder(10)
+			if tt.observed != nil {
+				pod.Status.Conditions = []v1.PodCondition{*tt.observed}
+			}
+			recorder := record.NewFakeRecorder(1)
 			updater := &diagnosticStatusUpdater{}
 			sc := &SchedulerCache{StatusUpdater: updater, Recorder: recorder}
-			assert.NoError(t, sc.updateTaskSchedulingStatus(task, job.TaskSchedulingCondition(task), ""))
-			assert.Equal(t, 1, updater.writes)
-			// Simulate the status informer observing the successful write.
-			task.Pod = updater.pod
-			task.LastTransaction = &api.TransactionContext{NodeName: "another-node", Status: api.Allocated}
-			if tc.changed {
-				job.RecordPendingTaskFailure(task.UID, api.PodReasonUnschedulable, fmt.Errorf("new affinity failure"))
+
+			err := sc.updateTaskSchedulingStatus(api.NewTaskInfo(pod), tt.selected, tt.nominatedNode)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantWrites, updater.writes)
+			if tt.wantEvent == "" {
+				assert.Empty(t, recorder.Events)
+				return
 			}
-			assert.NoError(t, sc.updateTaskSchedulingStatus(task, job.TaskSchedulingCondition(task), ""))
-			expected := 1
-			if tc.changed {
-				expected = 2
-			}
-			assert.Equal(t, expected, updater.writes)
-			assert.Len(t, recorder.Events, expected)
-			// An attempt skipped in the next session leaves the previous status alone.
-			job.PendingTaskDiagnostics = nil
-			assert.NoError(t, sc.updateTaskSchedulingStatus(task, job.TaskSchedulingCondition(task), ""))
-			assert.Equal(t, expected, updater.writes)
+			assert.Equal(t, fmt.Sprintf("%s FailedScheduling %s", v1.EventTypeWarning, tt.wantEvent), <-recorder.Events)
+			assert.Equal(t, tt.nominatedNode, updater.pod.Status.NominatedNodeName)
 		})
 	}
 }
 
+// diagnosticStatusUpdater counts Pod status writes and keeps the last written Pod.
 type diagnosticStatusUpdater struct {
 	util.FakeStatusUpdater
 	pod    *v1.Pod

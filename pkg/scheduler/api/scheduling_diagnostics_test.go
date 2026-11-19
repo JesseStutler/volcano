@@ -27,168 +27,256 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// nodeStatuses builds the fit errors of a task from the status that rejected it on each node.
+func nodeStatuses(statuses map[string]*Status) *FitErrors {
+	fitErrors := NewFitErrors()
+	for node, status := range statuses {
+		fitErrors.SetNodeError(node, &FitError{Status: StatusSets{status}})
+	}
+	return fitErrors
+}
+
 func TestTaskSchedulingCondition(t *testing.T) {
-	for _, tc := range []struct {
-		name                    string
-		status                  TaskStatus
-		diagnostic              *PendingTaskDiagnostic
-		gated                   bool
-		wantReason, wantMessage string
+	const (
+		gangWaiting     = "Waiting for PodGroup ns/job to satisfy gang requirements."
+		resourceWaiting = "Waiting for resources to be released for this Pod."
+		affinityFailure = "No eligible node satisfies this Pod's node affinity."
+	)
+	affinity := &Status{Plugin: BlockerNodeAffinity, Reason: nodeAffinity}
+	cpu := &Status{Plugin: "predicates-resource-fit", Reason: "Insufficient cpu", InsufficientResources: []string{"cpu"}}
+	volume := &Status{Plugin: "VolumeBinding", Reason: "node(s) had volume node affinity conflict"}
+	unscheduled := func(reason, message string) *v1.PodCondition {
+		return &v1.PodCondition{Type: v1.PodScheduled, Status: v1.ConditionFalse, Reason: reason, Message: message}
+	}
+
+	tests := []struct {
+		name       string
+		status     TaskStatus
+		gated      bool
+		diagnostic *PendingTaskDiagnostic
+		// want is nil when the condition observed through the informer is kept.
+		want *v1.PodCondition
 	}{
-		{name: "skipped pending preserves status", status: Pending},
-		{name: "rollback", status: Pending, diagnostic: &PendingTaskDiagnostic{Kind: PendingGangWaiting}, wantReason: PodReasonUnschedulable, wantMessage: "Waiting for PodGroup ns/job to satisfy gang requirements."},
-		{name: "individual error", status: Pending, diagnostic: &PendingTaskDiagnostic{Kind: PendingTaskFailure, Reason: PodReasonUnschedulable, Failure: errors.New("affinity failed")}, wantReason: PodReasonUnschedulable, wantMessage: "affinity failed"},
-		{name: "scheduler error", status: Pending, diagnostic: &PendingTaskDiagnostic{Kind: PendingTaskFailure, Reason: PodReasonSchedulerError, Failure: errors.New("binding failed")}, wantReason: PodReasonSchedulerError, wantMessage: "binding failed"},
-		{name: "pipeline supersedes failure", status: Pipelined, diagnostic: &PendingTaskDiagnostic{Kind: PendingTaskFailure, Reason: PodReasonUnschedulable, Failure: errors.New("old failure")}, wantReason: PodReasonUnschedulable, wantMessage: "Waiting for resources to be released for this Pod."},
-		{name: "binding", status: Binding, diagnostic: &PendingTaskDiagnostic{Kind: PendingGangWaiting}},
-		{name: "gated", status: Pending, gated: true, diagnostic: &PendingTaskDiagnostic{Kind: PendingGangWaiting}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+		{
+			name:   "pending member without a record",
+			status: Pending,
+		},
+		{
+			name:       "member waiting for the gang",
+			status:     Pending,
+			diagnostic: &PendingTaskDiagnostic{Kind: PendingGangWaiting},
+			want:       unscheduled(PodReasonUnschedulable, gangWaiting),
+		},
+		{
+			name:   "own fit error names its category",
+			status: Pending,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonUnschedulable,
+				Failure: nodeStatuses(map[string]*Status{"n1": affinity}),
+			},
+			want: unscheduled(PodReasonUnschedulable, affinityFailure),
+		},
+		{
+			name:   "more nodes with the same failure keep the message",
+			status: Pending,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonUnschedulable,
+				Failure: nodeStatuses(map[string]*Status{"n1": affinity, "n2": affinity, "n3": affinity}),
+			},
+			want: unscheduled(PodReasonUnschedulable, affinityFailure),
+		},
+		{
+			name:   "failure categories are sorted",
+			status: Pending,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonUnschedulable,
+				Failure: nodeStatuses(map[string]*Status{"n1": affinity, "n2": cpu}),
+			},
+			want: unscheduled(PodReasonUnschedulable, "No eligible node satisfies this Pod's cpu request and node affinity."),
+		},
+		{
+			name:   "unclassified predicate",
+			status: Pending,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonUnschedulable,
+				Failure: nodeStatuses(map[string]*Status{"n1": volume}),
+			},
+			want: unscheduled(PodReasonUnschedulable, "No eligible node satisfies this Pod's scheduling predicates."),
+		},
+		{
+			name:   "explicit failure keeps its text",
+			status: Pending,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonUnschedulable,
+				Failure: errors.New("Queue q has insufficient resources for this Pod."),
+			},
+			want: unscheduled(PodReasonUnschedulable, "Queue q has insufficient resources for this Pod."),
+		},
+		{
+			name:   "scheduler error on a pending member",
+			status: Pending,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonSchedulerError, Failure: errors.New("binding failed"),
+			},
+			want: unscheduled(PodReasonSchedulerError, "binding failed"),
+		},
+		{
+			name:   "scheduler error on an allocated member",
+			status: Allocated,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonSchedulerError, Failure: errors.New("binding failed"),
+			},
+			want: unscheduled(PodReasonSchedulerError, "binding failed"),
+		},
+		{
+			name:   "retained allocation waits for the gang",
+			status: Allocated,
+			want:   unscheduled(PodReasonSchedulable, gangWaiting),
+		},
+		{
+			name:   "retained pipeline supersedes an earlier failure",
+			status: Pipelined,
+			diagnostic: &PendingTaskDiagnostic{
+				Kind: PendingTaskFailure, Reason: PodReasonUnschedulable, Failure: errors.New("old failure"),
+			},
+			want: unscheduled(PodReasonUnschedulable, resourceWaiting),
+		},
+		{
+			name:       "member handed to binding",
+			status:     Binding,
+			diagnostic: &PendingTaskDiagnostic{Kind: PendingGangWaiting},
+		},
+		{
+			name:       "scheduling-gated member",
+			status:     Pending,
+			gated:      true,
+			diagnostic: &PendingTaskDiagnostic{Kind: PendingGangWaiting},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			task := NewTaskInfo(&v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: "a", Name: "a", Namespace: "ns"}})
-			task.Status, task.SchGated = tc.status, tc.gated
+			task.Status, task.SchGated = tt.status, tt.gated
+			// A rolled-back trial placement must not reach the condition.
+			task.LastTransaction = &TransactionContext{NodeName: "trial-node", Status: Allocated}
 			job := NewJobInfo("ns/job", task)
 			job.Namespace, job.Name = "ns", "job"
-			if tc.diagnostic != nil {
-				job.SetPendingTaskDiagnostic(task.UID, *tc.diagnostic)
+			if tt.diagnostic != nil {
+				job.SetPendingTaskDiagnostic(task.UID, *tt.diagnostic)
 			}
-			for _, node := range []string{"node-1", "node-2"} {
-				task.LastTransaction = &TransactionContext{NodeName: node, Status: Allocated}
-				condition := job.TaskSchedulingCondition(task)
-				if tc.wantReason == "" {
-					assert.Nil(t, condition)
-					continue
-				}
-				require.NotNil(t, condition)
-				assert.Equal(t, tc.wantReason, condition.Reason)
-				assert.Equal(t, tc.wantMessage, condition.Message)
-				assert.Equal(t, v1.ConditionFalse, condition.Status)
-			}
+
+			assert.Equal(t, tt.want, job.TaskSchedulingCondition(task))
 		})
 	}
 }
 
-func TestDiagnosticSnapshot(t *testing.T) {
+// Tasks of one role share the working fit errors, and a later candidate
+// overwrites them. A recorded failure must keep what it was recorded with.
+func TestRecordPendingTaskFailure(t *testing.T) {
+	working := nodeStatuses(map[string]*Status{
+		"n1": {Plugin: BlockerNodeAffinity, Reason: nodeAffinity},
+	})
 	job := NewJobInfo("ns/job")
-	source := NewFitErrors()
-	source.SetNodeError("n1", &FitError{Status: StatusSets{&Status{Plugin: "NodeAffinity", Reason: "original", InsufficientResources: []string{"cpu"}}}})
-	job.RecordPendingTaskFailure("a", PodReasonUnschedulable, source)
-	snapshot := job.PendingTaskDiagnostics["a"].Failure.(*FitErrors)
-	expected := snapshot.Error()
-	source.nodes["n1"].Status[0].Reason = "changed"
-	source.nodes["n1"].Status[0].InsufficientResources[0] = "memory"
-	assert.Equal(t, expected, snapshot.Error())
-	assert.Equal(t, []string{"cpu"}, snapshot.nodes["n1"].Status[0].InsufficientResources)
-	assert.Empty(t, snapshot.err, "formatting must not mutate a shared snapshot")
-	job.GroupDiagnostic = &GroupSchedulingDiagnostic{Blockers: []SchedulingBlocker{{Scope: MemberScope, Reason: "NodeAffinity", TaskID: "a"}}}
+	job.RecordPendingTaskFailure("a", PodReasonUnschedulable, working)
+	job.RecordPendingTaskFailure("b", PodReasonUnschedulable, working)
+
+	insufficientCPU := &Status{Plugin: "predicates-resource-fit", Reason: "Insufficient cpu", InsufficientResources: []string{"cpu"}}
+	working.SetNodeError("n1", &FitError{Status: StatusSets{insufficientCPU}})
+	working.SetNodeError("n2", &FitError{Status: StatusSets{insufficientCPU}})
+
+	for _, id := range []TaskID{"a", "b"} {
+		recorded, found := job.PendingTaskDiagnostics[id]
+		require.True(t, found)
+		assert.Equal(t, PendingTaskFailure, recorded.Kind)
+		assert.Equal(t, PodReasonUnschedulable, recorded.Reason)
+		assert.Equal(t, "0/1 nodes are unavailable: 1 node(s) didn't match Pod's node affinity/selector.", recorded.Failure.Error())
+	}
+}
+
+// Diagnostics belong to one session. The snapshot of the next session starts without them.
+func TestJobInfoCloneResetsDiagnostics(t *testing.T) {
+	job := NewJobInfo("ns/job")
+	job.SetPendingTaskDiagnostic("a", PendingTaskDiagnostic{Kind: PendingGangWaiting})
+	job.GroupDiagnostic = &GroupSchedulingDiagnostic{
+		Blockers: []SchedulingBlocker{{Scope: MemberScope, Reason: BlockerNodeAffinity, TaskID: "a"}},
+	}
+
 	next := job.Clone()
+
 	assert.Nil(t, next.PendingTaskDiagnostics)
 	assert.Nil(t, next.GroupDiagnostic)
 }
 
 func TestGroupSchedulingMessage(t *testing.T) {
+	const (
+		gpu = v1.ResourceName("nvidia.com/gpu")
+		// searchedRacks exceeds any realistic message budget if the racks were listed.
+		searchedRacks = 100
+
+		searchedMessage    = "Gang requirements are not satisfied. Insufficient HyperNode nvidia.com/gpu capacity. Pod ns/a has no node satisfying node affinity within the checked HyperNodes."
+		establishedMessage = "Gang requirements are not satisfied. Pod ns/a has no node satisfying node affinity within HyperNode zone."
+	)
 	task := NewTaskInfo(&v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: "a", Name: "a", Namespace: "ns"}})
-	job := NewJobInfo("ns/job", task)
-	affinity := func(domain string) SchedulingBlocker {
-		return SchedulingBlocker{Scope: MemberScope, Reason: "NodeAffinity", TaskID: task.UID, HyperNodeName: domain}
+	// affinity is the member blocker found in hyperNode, inside the established placement if any.
+	affinity := func(hyperNode, placement string) SchedulingBlocker {
+		return SchedulingBlocker{Scope: MemberScope, Reason: BlockerNodeAffinity, TaskID: task.UID, HyperNodeName: hyperNode, PlacementDomain: placement}
 	}
-	capacity := func(domain string) SchedulingBlocker {
-		return SchedulingBlocker{Scope: HyperNodeScope, Reason: "InsufficientResources", ResourceName: "nvidia.com/gpu", HyperNodeName: domain}
+	capacity := func(hyperNode string) SchedulingBlocker {
+		return SchedulingBlocker{Scope: HyperNodeScope, Reason: BlockerInsufficientResources, ResourceName: gpu, HyperNodeName: hyperNode}
 	}
-	fixed := affinity("rack-a")
-	fixed.PlacementDomain = "zone"
-	sibling := affinity("rack-b")
-	sibling.PlacementDomain = "zone"
-	many := []SchedulingBlocker{capacity("rack-0")}
-	for i := 0; i < 100; i++ {
-		many = append(many, affinity(fmt.Sprintf("rack-%d", i)))
+	manyRacks := []SchedulingBlocker{capacity("rack-0")}
+	for i := 1; i <= searchedRacks; i++ {
+		manyRacks = append(manyRacks, affinity(fmt.Sprintf("rack-%d", i), ""))
 	}
-	const searched = "Gang requirements are not satisfied. Insufficient HyperNode nvidia.com/gpu capacity. Pod ns/a has no node satisfying node affinity within the checked HyperNodes."
-	for _, tc := range []struct {
+
+	tests := []struct {
 		name     string
 		blockers []SchedulingBlocker
 		want     string
 	}{
 		{
+			name: "no blocker recorded",
+			want: "Gang requirements are not satisfied.",
+		},
+		{
 			name:     "member failure without HyperNodes",
-			blockers: []SchedulingBlocker{affinity("")},
+			blockers: []SchedulingBlocker{affinity("", "")},
 			want:     "Gang requirements are not satisfied. Pod ns/a has no node satisfying node affinity.",
 		},
 		{
 			name:     "candidate HyperNodes are not listed",
-			blockers: []SchedulingBlocker{affinity("h1"), affinity("h2"), capacity("h0")},
-			want:     searched,
+			blockers: []SchedulingBlocker{affinity("h1", ""), affinity("h2", ""), capacity("h0")},
+			want:     searchedMessage,
 		},
 		{
 			name:     "another failed HyperNode and a different order keep the message",
-			blockers: []SchedulingBlocker{capacity("h3"), affinity("h2"), capacity("h0"), affinity("h4"), affinity("h1")},
-			want:     searched,
+			blockers: []SchedulingBlocker{capacity("h3"), affinity("h2", ""), capacity("h0"), affinity("h4", ""), affinity("h1", "")},
+			want:     searchedMessage,
 		},
 		{
-			name:     "many candidate domains with the same blockers",
-			blockers: many,
-			want:     searched,
+			name:     "many candidate HyperNodes with the same blockers",
+			blockers: manyRacks,
+			want:     searchedMessage,
 		},
 		{
-			name:     "established placement identifies the enclosing constraint",
-			blockers: []SchedulingBlocker{fixed, sibling},
-			want:     "Gang requirements are not satisfied. Pod ns/a has no node satisfying node affinity within HyperNode zone.",
+			name:     "established placement names the enclosing HyperNode",
+			blockers: []SchedulingBlocker{affinity("rack-a", "zone"), affinity("rack-b", "zone")},
+			want:     establishedMessage,
 		},
 		{
-			name:     "a check outside the fixed placement has a single combined explanation",
-			blockers: []SchedulingBlocker{fixed, affinity("other")},
+			name:     "a check outside the established placement names no HyperNode",
+			blockers: []SchedulingBlocker{affinity("rack-a", "zone"), affinity("other", "")},
 			want:     "Gang requirements are not satisfied. Pod ns/a has no node satisfying node affinity within the checked HyperNodes.",
 		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			job.GroupDiagnostic = &GroupSchedulingDiagnostic{Blockers: tc.blockers}
-			assert.Equal(t, tc.want, job.GroupSchedulingMessage())
-		})
 	}
-}
 
-func TestTaskFailureMessage(t *testing.T) {
-	affinity := &Status{Plugin: "NodeAffinity", Reason: "node(s) didn't match Pod's node affinity/selector"}
-	cpu := &Status{Plugin: "resourcefit", Reason: "Insufficient cpu", InsufficientResources: []string{"cpu"}}
-	fitErrors := func(nodes map[string]*Status) *FitErrors {
-		fit := NewFitErrors()
-		for name, status := range nodes {
-			fit.SetNodeError(name, &FitError{Status: StatusSets{status}})
-		}
-		return fit
-	}
-	for _, tc := range []struct {
-		name    string
-		failure error
-		want    string
-	}{
-		{
-			name:    "one category",
-			failure: fitErrors(map[string]*Status{"n1": affinity}),
-			want:    "No eligible node satisfies this Pod's node affinity.",
-		},
-		{
-			name:    "another node with the same failure keeps the message",
-			failure: fitErrors(map[string]*Status{"n1": affinity, "n2": affinity, "n3": affinity}),
-			want:    "No eligible node satisfies this Pod's node affinity.",
-		},
-		{
-			name:    "categories are sorted",
-			failure: fitErrors(map[string]*Status{"n1": affinity, "n2": cpu}),
-			want:    "No eligible node satisfies this Pod's cpu request and node affinity.",
-		},
-		{
-			name:    "unclassified predicate",
-			failure: fitErrors(map[string]*Status{"n1": {Plugin: "VolumeBinding", Reason: "node(s) had volume node affinity conflict"}}),
-			want:    "No eligible node satisfies this Pod's scheduling predicates.",
-		},
-		{
-			name:    "explicit error keeps its text",
-			failure: errors.New("Queue q has insufficient resources for this Pod."),
-			want:    "Queue q has insufficient resources for this Pod.",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, taskFailureMessage(tc.failure))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := NewJobInfo("ns/job", task)
+			job.GroupDiagnostic = &GroupSchedulingDiagnostic{Blockers: tt.blockers}
+
+			assert.Equal(t, tt.want, job.GroupSchedulingMessage())
 		})
 	}
 }
