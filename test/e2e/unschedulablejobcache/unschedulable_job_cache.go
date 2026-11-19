@@ -627,7 +627,7 @@ func runTaskQuotaWakeupCase(pluginName, queueName, jobName string) {
 		for _, cond := range pod.Status.Conditions {
 			if cond.Type == v1.PodScheduled {
 				g.Expect(cond.Reason).To(Equal(v1.PodReasonUnschedulable))
-				g.Expect(cond.Message).To(ContainSubstring("Queue " + queueName))
+				g.Expect(cond.Message).To(ContainSubstring(fmt.Sprintf("Queue %s", queueName)))
 				return cond
 			}
 		}

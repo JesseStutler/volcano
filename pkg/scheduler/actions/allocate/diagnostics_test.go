@@ -17,6 +17,7 @@ limitations under the License.
 package allocate
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -126,7 +127,7 @@ func TestAllocatePublishesSelectedDiagnostics(t *testing.T) {
 			if tc.fixedPlacement {
 				domain = "HyperNode h1"
 			}
-			assert.Contains(t, job.GroupSchedulingMessage(), "Pod ns/task-1 has no node satisfying node affinity within "+domain+".")
+			assert.Contains(t, job.GroupSchedulingMessage(), fmt.Sprintf("Pod ns/task-1 has no node satisfying node affinity within %s.", domain))
 			assert.NotContains(t, job.TaskSchedulingCondition(job.Tasks["ns-task-0"]).Message, "node-")
 		})
 	}

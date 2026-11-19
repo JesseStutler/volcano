@@ -93,7 +93,7 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 					message = condition.Message
 				}
 			}
-			g.Expect(message).To(ContainSubstring("Pod " + ctx.Namespace + "/a has no node satisfying node affinity within the checked HyperNodes."))
+			g.Expect(message).To(ContainSubstring(fmt.Sprintf("Pod %s/a has no node satisfying node affinity within the checked HyperNodes.", ctx.Namespace)))
 			// Candidate HyperNode names stay in the scheduler logs.
 			g.Expect(message).NotTo(ContainSubstring(topology.rackA))
 			g.Expect(message).NotTo(ContainSubstring(topology.rackB))
@@ -154,8 +154,8 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 				}
 			}
 			g.Expect(message).NotTo(Equal(groupMessage))
-			g.Expect(message).To(ContainSubstring("Pod " + ctx.Namespace + "/c "))
-			g.Expect(message).NotTo(ContainSubstring("Pod " + ctx.Namespace + "/a "))
+			g.Expect(message).To(ContainSubstring(fmt.Sprintf("Pod %s/c ", ctx.Namespace)))
+			g.Expect(message).NotTo(ContainSubstring(fmt.Sprintf("Pod %s/a ", ctx.Namespace)))
 			for _, name := range []string{"a", "b", "c"} {
 				pod, err := ctx.Kubeclient.CoreV1().Pods(ctx.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
 				g.Expect(err).NotTo(HaveOccurred())

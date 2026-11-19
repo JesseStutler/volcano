@@ -394,7 +394,7 @@ func (f *FitErrors) NodePluginInsufficientResources(plugin string) map[string][]
 func (f *FitErrors) Error() string {
 	prefix := f.err
 	if prefix == "" {
-		prefix = fmt.Sprintf("0/%v", len(f.nodes)) + " nodes are unavailable"
+		prefix = fmt.Sprintf("0/%d nodes are unavailable", len(f.nodes))
 	}
 	if len(f.nodes) == 0 {
 		return prefix
@@ -415,7 +415,7 @@ func (f *FitErrors) Error() string {
 		sort.Strings(reasonStrings)
 		return reasonStrings
 	}
-	reasonMsg := fmt.Sprintf(prefix+": %v.", strings.Join(sortReasonsHistogram(), ", "))
+	reasonMsg := fmt.Sprintf("%s: %s.", prefix, strings.Join(sortReasonsHistogram(), ", "))
 	if f.hyperNode != "" {
 		reasonMsg = fmt.Sprintf("In hyperNode %s: %s", f.hyperNode, reasonMsg)
 	}

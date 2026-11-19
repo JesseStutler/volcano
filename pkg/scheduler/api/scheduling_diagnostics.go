@@ -131,6 +131,27 @@ func (ji *JobInfo) TaskSchedulingCondition(task *TaskInfo) *v1.PodCondition {
 	return condition
 }
 
+// groupUnsatisfiedMessage starts every unschedulable PodGroup explanation.
+const groupUnsatisfiedMessage = "Gang requirements are not satisfied."
+
+// blockerCause identifies one sentence of the PodGroup message. Blockers that
+// differ only by the checked HyperNode share a cause.
+type blockerCause struct {
+	scope BlockerScope
+	// pod is the namespace/name of the affected member. A HyperNode blocker leaves it empty.
+	pod      string
+	reason   string
+	resource v1.ResourceName
+}
+
+// blockerDomain describes where the checks behind a cause ran.
+type blockerDomain struct {
+	// searched reports that a HyperNode search found the blocker.
+	searched bool
+	// established is the placement domain shared by all checks, or empty.
+	established string
+}
+
 // GroupSchedulingMessage formats only a completed group result. A skipped attempt
 // preserves the previously published unschedulable explanation.
 func (ji *JobInfo) GroupSchedulingMessage() string {
@@ -142,82 +163,85 @@ func (ji *JobInfo) GroupSchedulingMessage() string {
 			}
 		}
 	}
-	const prefix = "Gang requirements are not satisfied."
 	if ji.GroupDiagnostic == nil || len(ji.GroupDiagnostic.Blockers) == 0 {
-		return prefix
+		return groupUnsatisfiedMessage
 	}
-	// A trial supplies context for the logs. Only an established placement
-	// shared by all checks for this cause can identify a domain in the message.
-	type cause struct {
-		scope       BlockerScope
-		pod, reason string
-		resource    v1.ResourceName
+	causes := ji.groupBlockerCauses()
+	ordered := slices.SortedFunc(maps.Keys(causes), func(a, b blockerCause) int {
+		return cmp.Or(cmp.Compare(a.scope, b.scope), cmp.Compare(a.pod, b.pod),
+			cmp.Compare(a.reason, b.reason), cmp.Compare(a.resource, b.resource))
+	})
+	messages := []string{groupUnsatisfiedMessage}
+	for _, cause := range ordered {
+		messages = append(messages, cause.sentence(causes[cause]))
 	}
-	type location struct {
-		searched bool
-		fixed    string
-	}
-	causes := make(map[cause]location)
+	return strings.Join(messages, " ")
+}
+
+// groupBlockerCauses merges the blockers that publish the same sentence.
+// A trial supplies context for the logs. Only an established placement
+// shared by all checks for this cause can identify a domain in the message.
+func (ji *JobInfo) groupBlockerCauses() map[blockerCause]blockerDomain {
+	causes := make(map[blockerCause]blockerDomain)
 	for _, blocker := range ji.GroupDiagnostic.Blockers {
-		key := cause{scope: blocker.Scope, reason: blocker.Reason, resource: blocker.ResourceName}
+		cause := blockerCause{scope: blocker.Scope, reason: blocker.Reason, resource: blocker.ResourceName}
 		if blocker.Scope == MemberScope {
 			task := ji.Tasks[blocker.TaskID]
 			if task == nil {
 				continue
 			}
-			key.pod = task.Namespace + "/" + task.Name
+			cause.pod = fmt.Sprintf("%s/%s", task.Namespace, task.Name)
 		}
-		loc, exists := causes[key]
+		domain, exists := causes[cause]
 		if !exists {
-			loc.fixed = blocker.PlacementDomain
-		} else if loc.fixed != blocker.PlacementDomain {
-			loc.fixed = ""
+			domain.established = blocker.PlacementDomain
+		} else if domain.established != blocker.PlacementDomain {
+			domain.established = ""
 		}
-		loc.searched = loc.searched || blocker.HyperNodeName != ""
-		causes[key] = loc
+		domain.searched = domain.searched || blocker.HyperNodeName != ""
+		causes[cause] = domain
 	}
-	ordered := slices.SortedFunc(maps.Keys(causes), func(a, b cause) int {
-		return cmp.Or(cmp.Compare(a.scope, b.scope), cmp.Compare(a.pod, b.pod),
-			cmp.Compare(a.reason, b.reason), cmp.Compare(a.resource, b.resource))
-	})
-	messages := []string{prefix}
-	for _, key := range ordered {
-		resource := string(key.resource)
-		if resource == "" {
-			resource = "resource"
-		}
-		var message string
-		if key.scope == HyperNodeScope {
-			message = "HyperNode placement requirements are not satisfied"
-			if key.reason == "InsufficientResources" {
-				message = "Insufficient HyperNode " + resource + " capacity"
-			}
-		} else {
-			subject := "Pod " + key.pod
-			switch key.reason {
-			case "InsufficientResources":
-				message = subject + " has insufficient " + resource + " capacity"
-			case "NodeAffinity":
-				message = subject + " has no node satisfying node affinity"
-			case "TaintToleration":
-				message = subject + " has no node with tolerated taints"
-			case "PodAffinity", "InterPodAffinity":
-				message = subject + " has no node satisfying Pod affinity constraints"
-			case "PlacementRejected":
-				message = subject + " does not satisfy placement requirements"
-			default:
-				message = subject + " does not satisfy scheduling predicates"
-			}
-		}
-		loc := causes[key]
-		if loc.fixed != "" {
-			message += " within HyperNode " + loc.fixed
-		} else if key.scope == MemberScope && loc.searched {
-			message += " within the checked HyperNodes"
-		}
-		messages = append(messages, message+".")
+	return causes
+}
+
+// sentence explains the cause and where its checks ran.
+func (c blockerCause) sentence(domain blockerDomain) string {
+	switch {
+	case domain.established != "":
+		return fmt.Sprintf("%s within HyperNode %s.", c.explanation(), domain.established)
+	case c.scope == MemberScope && domain.searched:
+		return fmt.Sprintf("%s within the checked HyperNodes.", c.explanation())
+	default:
+		return fmt.Sprintf("%s.", c.explanation())
 	}
-	return strings.Join(messages, " ")
+}
+
+// explanation describes what failed, without the scope of the checks.
+func (c blockerCause) explanation() string {
+	resource := c.resource
+	if resource == "" {
+		resource = "resource"
+	}
+	if c.scope == HyperNodeScope {
+		if c.reason == "InsufficientResources" {
+			return fmt.Sprintf("Insufficient HyperNode %s capacity", resource)
+		}
+		return "HyperNode placement requirements are not satisfied"
+	}
+	switch c.reason {
+	case "InsufficientResources":
+		return fmt.Sprintf("Pod %s has insufficient %s capacity", c.pod, resource)
+	case "NodeAffinity":
+		return fmt.Sprintf("Pod %s has no node satisfying node affinity", c.pod)
+	case "TaintToleration":
+		return fmt.Sprintf("Pod %s has no node with tolerated taints", c.pod)
+	case "PodAffinity", "InterPodAffinity":
+		return fmt.Sprintf("Pod %s has no node satisfying Pod affinity constraints", c.pod)
+	case "PlacementRejected":
+		return fmt.Sprintf("Pod %s does not satisfy placement requirements", c.pod)
+	default:
+		return fmt.Sprintf("Pod %s does not satisfy scheduling predicates", c.pod)
+	}
 }
 
 // taskFailureMessage explains why no node fits the Pod. Node totals, per-reason
@@ -230,30 +254,33 @@ func taskFailureMessage(failure error) string {
 	}
 	var constraints []string
 	for category := range fit.failureCategories() {
-		switch category.Reason {
-		case "InsufficientResources":
-			if category.ResourceName == "" {
-				constraints = append(constraints, "resource requests")
-			} else {
-				constraints = append(constraints, string(category.ResourceName)+" request")
-			}
-		case "NodeAffinity":
-			constraints = append(constraints, "node affinity")
-		case "TaintToleration":
-			constraints = append(constraints, "taint tolerations")
-		case "PodAffinity", "InterPodAffinity":
-			constraints = append(constraints, "Pod affinity constraints")
-		default:
-			constraints = append(constraints, "scheduling predicates")
-		}
+		constraints = append(constraints, taskConstraint(category))
 	}
 	sort.Strings(constraints)
 	last := len(constraints) - 1
-	list := constraints[last]
-	if last > 0 {
-		list = strings.Join(constraints[:last], ", ") + " and " + list
+	if last == 0 {
+		return fmt.Sprintf("No eligible node satisfies this Pod's %s.", constraints[0])
 	}
-	return "No eligible node satisfies this Pod's " + list + "."
+	return fmt.Sprintf("No eligible node satisfies this Pod's %s and %s.", strings.Join(constraints[:last], ", "), constraints[last])
+}
+
+// taskConstraint names the Pod constraint that a failure category violates.
+func taskConstraint(category SchedulingBlocker) string {
+	switch category.Reason {
+	case "InsufficientResources":
+		if category.ResourceName == "" {
+			return "resource requests"
+		}
+		return fmt.Sprintf("%s request", category.ResourceName)
+	case "NodeAffinity":
+		return "node affinity"
+	case "TaintToleration":
+		return "taint tolerations"
+	case "PodAffinity", "InterPodAffinity":
+		return "Pod affinity constraints"
+	default:
+		return "scheduling predicates"
+	}
 }
 
 // Clone snapshots mutable node errors before another candidate reuses them.
