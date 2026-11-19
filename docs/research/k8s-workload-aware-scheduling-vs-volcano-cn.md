@@ -4,25 +4,17 @@
 
 ## 背景
 
-Kubernetes 从 v1.35 开始在 kube-scheduler 中支持按工作负载调度，即 Workload-Aware Scheduling（WAS），并为此新增了 `scheduling.k8s.io` 下的 `PodGroup` API。这个 API 与 Volcano 的 PodGroup 同名，功能上也有重叠。
+kube-scheduler 一直是逐个 Pod 调度的，一组 Pod 需要一起调度的场景依赖 Volcano 等项目。从 v1.35 开始，Kubernetes 在 kube-scheduler 中支持按工作负载调度，即 Workload-Aware Scheduling（WAS），并为此新增了 `scheduling.k8s.io` 下的 `PodGroup` API。这个 API 与 Volcano 的 PodGroup 同名，功能上也有重叠。
 
 本文梳理上游 PodGroup 的现状和 kube-scheduler 的调度流程，对比它与 Volcano 在 PodGroup、子组、拓扑感知调度和抢占上的差异，并评估 Volcano 兼容上游 PodGroup 的方案和工作量。
 
 上游部分基于 Kubernetes v1.37.2 和 2026 年 11 月的 master 分支（v1.38 开发中），Volcano 部分基于当前 master 分支。
 
-## 结论
-
-- 上游只解决单个工作负载内 Pod 的放置问题，包括 gang、拓扑约束和组级抢占。队列、配额、公平性不在范围内，KEP 明确这些继续由 Kueue 和 Volcano 提供。
-- 上游的 API 已经是 `v1beta1`，但直到 v1.38，相关的 feature gate 仍然全部默认关闭。GA 最早在 v1.39。
-- 上游已有的能力 Volcano 基本都有，并且多出队列、入队准入、软拓扑和跨队列回收。上游有而 Volcano 目前没有的能力有三项：超过两层的组嵌套、声明式的抢占单元（`disruptionMode`）、组级 DRA。
-- Volcano 现在不识别上游 PodGroup。带 `schedulingGroup` 的 Pod 交给 Volcano 调度时，会被当成普通 Pod。
-- 兼容可以分步进行。先在 controller 里把上游 PodGroup 转换成 Volcano PodGroup，4–6 人周可以让原生 Job 的 gang 在 Volcano 上生效。让调度器直接支持上游对象需要 8–12 人月，建议等上游 GA 之后再决定。
-
 ## 1. 上游 PodGroup 现状
 
 ### 1.1 API 对象
 
-以一个 4 个 Pod 的训练任务为例，要求 4 个 Pod 要么全部调度，要么都不调度。在开启相关 feature gate 的集群中，用户在 Job 上声明 `scheduling`：
+以一个 4 个 Pod 的训练任务为例，要求 4 个 Pod 要么全部调度，要么都不调度，即 gang 调度。在开启相关 feature gate 的集群中，用户在 Job 上声明 `scheduling`：
 
 ```yaml
 apiVersion: batch/v1
@@ -159,10 +151,10 @@ flowchart TD
 各步骤说明：
 
 1. 排队。只要 Pod 带了 `schedulingGroup`，它就不再单独排队，而是并入所属 PodGroup 的队列项。队列里的一项对应一个 PodGroup，有嵌套时对应整棵树的根。组与组之间按组的优先级排序，优先级相同再比时间。
-2. 等 Pod 到齐。进入调度之前有一道检查：PodGroup 对象必须已经存在，并且已创建的 Pod 数要达到 `minCount`。本例中即等待 4 个 Pod 都创建出来。
+2. 等 Pod 到齐。进入调度之前有一道检查：PodGroup 对象必须已经存在，并且已创建的 Pod 数要达到 `minCount`。本例中即等待 4 个 Pod 都创建出来。检查通过后，整组进入 activeQ，即 kube-scheduler 中等待调度的队列。
 3. 试排。调度器把整组取出，按固定顺序为每个 Pod 跑一遍普通的 Filter 和 Score，选出节点。结果只记在这一轮的快照里：后面的 Pod 能看到前面的 Pod 占了哪些资源，但真正的调度缓存不动。
 4. 检查 gang。每排完一个 Pod 检查一次。如果剩下的 Pod 即使全都能放下，总数也到不了 `minCount`，就提前结束。
-5. 绑定或抢占。数量足够时，为每个 Pod 各自发起绑定，并把 PodGroup 的 `PodGroupInitiallyScheduled` condition 置为 True。数量不足时，这一组不绑定任何 Pod，并尝试一次组级抢占（见第 6 节）；抢占也失败时，整组进入 backoffQ 稍后重试。
+5. 绑定或抢占。数量足够时，为每个 Pod 各自发起绑定，并把 PodGroup 的 `PodGroupInitiallyScheduled` condition 置为 True。数量不足时，这一组不绑定任何 Pod，并尝试一次组级抢占（见第 6 节）；抢占也失败时，整组进入 backoffQ，等退避时间过后重试。
 
 需要注意：
 
@@ -250,9 +242,14 @@ flowchart LR
 | 拓扑约束 | `schedulingConstraints.topology` | `networkTopology` |
 | 子组 | 独立的 CompositePodGroup 对象 | `subGroupPolicy` |
 | 被抢占时的单元 | `disruptionMode` | 无 |
-| 组级 DRA | `resourceClaims` | 无 |
+| 组内共享的 DRA 设备 | `resourceClaims` | 无 |
 | 状态 | condition `PodGroupInitiallyScheduled` | `phase`、conditions、Pod 计数 |
 | 创建后能否修改 | 只有 `minCount` 可以 | 可以 |
+
+表中有两个上游特有的字段：
+
+- `disruptionMode` 决定这组 Pod 被抢占时的单位，见第 6 节。
+- `resourceClaims` 是 PodGroup 级的 DRA（Dynamic Resource Allocation）。DRA 通常由每个 Pod 各自引用 ResourceClaim 来申请 GPU 等设备。这个字段把 ResourceClaim 声明在 PodGroup 上：每个 PodGroup 生成一份 ResourceClaim，组内所有 Pod 共享同一份设备分配，它随 PodGroup 创建和删除。Volcano 目前只支持 Pod 级的 ResourceClaim。
 
 ### 3.3 调度过程对比
 
@@ -509,7 +506,7 @@ Volcano 现在不识别上游 PodGroup。调度器判断 Pod 属于哪个 Job �
 |---|---|---|
 | 第一步 | 识别 `schedulingGroup`，支持 `minCount` 和优先级，回写上游 PodGroup 的状态 | 带 `spec.scheduling` 的原生 Job 和 Deployment |
 | 第二步 | 支持 `disruptionMode`、拓扑约束和两层 CompositePodGroup | LeaderWorkerSet、JobSet 的常见用法 |
-| 第三步 | 任意层数的 CompositePodGroup、组级 DRA | 所有使用上游 API 的工作负载 |
+| 第三步 | 任意层数的 CompositePodGroup、PodGroup 级 DRA | 所有使用上游 API 的工作负载 |
 
 不考虑用上游 PodGroup 替换 Volcano PodGroup：上游没有 `queue`、`minResources`、`minTaskMember` 等字段，替换会丢失功能。
 
@@ -547,7 +544,7 @@ flowchart LR
 | 额外对象 | 每个上游 PodGroup 多一个 Volcano PodGroup | 没有 |
 | 一致性 | 两个对象之间有同步延迟 | 只有一份数据 |
 | 能支持的层数 | 两层 | 把子组改成递归结构后可以支持任意层数 |
-| 组级 DRA | 做不了 | 可以 |
+| PodGroup 级 DRA | 做不了 | 可以 |
 
 建议先采用方案 A。上游 API 仍是 Beta，默认关闭，并且已经发生过两次不兼容变更。把适配逻辑放在 controller 里，上游再变更时调度器不需要跟着修改。
 
@@ -577,7 +574,7 @@ flowchart LR
 |---|---|---|
 | 第一步：原生 Job 的 gang 在 Volcano 上生效 | A | 4–6 人周 |
 | 第二步：加上抢占语义、拓扑约束和两层子组 | A | 累计 12–20 人周 |
-| 第三步：调度器直接支持，任意层数和组级 DRA | B | 33–51 人周，约 8–12 人月 |
+| 第三步：调度器直接支持，任意层数和 PodGroup 级 DRA | B | 33–51 人周，约 8–12 人月 |
 
 第三步的数字是按方案 B 从头实现算的，不是在前两步基础上的增量。
 
@@ -592,7 +589,7 @@ flowchart LR
 | 没有 HyperNode 时直接按节点 label 划分域 | 不做 | 3–4 |
 | 两层 CompositePodGroup 对应到 `subGroupPolicy` | 3–5 | 4–6 |
 | 任意层数：把子组改成递归结构 | 做不了 | 10–16 |
-| 组级 DRA | 做不了 | 4–6 |
+| PodGroup 级 DRA | 做不了 | 4–6 |
 | 用户文档 | 1–2 | 1–2 |
 
 方案 B 工作量大的原因有两个：
@@ -609,6 +606,14 @@ flowchart LR
 - 第三步在上游 GA 之后再评估。目前 API 仍可能变化，且默认关闭期间实际使用的集群不多。
 
 生态方面，JobSet、LeaderWorkerSet、Kubeflow Trainer、KubeRay、Spark Operator 都在对接上游的 Workload API。如果这些项目以后默认通过上游 API 声明 gang，而 Volcano 不识别，这些工作负载在 Volcano 上只能逐个 Pod 调度。Kueue 也在进行类似的集成，可参考 [kubernetes-sigs/kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871)。
+
+## 8. 总结
+
+- 上游只解决单个工作负载内 Pod 的放置问题，包括 gang、拓扑约束和组级抢占。队列、配额、公平性不在范围内，KEP 明确这些继续由 Kueue 和 Volcano 提供。
+- 上游的 API 已经是 `v1beta1`，但直到 v1.38，相关的 feature gate 仍然全部默认关闭。GA 最早在 v1.39。
+- 上游已有的能力 Volcano 基本都有，并且多出队列、入队准入、软拓扑和跨队列回收。上游有而 Volcano 目前没有的能力有三项：超过两层的组嵌套、声明式的抢占单元（`disruptionMode`）、PodGroup 级的 DRA。
+- Volcano 现在不识别上游 PodGroup。带 `schedulingGroup` 的 Pod 交给 Volcano 调度时，会被当成普通 Pod。
+- 兼容可以分步进行。先在 controller 里把上游 PodGroup 转换成 Volcano PodGroup，4–6 人周可以让原生 Job 的 gang 在 Volcano 上生效。让调度器直接支持上游对象需要 8–12 人月，建议等上游 GA 之后再决定。
 
 ## 参考资料
 

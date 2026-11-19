@@ -4,25 +4,17 @@ English | [简体中文](./k8s-workload-aware-scheduling-vs-volcano-cn.md)
 
 ## Background
 
-Since v1.35, kube-scheduler has supported scheduling by workload, known as Workload-Aware Scheduling (WAS). It adds a `PodGroup` API in the `scheduling.k8s.io` group, which shares its name with Volcano's PodGroup and overlaps with it in function.
+kube-scheduler has always scheduled one pod at a time, and use cases that need a set of pods scheduled together have relied on projects such as Volcano. Since v1.35, kube-scheduler has supported scheduling by workload, known as Workload-Aware Scheduling (WAS). It adds a `PodGroup` API in the `scheduling.k8s.io` group, which shares its name with Volcano's PodGroup and overlaps with it in function.
 
 This document describes the state of the upstream PodGroup and how kube-scheduler schedules it, compares it with Volcano in terms of PodGroup, subgroups, topology-aware scheduling and preemption, and estimates what it takes for Volcano to support the upstream PodGroup.
 
 The upstream part is based on Kubernetes v1.37.2 and the master branch as of November 2026 (v1.38 in development). The Volcano part is based on the current master branch.
 
-## Summary
-
-- Upstream only decides where the pods of one workload go: gang scheduling, topology constraints and group-level preemption. Queues, quota and fairness are out of scope, and the KEP says Kueue and Volcano will keep providing them.
-- The upstream API is `v1beta1`, but every related feature gate is still off by default in v1.38. GA is planned for v1.39 at the earliest.
-- Volcano already has an equivalent for almost everything upstream offers, plus queues, enqueue admission, soft topology constraints and cross-queue reclaim. Upstream has three capabilities that Volcano lacks: group nesting deeper than two levels, a declarative preemption unit (`disruptionMode`), and group-level DRA.
-- Volcano does not recognise the upstream PodGroup today. A pod with `schedulingGroup` that is handed to Volcano is treated as an ordinary pod.
-- Support can be added in steps. Translating upstream PodGroups into Volcano PodGroups in a controller takes 4–6 person-weeks and makes gang scheduling work for native Jobs on Volcano. Having the scheduler consume upstream objects directly takes 8–12 person-months, and that decision is better left until upstream reaches GA.
-
 ## 1. Upstream PodGroup status
 
 ### 1.1 API objects
 
-Consider a training job with 4 pods that must be scheduled all together or not at all. On a cluster with the feature gates enabled, the user declares `scheduling` on the Job:
+Consider a training job with 4 pods that must be scheduled all together or not at all, that is, gang scheduling. On a cluster with the feature gates enabled, the user declares `scheduling` on the Job:
 
 ```yaml
 apiVersion: batch/v1
@@ -159,10 +151,10 @@ flowchart TD
 The steps are:
 
 1. Queueing. A pod with `schedulingGroup` does not queue on its own. It joins the queue entry of its PodGroup. One entry stands for one PodGroup, or for the root of the tree when groups are nested. Entries are ordered by group priority, then by time.
-2. Waiting for the pods. Before the group can be scheduled, the PodGroup object must exist and the number of created pods must reach `minCount`. In the example the group waits until all 4 pods have been created.
+2. Waiting for the pods. Before the group can be scheduled, the PodGroup object must exist and the number of created pods must reach `minCount`. In the example the group waits until all 4 pods have been created. After the check passes, the group enters activeQ, the kube-scheduler queue of entries waiting to be scheduled.
 3. Trial placement. The scheduler pops the whole group and runs the normal Filter and Score for each pod in a fixed order. The results are recorded only in the snapshot of this cycle: later pods see what earlier pods took, but the real scheduler cache is untouched.
 4. Gang check. The check runs after each pod. If the total cannot reach `minCount` even when every remaining pod fits, the cycle stops early.
-5. Bind or preempt. If enough pods fit, each pod starts its own binding and the `PodGroupInitiallyScheduled` condition of the PodGroup is set to True. If not, no pod of the group is bound and the scheduler tries group-level preemption once (section 6). If that fails too, the group moves to backoffQ and is retried later.
+5. Bind or preempt. If enough pods fit, each pod starts its own binding and the `PodGroupInitiallyScheduled` condition of the PodGroup is set to True. If not, no pod of the group is bound and the scheduler tries group-level preemption once (section 6). If that fails too, the group moves to backoffQ and is retried after a backoff period.
 
 Notes:
 
@@ -250,9 +242,14 @@ flowchart LR
 | Topology constraint | `schedulingConstraints.topology` | `networkTopology` |
 | Subgroups | separate CompositePodGroup objects | `subGroupPolicy` |
 | Unit of preemption | `disruptionMode` | none |
-| Group-level DRA | `resourceClaims` | none |
+| DRA devices shared by the group | `resourceClaims` | none |
 | Status | condition `PodGroupInitiallyScheduled` | `phase`, conditions, pod counts |
 | Mutable after creation | only `minCount` | yes |
+
+Two of the upstream-only fields need explanation:
+
+- `disruptionMode` sets the unit in which the group's pods are preempted. See section 6.
+- `resourceClaims` is DRA (Dynamic Resource Allocation) at the PodGroup level. With DRA, each pod normally refers to its own ResourceClaim to request devices such as GPUs. This field declares the ResourceClaim on the PodGroup instead: one ResourceClaim is generated per PodGroup, all pods of the group share the same device allocation, and the claim is created and deleted with the PodGroup. Volcano only supports pod-level ResourceClaims today.
 
 ### 3.3 Scheduling process
 
@@ -509,7 +506,7 @@ Support can be added in three steps, each of which can ship on its own:
 |---|---|---|
 | Step 1 | Recognise `schedulingGroup`, honour `minCount` and priority, write status back to the upstream PodGroup | Native Jobs and Deployments with `spec.scheduling` |
 | Step 2 | `disruptionMode`, topology constraints and two-level CompositePodGroups | Common LeaderWorkerSet and JobSet setups |
-| Step 3 | CompositePodGroups of any depth and group-level DRA | Every workload that uses the upstream API |
+| Step 3 | CompositePodGroups of any depth and PodPodGroup-level DRA | Every workload that uses the upstream API |
 
 Replacing the Volcano PodGroup with the upstream one is not considered: upstream has no `queue`, `minResources` or `minTaskMember`, so features would be lost.
 
@@ -547,7 +544,7 @@ flowchart LR
 | Extra objects | One Volcano PodGroup per upstream PodGroup | None |
 | Consistency | The two objects can be briefly out of sync | A single source of data |
 | Depth supported | Two levels | Any depth, once subgroups become recursive |
-| Group-level DRA | Not possible | Possible |
+| PodGroup-level DRA | Not possible | Possible |
 
 Option A is recommended as the starting point. The upstream API is still Beta, off by default, and has already changed twice. With the adaptation in a controller, the scheduler does not have to change when upstream changes again.
 
@@ -577,7 +574,7 @@ The unit is person-weeks, for engineers who know the Volcano scheduler. Unit tes
 |---|---|---|
 | Step 1: gang scheduling works for native Jobs on Volcano | A | 4–6 person-weeks |
 | Step 2: add preemption semantics, topology constraints and two-level subgroups | A | 12–20 person-weeks in total |
-| Step 3: support in the scheduler, any depth and group-level DRA | B | 33–51 person-weeks, about 8–12 person-months |
+| Step 3: support in the scheduler, any depth and PodPodGroup-level DRA | B | 33–51 person-weeks, about 8–12 person-months |
 
 The figure for step 3 is for building option B from scratch. It is not an increment on top of the first two steps.
 
@@ -592,7 +589,7 @@ The work breaks down like this:
 | Build domains straight from node labels when there are no HyperNodes | not planned | 3–4 |
 | Map two-level CompositePodGroups to `subGroupPolicy` | 3–5 | 4–6 |
 | Any depth: make subgroups recursive | not possible | 10–16 |
-| Group-level DRA | not possible | 4–6 |
+| PodGroup-level DRA | not possible | 4–6 |
 | User documentation | 1–2 | 1–2 |
 
 Option B costs more for two reasons:
@@ -609,6 +606,14 @@ In addition, until the upstream API reaches GA, each Kubernetes release is expec
 - Step 3 should be reassessed after upstream reaches GA. The API may still change, and few clusters use it while it is off by default.
 
 On the ecosystem side, JobSet, LeaderWorkerSet, Kubeflow Trainer, KubeRay and Spark Operator are all integrating with the upstream Workload API. If these projects later declare gang scheduling through the upstream API by default and Volcano does not recognise it, their workloads would be scheduled pod by pod on Volcano. Kueue is working on a similar integration, see [kubernetes-sigs/kueue#8871](https://github.com/kubernetes-sigs/kueue/issues/8871).
+
+## 8. Summary
+
+- Upstream only decides where the pods of one workload go: gang scheduling, topology constraints and group-level preemption. Queues, quota and fairness are out of scope, and the KEP says Kueue and Volcano will keep providing them.
+- The upstream API is `v1beta1`, but every related feature gate is still off by default in v1.38. GA is planned for v1.39 at the earliest.
+- Volcano already has an equivalent for almost everything upstream offers, plus queues, enqueue admission, soft topology constraints and cross-queue reclaim. Upstream has three capabilities that Volcano lacks: group nesting deeper than two levels, a declarative preemption unit (`disruptionMode`), and PodPodGroup-level DRA.
+- Volcano does not recognise the upstream PodGroup today. A pod with `schedulingGroup` that is handed to Volcano is treated as an ordinary pod.
+- Support can be added in steps. Translating upstream PodGroups into Volcano PodGroups in a controller takes 4–6 person-weeks and makes gang scheduling work for native Jobs on Volcano. Having the scheduler consume upstream objects directly takes 8–12 person-months, and that decision is better left until upstream reaches GA.
 
 ## References
 
