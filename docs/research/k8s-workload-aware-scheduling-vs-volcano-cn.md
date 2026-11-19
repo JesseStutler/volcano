@@ -12,7 +12,7 @@ Kubernetes 自 v1.35 起在 kube-scheduler 中推进 Workload-Aware Scheduling�
 
 ### 1.1 API 模型
 
-以一个 4 Pod 的 Gang 训练任务为例。在开启相关 feature gate 的集群中，用户只需在原生 `Job` 中声明 `spec.scheduling`：
+以一个 4 Pod 的 Gang 训练任务为例。在开启 `GenericWorkload` 与 `WorkloadWithJob`（如使用拓扑约束还需开启 `TopologyAwareWorkloadScheduling`）的集群中，用户可在原生 `Job` 中直接声明 `spec.scheduling`：
 
 ```yaml
 apiVersion: batch/v1
@@ -98,20 +98,29 @@ flowchart LR
 | TAS | Topology-Aware Scheduling，拓扑感知调度 | Network Topology Aware Scheduling（HyperNode） |
 | WAP | Workload-Aware Preemption，组级抢占 | `preempt` / `reclaim` 及 `gangpreempt` / `gangreclaim` |
 
-### 1.3 版本进展与限制
+### 1.3 版本进展与 Feature Gate
 
 | 版本 | 阶段 | 核心演进 |
 |---|---|---|
 | v1.35 | Alpha | 引入 `v1alpha1` Workload API，`PodGroup` 内嵌于 `Workload` |
 | v1.36 | Alpha | `v1alpha2` 将 `PodGroup` 拆为独立对象，Pod 改用 `schedulingGroup`；引入 TAS、WAP 与 Job 集成 |
-| v1.37 | Beta | 核心 API 升至 `v1beta1`；`PodGroup` 作为整体入队调度；新增 `CompositePodGroup`（Alpha） |
-| v1.38（开发中） | Beta | `CompositePodGroup`、TAS、Job 集成升至 Beta；新增 Deployment 集成（Alpha） |
+| v1.37 | Beta | 核心 API 升至 `v1beta1`；`PodGroup` 作为整体入队调度；新增 `CompositePodGroup`（Alpha，`v1alpha3`） |
+| v1.38（开发中） | Beta | `CompositePodGroup`、TAS、Job 集成升至 Beta；新增 Deployment 集成（Alpha）；公共嵌入类型进入 `scheduling.k8s.io/v1` |
 | v1.39（计划） | GA | `PodGroup`、TAS、WAP 目标 GA；`CompositePodGroup` 目标 v1.40 |
 
-当前实际落地存在两项主要限制：
+截至 v1.38，所有工作负载调度相关的 Feature Gate **均默认关闭**，需在 kube-apiserver、kube-controller-manager 和 kube-scheduler 上显式启用：
 
-- **API 尚未完全稳定**：v1.35 至 v1.37 间经历了两次不兼容变更（`workloadRef` → `schedulingGroup`、`v1alpha2` → `v1alpha3`），且核心 API 的 GA 目标已于 2026 年 11 月从 v1.38 推迟至 v1.39。
-- **Feature Gate 默认关闭**：截至 v1.38，`GenericWorkload`、`TopologyAwareWorkloadScheduling`、`CompositePodGroup`、`WorkloadWithJob` 等相关开关均默认关闭，需在 kube-apiserver、kube-controller-manager 和 kube-scheduler 上显式启用。
+| Feature Gate | v1.37 | v1.38（开发中） | 依赖关系与说明 |
+|---|---|---|---|
+| `GenericWorkload` | Beta（默认关） | Beta（默认关） | 核心开关；v1.37 起已合并原 `GangScheduling` 与 `WorkloadAwarePreemption` |
+| `TopologyAwareWorkloadScheduling` | Alpha | Beta（默认关） | 拓扑感知调度（TAS），依赖 `GenericWorkload` |
+| `CompositePodGroup` | Alpha | Beta（默认关） | 多层级组模型，同时依赖 `GenericWorkload` 与 `TopologyAwareWorkloadScheduling` |
+| `PodGroupPreemptionPolicy` | Alpha | 已移除 | v1.38 起移除该 gate，`PodGroup.spec.preemptionPolicy` 直接生效 |
+| `DRAWorkloadResourceClaims` | Beta（默认关） | Beta（默认关） | PodGroup 级共享 DRA ResourceClaim |
+| `WorkloadWithJob` | Alpha | Beta（默认关） | 原生 Job controller 集成，依赖 `GenericWorkload`（`v1.38.0-beta.0` 中仍为 Alpha） |
+| `WorkloadWithDeployment` | — | Alpha | Deployment / ReplicaSet 集成，依赖 `GenericWorkload`；Gang 场景要求 `strategy.type: Recreate` |
+
+此外，API 在 v1.35 至 v1.37 间经历了两次不兼容变更（`workloadRef` → `schedulingGroup`、`v1alpha2` → `v1alpha3` 且无版本转换），核心 API 的 GA 目标也在 2026 年 11 月从 v1.38 推迟至 v1.39。
 
 ### 1.4 范围边界（非目标）
 
@@ -148,7 +157,16 @@ flowchart TD
 1. **入队聚合**：带 `schedulingGroup` 的 Pod（无论策略为 `basic` 或 `gang`）不再单独排队，而是并入所属根组（独立 `PodGroup` 或 `CompositePodGroup` 树根）的队列项。队列项按根组优先级排序，同优先级按时间戳排序。
 2. **PreEnqueue 门禁**：要求 `PodGroup` 及其全部祖先对象已存在、已创建 Pod 数达到 `minCount`，且无成员被 scheduling gate 阻塞，满足后整组进入 `activeQ`。
 3. **快照试排与剪枝**：整组出队后，调度器按固定顺序对每个 Pod 执行 Filter / Score，并在快照中临时 assume 以供后续 Pod 感知资源扣减（不修改真实缓存，周期末统一回滚）。每评估完一个 Pod 即调用 `PlacementFeasible`；若「已放置 + 未评估 < `minCount`」，立即提前终止。
-4. **绑定与抢占**：满足 `minCount` 时，各已分配 Pod 各自进入异步 binding cycle，并回写 `PodGroupInitiallyScheduled=True`；不满足则整组不绑定，执行一次组级抢占（见第 6 节），仍无解则进入 `backoffQ`（退避上限 `podMaxBackoff × √组内Pod数`）。
+4. **绑定与抢占**：满足 `minCount` 时，各已分配 Pod 各自进入异步 binding cycle，并回写 `PodGroupInitiallyScheduled=True`（若 `minCount < 总 Pod 数`，可放置的部分先绑定，其余重新入队；已运行的组成员计入 `minCount`）；不满足则整组不绑定，执行一次组级抢占（见第 6 节），仍无解则进入 `backoffQ`（退避上限 `podMaxBackoff × √组内Pod数`，默认 `podMaxBackoff` 为 10s）。
+
+上游为此在调度框架中新增了四个扩展点：
+
+| 扩展点 | 职责 | 内置插件 |
+|---|---|---|
+| `PlacementGenerate` | 按约束生成候选拓扑域（节点子集） | `TopologyPlacement` |
+| `PlacementScore` | 对可行的候选拓扑域打分 | `PodGroupPodsCount`、`NodeResourcesFit` |
+| `PlacementFeasible` | 判断当前试排进度是否满足组策略（提前剪枝） | `GangScheduling` |
+| `PodGroupPostFilter` | 整组调度失败后执行一次组级后处理 | `DefaultPreemption`、`DynamicResources` |
 
 正常调度场景的组件交互时序如下：
 
@@ -168,12 +186,13 @@ sequenceDiagram
     S->>A: 回写 PodGroupInitiallyScheduled=True
 ```
 
-实现层面需注意四点特征：
+实现层面需注意五点约束与局限：
 
 - **无组级绑定回滚**：all-or-nothing 仅覆盖调度决策阶段，绑定仍为逐 Pod 异步执行，单个成员绑定失败不会撤销其余成员。
 - **状态单向不可逆**：`minCount` 仅在调度期校验；`PodGroupInitiallyScheduled` 一旦置为 `True` 不再回退，即使后续成员被驱逐。
 - **单协程串行评估**：大组评估（Pod 数 × 候选拓扑域，抢占时还需重跑）在单协程调度循环内完成，可能阻塞同集群其他调度。
-- **贪心不回溯**：按固定顺序逐 Pod 决策，异构组不保证一定能找到可行放置方案。
+- **贪心不回溯与同质约束**：按固定顺序逐 Pod 决策，异构组不保证一定找到可行解；且同一层级内所有 Pod 必须使用相同的 `schedulerName`、优先级与抢占策略。
+- **DRA 组合限制**：`DynamicResources` 的 `PodGroupPostFilter` 暂不支持带拓扑约束的 `PodGroup` 以及 `CompositePodGroup`。
 
 ### 2.2 v1.37 与 v1.38 的主要差异
 
@@ -182,10 +201,11 @@ sequenceDiagram
 | 变更项 | v1.37 | v1.38（开发中） |
 |---|---|---|
 | Gang 实现机制 | 除试排校验外，仍保留 5 分钟超时的 Permit 等待屏障 | 移除 Permit 屏障，完全由公开可配置的 `PlacementFeasible` 扩展点驱动 |
-| `CompositePodGroup` | Alpha（仅 `v1alpha3`），最大树深 4 层，无状态与删除保护 | 升至 Beta（进入 `v1beta1`），最大树深扩至 5 层，补齐 condition 回写与 finalizer 保护 |
-| 候选拓扑域搜索 | 评估全部候选域 | 新增 `percentageOfPlacementsToScore`（自适应截断，下限 5%），支持多插件结果求交 |
-| 工作负载集成 | Job（Alpha） | Job（Beta，suspend 时删除 PodGroup）、Deployment（Alpha） |
-| `preemptionPolicy` | 依赖独立 feature gate | 移除 gate，字段直接生效 |
+| `CompositePodGroup` | Alpha（仅 `v1alpha3`），最大树深 4 层，无状态与删除保护 | 升至 Beta（进入 `v1beta1`），最大树深扩至 5 层，补齐整树运行时校验（`PodGroupError`/`CompositePodGroupError`）、condition 回写与 finalizer 保护 |
+| 候选拓扑域搜索 | 评估全部候选域；仅使用首个 `PlacementGenerate` 插件 | 新增 `percentageOfPlacementsToScore`（自适应截断，下限 5%）、随机打散、nominated placement 快速路径及多插件结果求交 |
+| 抢占与框架结构 | 逻辑集中在 `schedule_one_podgroup.go` | 拆出 `algorithm_podgroup.go`，抽象 `PreemptionManager` 与 `RankNodes` |
+| 工作负载集成 | `WorkloadWithJob`（Alpha） | `WorkloadWithJob`（Beta，suspend 时删除 PodGroup）、`WorkloadWithDeployment`（Alpha） |
+| `preemptionPolicy` | 受 `PodGroupPreemptionPolicy` feature gate 控制 | 移除 `PodGroupPreemptionPolicy` gate，字段直接生效 |
 
 ## 3. 上游 PodGroup 与 Volcano PodGroup 对比
 
@@ -209,7 +229,7 @@ sequenceDiagram
 关于两项上游特有字段的说明：
 
 - **`disruptionMode`**：声明该组作为被抢占方时的驱逐粒度（`single` 为单 Pod，`all` 为整组），详见第 6 节。
-- **`resourceClaims`（PodGroup 级 DRA）**：常规 DRA（Dynamic Resource Allocation）由各 Pod 各自声明 ResourceClaim 申请设备；该字段允许在 `PodGroup` 上声明共享的 ResourceClaim（按组生成并随组生命周期清理），使组内所有 Pod 共享同一份设备分配（并突破单 Claim `reservedFor` 256 个 Pod 的限制）。
+- **`resourceClaims`（PodGroup 级 DRA）**：需开启 `DRAWorkloadResourceClaims` feature gate。常规 DRA（Dynamic Resource Allocation）由各 Pod 各自声明 ResourceClaim 申请设备；该字段允许在 `PodGroup` 上声明共享的 ResourceClaim（按组生成并随组生命周期清理），使组内所有 Pod 共享同一份设备分配（并突破单 Claim `reservedFor` 256 个 Pod 的限制）。
 
 ### 3.2 调度机制对比
 
@@ -308,9 +328,10 @@ spec:
 
 两种层级模型的核心差异：
 
-- **嵌套深度**：`CompositePodGroup` 支持递归嵌套（v1.37 上限 4 层，master 扩至 5 层），可直接表达 `JobSet → ReplicatedJob → Job` 等三层结构；Volcano 固定为两层。
+- **嵌套深度**：`CompositePodGroup`（需开启 `CompositePodGroup`、`GenericWorkload` 与 `TopologyAwareWorkloadScheduling`）支持递归嵌套（v1.37 上限 4 层，master 扩至 5 层），可直接表达 `JobSet → ReplicatedJob → Job` 等三层结构；Volcano 固定为两层。
 - **子组异构性**：上游每个子组为独立对象，可设置各自的 `minCount`；Volcano 同一 `subGroupPolicy` 下各子组大小固定为 `subGroupSize`，异构子组需拆分多条 policy。
 - **最小子组计数语义**：上游 `minGroupCount` 跨模板统一计数父节点下全部子组；Volcano `minSubGroups` 按每条 policy 独立计数。
+- **优先级与抢占约束**：上游整棵树的优先级必须一致，且 `disruptionMode: all` 的父节点下不允许嵌套 `single` 的子节点；Volcano 无声明式 `disruptionMode` 字段。
 
 上游结构映射到 Volcano 现有模型的可行性如下：
 
@@ -324,7 +345,7 @@ spec:
 
 ## 5. 拓扑感知调度（TAS）对比
 
-上游 TAS 不引入拓扑 CRD，直接以节点 label 取值划分候选域。`PodGroup` 指定单个 label key，表示全组 Pod 必须落在同一 label 取值下；调度器遍历各候选取值域试排，并在可行域中选出得分最高者（由 `PodGroupPodsCount` 与 `NodeResourcesFit` MostAllocated 打分）。
+上游 TAS（需开启 `TopologyAwareWorkloadScheduling` 与 `GenericWorkload`）不引入拓扑 CRD，直接以节点 label 取值划分候选域。`PodGroup` 指定单个 label key，表示全组 Pod 必须落在同一 label 取值下；调度器遍历各候选取值域试排，并在可行域中选出得分最高者（由 `PodGroupPodsCount` 与 `NodeResourcesFit` MostAllocated 打分）。
 
 ```mermaid
 flowchart LR
@@ -365,12 +386,13 @@ flowchart TD
 | 约束模式 | 仅硬约束 | `hard` / `soft` |
 | 多层约束 | 通过 `CompositePodGroup` 逐层声明 | Job 级与 SubGroup 级两层 |
 | 选域策略 | 评估各取值域，取最高分（v1.38 支持按比例截断） | 从最低 tier 向上搜索，找到首个可行层级即停止 |
+| 已有运行成员时 | 新增 Pod 被限制在已占用的拓扑域内 | 收敛至已分配 HyperNode 的最近公共祖先范围内 |
 
 上游方案足够轻量，节点有 label 即可启用，但只能表达单一维度的硬约束；Volcano 维护成本更高，但支持就近优选、软约束兜底与自动发现。两者在兼容上的主要障碍在于约束表达不直接互通：上游给 label key，Volcano 消费 tier，需要建立 label key 到 HyperNode tier 的映射（见 7.4）。
 
 ## 6. 抢占对比（WAP）
 
-上游 WAP（Workload-Aware Preemption）在整组调度失败后于同一调度周期内通过 `PodGroupPostFilter` 触发，每组仅执行一次：
+上游 WAP（Workload-Aware Preemption，自 v1.37 起已并入 `GenericWorkload`，不再设独立 feature gate）在整组调度失败后于同一调度周期内通过 `PodGroupPostFilter` 触发，每组仅执行一次：
 
 ```mermaid
 flowchart TD
@@ -402,6 +424,8 @@ flowchart TD
 | 受害单元 | 由 `disruptionMode` 决定：`single`（单 Pod）或 `all`（最高 `all` 祖先整组） | `preempt`/`reclaim` 为单 Task；`gang*` action 为 safe/whole bundle |
 | 默认是否保护受害方 Gang | **否**（默认 `single`，允许拆散运行中的 Gang） | **是**（默认保护 `minAvailable`） |
 | 搜索范围 | 全集群（开启 TAS 时重跑带 placement 的调度） | 按节点；`gang*` action 按 HyperNode 域 |
+| 优先级来源 | 取 `PodGroup.spec.priority`（忽略 Pod 自身优先级），整树须一致 | Job 取 PodGroup 优先级，内部 Task 使用各自优先级 |
+| 受害者终止中 | 保持原有 `nominatedNodeName` 等待，不发起新一轮抢占 | 下个 Session 由 `allocate` 走 nomination 快速路径 |
 | PDB 处理 | 尽力而为（优先保留，不硬拦截） | 由 `pdb` 插件过滤 |
 
 两处核心行为差异值得在兼容设计时特别注意：

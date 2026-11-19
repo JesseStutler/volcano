@@ -12,7 +12,7 @@ Since v1.35, Kubernetes has been adding Workload-Aware Scheduling (WAS) to kube-
 
 ### 1.1 API Model
 
-Consider a 4-pod gang training job. On a cluster with the relevant feature gates enabled, a user declares `spec.scheduling` directly on a native `Job`:
+Consider a 4-pod gang training job. On a cluster with `GenericWorkload` and `WorkloadWithJob` enabled (plus `TopologyAwareWorkloadScheduling` if topology constraints are used), a user declares `spec.scheduling` directly on a native `Job`:
 
 ```yaml
 apiVersion: batch/v1
@@ -98,20 +98,29 @@ flowchart LR
 | TAS | Topology-Aware Scheduling | Network Topology Aware Scheduling (HyperNode) |
 | WAP | Workload-Aware Preemption | `preempt` / `reclaim` and `gangpreempt` / `gangreclaim` |
 
-### 1.3 Release Progress & Constraints
+### 1.3 Release Progress & Feature Gates
 
 | Release | Stage | Key Changes |
 |---|---|---|
 | v1.35 | Alpha | Introduced `v1alpha1` Workload API with `PodGroup` embedded in `Workload` |
 | v1.36 | Alpha | `v1alpha2` decoupled `PodGroup` and switched pods to `schedulingGroup`; added TAS, WAP, and Job integration |
-| v1.37 | Beta | Core API promoted to `v1beta1`; group-level queueing and scheduling; `CompositePodGroup` added (Alpha) |
-| v1.38 (in dev) | Beta | `CompositePodGroup`, TAS, and Job integration promoted to Beta; Deployment integration added (Alpha) |
+| v1.37 | Beta | Core API promoted to `v1beta1`; group-level queueing and scheduling; `CompositePodGroup` added (Alpha, `v1alpha3`) |
+| v1.38 (in dev) | Beta | `CompositePodGroup`, TAS, and Job integration promoted to Beta; Deployment integration added (Alpha); embeddable controller structs moved to `scheduling.k8s.io/v1` |
 | v1.39 (planned) | GA | `PodGroup`, TAS, and WAP target GA; `CompositePodGroup` targets v1.40 |
 
-Two practical constraints apply today:
+Through v1.38, every workload-scheduling feature gate is **off by default** and must be explicitly enabled on kube-apiserver, kube-controller-manager, and kube-scheduler:
 
-- **API still settling**: Two breaking revisions occurred between v1.35 and v1.37 (`workloadRef` → `schedulingGroup`, `v1alpha2` → `v1alpha3`), and core GA moved from v1.38 to v1.39 in November 2026.
-- **Feature gates off by default**: Through v1.38, `GenericWorkload`, `TopologyAwareWorkloadScheduling`, `CompositePodGroup`, `WorkloadWithJob`, and related gates are all disabled by default and must be explicitly enabled across kube-apiserver, kube-controller-manager, and kube-scheduler.
+| Feature Gate | v1.37 | v1.38 (in dev) | Dependencies & Notes |
+|---|---|---|---|
+| `GenericWorkload` | Beta (off) | Beta (off) | Core switch; merged `GangScheduling` and `WorkloadAwarePreemption` in v1.37 |
+| `TopologyAwareWorkloadScheduling` | Alpha | Beta (off) | Topology-aware scheduling (TAS); depends on `GenericWorkload` |
+| `CompositePodGroup` | Alpha | Beta (off) | Multi-level group tree; depends on `GenericWorkload` and `TopologyAwareWorkloadScheduling` |
+| `PodGroupPreemptionPolicy` | Alpha | Removed | Removed in v1.38; `PodGroup.spec.preemptionPolicy` takes effect directly |
+| `DRAWorkloadResourceClaims` | Beta (off) | Beta (off) | Shared PodGroup-level DRA ResourceClaims |
+| `WorkloadWithJob` | Alpha | Beta (off) | Native Job controller integration; depends on `GenericWorkload` (still Alpha in `v1.38.0-beta.0`) |
+| `WorkloadWithDeployment` | — | Alpha | Deployment / ReplicaSet integration; depends on `GenericWorkload`; gang requires `strategy.type: Recreate` |
+
+In addition, two breaking revisions occurred between v1.35 and v1.37 (`workloadRef` → `schedulingGroup`, `v1alpha2` → `v1alpha3` without conversion), and core GA moved from v1.38 to v1.39 in November 2026.
 
 ### 1.4 Scope Boundaries (Non-Goals)
 
@@ -148,7 +157,16 @@ Key steps:
 1. **Queue aggregation**: Any pod with `schedulingGroup` (whether `basic` or `gang`) joins its root group's queue entry (standalone `PodGroup` or root `CompositePodGroup`), ordered by root priority and timestamp.
 2. **PreEnqueue gate**: The group enters `activeQ` once the `PodGroup` and all ancestor objects exist, created pods reach `minCount`, and no member is held by a scheduling gate.
 3. **Snapshot placement & pruning**: Once popped, the scheduler runs Filter / Score per pod in fixed order, recording tentative assumes in the cycle snapshot (reverted at cycle end without touching real cache). `PlacementFeasible` runs after each pod and short-circuits if `placed + remaining < minCount`.
-4. **Binding & preemption**: If `minCount` is satisfied, placed pods enter async binding cycles and `PodGroupInitiallyScheduled=True` is written; otherwise nothing is bound, group preemption runs once (Section 6), and unschedulable groups move to `backoffQ` (capped at `podMaxBackoff × √groupSize`).
+4. **Binding & preemption**: If `minCount` is satisfied, placed pods enter async binding cycles and `PodGroupInitiallyScheduled=True` is written (if `minCount < total pods`, placed pods bind first while the rest requeue; already running members count toward `minCount`). Otherwise nothing is bound, group preemption runs once (Section 6), and unschedulable groups move to `backoffQ` (capped at `podMaxBackoff × √groupSize`, default `podMaxBackoff` = 10s).
+
+Four new scheduling framework extension points support this flow:
+
+| Extension Point | Responsibility | Built-in Plugins |
+|---|---|---|
+| `PlacementGenerate` | Generates candidate topology domains (node subsets) | `TopologyPlacement` |
+| `PlacementScore` | Scores feasible candidate placements | `PodGroupPodsCount`, `NodeResourcesFit` |
+| `PlacementFeasible` | Checks group policy progress for early pruning | `GangScheduling` |
+| `PodGroupPostFilter` | Runs once after whole-group scheduling failure | `DefaultPreemption`, `DynamicResources` |
 
 Normal scheduling sequence:
 
@@ -168,12 +186,13 @@ sequenceDiagram
     S->>A: Set PodGroupInitiallyScheduled=True
 ```
 
-Four implementation traits to note:
+Five implementation constraints to note:
 
 - **No group bind rollback**: All-or-nothing applies only to the scheduling decision; binding remains async and per pod, so a single bind failure does not undo sibling bindings.
 - **One-way status condition**: `minCount` is enforced only at scheduling time; once `PodGroupInitiallyScheduled` becomes `True`, it never reverts even if members are later evicted.
 - **Single-goroutine evaluation**: Evaluating a large group (`pods × candidate domains`, repeated during preemption) runs in the single scheduling loop and can block other pods/groups.
-- **Greedy, no backtracking**: Sequential placement in fixed order does not guarantee finding a valid solution for heterogeneous groups.
+- **Greedy & uniform-hierarchy constraints**: Sequential placement in fixed order does not guarantee a valid solution for heterogeneous groups, and all pods in a hierarchy must share the same `schedulerName`, priority, and preemption policy.
+- **DRA combination limit**: `DynamicResources`'s `PodGroupPostFilter` does not yet support topology-constrained `PodGroup`s or `CompositePodGroup`s.
 
 ### 2.2 Key Differences: v1.37 vs. v1.38
 
@@ -182,10 +201,11 @@ The core flow is unchanged; v1.38 (in development) removes transitional mechanis
 | Area | v1.37 | v1.38 (in dev) |
 |---|---|---|
 | Gang enforcement | Kept a 5-minute Permit wait barrier alongside trial checks | Removed Permit barrier; driven solely by the public `PlacementFeasible` extension point |
-| `CompositePodGroup` | Alpha (`v1alpha3` only), max depth 4, no status or delete protection | Beta (`v1beta1`), max depth 5, condition write-back and finalizer protection |
-| Candidate domain search | Evaluates all candidate domains | Adds `percentageOfPlacementsToScore` (adaptive, 5% floor) and multi-plugin intersection |
-| Workload integration | Job (Alpha) | Job (Beta, deletes PodGroup on suspend), Deployment (Alpha) |
-| `preemptionPolicy` | Behind separate feature gate | Gate removed; field active directly |
+| `CompositePodGroup` | Alpha (`v1alpha3` only), max depth 4, no status or delete protection | Beta (`v1beta1`), max depth 5, full-tree runtime validation (`PodGroupError`/`CompositePodGroupError`), condition write-back, and finalizer protection |
+| Candidate domain search | Evaluates all candidates; uses only the first `PlacementGenerate` plugin | Adds `percentageOfPlacementsToScore` (adaptive, 5% floor), shuffling, nominated-placement fast path, and multi-plugin intersection |
+| Preemption & structure | Concentrated in `schedule_one_podgroup.go` | Split out `algorithm_podgroup.go`; added `PreemptionManager` and `RankNodes` |
+| Workload integration | `WorkloadWithJob` (Alpha) | `WorkloadWithJob` (Beta, deletes PodGroup on suspend), `WorkloadWithDeployment` (Alpha) |
+| `preemptionPolicy` | Controlled by `PodGroupPreemptionPolicy` feature gate | Removed `PodGroupPreemptionPolicy` gate; field active directly |
 
 ## 3. Upstream PodGroup vs. Volcano PodGroup
 
@@ -209,7 +229,7 @@ Although they share a name, upstream `PodGroup` is strictly a placement unit whe
 Two upstream-only fields warrant note:
 
 - **`disruptionMode`**: Declares the eviction unit when this group is preempted (`single` for individual pods, `all` for the whole group); see Section 6.
-- **`resourceClaims` (PodGroup-level DRA)**: Standard DRA attaches ResourceClaims per pod. This field declares shared ResourceClaims on the `PodGroup` (generated per group and cleaned up with it), letting all pods in the group share one device allocation and bypassing the 256-pod `reservedFor` limit per claim.
+- **`resourceClaims` (PodGroup-level DRA)**: Requires the `DRAWorkloadResourceClaims` feature gate. Standard DRA attaches ResourceClaims per pod; this field declares shared ResourceClaims on the `PodGroup` (generated per group and cleaned up with it), letting all pods in the group share one device allocation and bypassing the 256-pod `reservedFor` limit per claim.
 
 ### 3.2 Scheduling Mechanics
 
@@ -308,9 +328,10 @@ spec:
 
 Key differences between the two hierarchy models:
 
-- **Nesting depth**: `CompositePodGroup` nests recursively (up to 4 levels in v1.37, 5 on master), directly modeling 3-level trees like `JobSet → ReplicatedJob → Job`; Volcano is fixed at 2 levels.
+- **Nesting depth**: `CompositePodGroup` (requires `CompositePodGroup`, `GenericWorkload`, and `TopologyAwareWorkloadScheduling`) nests recursively (up to 4 levels in v1.37, 5 on master), directly modeling 3-level trees like `JobSet → ReplicatedJob → Job`; Volcano is fixed at 2 levels.
 - **Heterogeneous subgroups**: Each upstream child is an independent object with its own `minCount`; in Volcano, all subgroups under one `subGroupPolicy` share a uniform `subGroupSize`, requiring separate policies for different sizes.
 - **Minimum child counting**: Upstream `minGroupCount` counts across all children of a parent regardless of template; Volcano `minSubGroups` counts per policy.
+- **Priority & preemption constraints**: Upstream requires uniform priority across the entire tree, and a parent with `disruptionMode: all` cannot contain a `single` child; Volcano has no declarative `disruptionMode` field.
 
 Mapping upstream shapes onto Volcano's current model:
 
@@ -324,7 +345,7 @@ Mapping upstream shapes onto Volcano's current model:
 
 ## 5. Topology-Aware Scheduling (TAS) Comparison
 
-Upstream TAS introduces no topology CRD; candidate domains are derived directly from node label values. A `PodGroup` names a single label key requiring all its pods to share the same label value, and the scheduler evaluates candidate values and picks the highest-scoring feasible domain (`PodGroupPodsCount` + `NodeResourcesFit` MostAllocated).
+Upstream TAS (requires `TopologyAwareWorkloadScheduling` and `GenericWorkload`) introduces no topology CRD; candidate domains are derived directly from node label values. A `PodGroup` names a single label key requiring all its pods to share the same label value, and the scheduler evaluates candidate values and picks the highest-scoring feasible domain (`PodGroupPodsCount` + `NodeResourcesFit` MostAllocated).
 
 ```mermaid
 flowchart LR
@@ -365,12 +386,13 @@ flowchart TD
 | Hard vs. soft | Hard only | `hard` and `soft` |
 | Multi-level constraints | Per-level keys on nested `CompositePodGroup`s | Job-level + SubGroup-level (2 levels) |
 | Domain selection | Evaluates candidate domains, picks best score (v1.38 adds cutoff) | Bottom-up tier search, stopping at lowest feasible tier |
+| Already-running pods | New pods are restricted to the already occupied topology domain | Search narrowed to LCA of already allocated HyperNodes |
 
 Upstream TAS is lightweight—working out of the box on labeled nodes—but limited to single-key hard constraints. Volcano carries more setup overhead via HyperNodes in exchange for tightest-tier preference, soft fallback, and auto-discovery. For compatibility, the main gap is bridging upstream label keys to Volcano HyperNode tiers (see 7.4).
 
 ## 6. Preemption Comparison (WAP)
 
-Upstream WAP (Workload-Aware Preemption) triggers inline via `PodGroupPostFilter` once per failed group scheduling cycle:
+Upstream WAP (Workload-Aware Preemption, merged into `GenericWorkload` since v1.37 with no separate feature gate) triggers inline via `PodGroupPostFilter` once per failed group scheduling cycle:
 
 ```mermaid
 flowchart TD
@@ -402,6 +424,8 @@ Both make whole-group decisions for the preemptor and avoid partial evictions on
 | Victim unit | `disruptionMode`: `single` (pod) or `all` (highest `all` ancestor) | Legacy: single task; `gang*`: safe or whole bundle |
 | Default victim gang protection | **No** (`single` default allows splitting running gangs) | **Yes** (protects `minAvailable` by default) |
 | Search scope | Cluster-wide (reruns TAS placements when enabled) | Per node; per HyperNode domain in `gang*` actions |
+| Priority source | `PodGroup.spec.priority` (pod priority ignored), uniform across tree | Job uses PodGroup priority; tasks use per-task priority |
+| Terminating victims | Keeps existing `nominatedNodeName` and waits without new preemption | Next Session's `allocate` uses nomination fast path |
 | PDB handling | Best-effort (prefers reprieving, does not hard-block) | Filtered by `pdb` plugin |
 
 Two semantic differences matter most for compatibility:
