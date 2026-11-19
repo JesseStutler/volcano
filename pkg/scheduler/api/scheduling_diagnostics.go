@@ -17,8 +17,11 @@ limitations under the License.
 package api
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -56,6 +59,8 @@ type SchedulingBlocker struct {
 	ResourceName  v1.ResourceName
 	TaskID        TaskID
 	HyperNodeName string
+	// PlacementDomain is the enclosing constraint from an established placement.
+	PlacementDomain string
 }
 
 // GroupSchedulingDiagnostic holds a completed Job attempt. An empty result clears blockers.
@@ -114,7 +119,7 @@ func (ji *JobInfo) TaskSchedulingCondition(task *TaskInfo) *v1.PodCondition {
 			if diagnostic.Failure == nil {
 				return nil
 			}
-			condition.Reason, condition.Message = diagnostic.Reason, diagnostic.Failure.Error()
+			condition.Reason, condition.Message = diagnostic.Reason, taskFailureMessage(diagnostic.Failure)
 		case PendingGangWaiting:
 			condition.Message = fmt.Sprintf("Waiting for PodGroup %s/%s to satisfy gang requirements.", ji.Namespace, ji.Name)
 		default:
@@ -141,72 +146,114 @@ func (ji *JobInfo) GroupSchedulingMessage() string {
 	if ji.GroupDiagnostic == nil || len(ji.GroupDiagnostic.Blockers) == 0 {
 		return prefix
 	}
-	// Group domain names only for the same member, cause and resource dimension.
-	groups := make(map[SchedulingBlocker]map[string]struct{})
-	for _, blocker := range ji.GroupDiagnostic.Blockers {
-		domain := blocker.HyperNodeName
-		blocker.HyperNodeName = ""
-		if groups[blocker] == nil {
-			groups[blocker] = make(map[string]struct{})
-		}
-		groups[blocker][domain] = struct{}{}
+	// A trial supplies context for the logs. Only an established placement
+	// shared by all checks for this cause can identify a domain in the message.
+	type cause struct {
+		scope       BlockerScope
+		pod, reason string
+		resource    v1.ResourceName
 	}
-	messages := make([]string, 0, len(groups))
-	for blocker, domains := range groups {
-		names := make([]string, 0, len(domains))
-		for name := range domains {
-			if name != "" {
-				names = append(names, name)
-			}
-		}
-		sort.Strings(names)
-		domain := ""
-		if len(names) == 1 {
-			domain = "HyperNode " + names[0]
-		} else if len(names) > 1 {
-			domain = "HyperNodes " + strings.Join(names, ", ")
-		}
-		subject := domain
+	type location struct {
+		searched bool
+		fixed    string
+	}
+	causes := make(map[cause]location)
+	for _, blocker := range ji.GroupDiagnostic.Blockers {
+		key := cause{scope: blocker.Scope, reason: blocker.Reason, resource: blocker.ResourceName}
 		if blocker.Scope == MemberScope {
 			task := ji.Tasks[blocker.TaskID]
 			if task == nil {
 				continue
 			}
-			subject = "Pod " + task.Namespace + "/" + task.Name
+			key.pod = task.Namespace + "/" + task.Name
 		}
-		if subject == "" {
-			subject = "The placement"
+		loc, exists := causes[key]
+		if !exists {
+			loc.fixed = blocker.PlacementDomain
+		} else if loc.fixed != blocker.PlacementDomain {
+			loc.fixed = ""
 		}
-		var explanation string
-		switch blocker.Reason {
-		case "InsufficientResources":
-			resource := string(blocker.ResourceName)
-			if resource == "" {
-				resource = "resource"
+		loc.searched = loc.searched || blocker.HyperNodeName != ""
+		causes[key] = loc
+	}
+	ordered := slices.SortedFunc(maps.Keys(causes), func(a, b cause) int {
+		return cmp.Or(cmp.Compare(a.scope, b.scope), cmp.Compare(a.pod, b.pod),
+			cmp.Compare(a.reason, b.reason), cmp.Compare(a.resource, b.resource))
+	})
+	messages := []string{prefix}
+	for _, key := range ordered {
+		resource := string(key.resource)
+		if resource == "" {
+			resource = "resource"
+		}
+		var message string
+		if key.scope == HyperNodeScope {
+			message = "HyperNode placement requirements are not satisfied"
+			if key.reason == "InsufficientResources" {
+				message = "Insufficient HyperNode " + resource + " capacity"
 			}
-			explanation = "has insufficient " + resource + " capacity"
-		case "NodeAffinity":
-			explanation = "has no node satisfying node affinity"
-		case "TaintToleration":
-			explanation = "has no node with tolerated taints"
-		case "PodAffinity", "InterPodAffinity":
-			explanation = "has no node satisfying Pod affinity constraints"
-		case "PlacementRejected":
-			explanation = "does not satisfy placement requirements"
-		default:
-			explanation = "does not satisfy scheduling predicates"
+		} else {
+			subject := "Pod " + key.pod
+			switch key.reason {
+			case "InsufficientResources":
+				message = subject + " has insufficient " + resource + " capacity"
+			case "NodeAffinity":
+				message = subject + " has no node satisfying node affinity"
+			case "TaintToleration":
+				message = subject + " has no node with tolerated taints"
+			case "PodAffinity", "InterPodAffinity":
+				message = subject + " has no node satisfying Pod affinity constraints"
+			case "PlacementRejected":
+				message = subject + " does not satisfy placement requirements"
+			default:
+				message = subject + " does not satisfy scheduling predicates"
+			}
 		}
-		message := subject + " " + explanation
-		if blocker.Scope == MemberScope && domain != "" {
-			message += " within " + domain
+		loc := causes[key]
+		if loc.fixed != "" {
+			message += " within HyperNode " + loc.fixed
+		} else if key.scope == MemberScope && loc.searched {
+			message += " within the checked HyperNodes"
 		}
 		messages = append(messages, message+".")
 	}
-	sort.Strings(messages)
-	if len(messages) == 0 {
-		return prefix
+	return strings.Join(messages, " ")
+}
+
+// taskFailureMessage explains why no node fits the Pod. Node totals, per-reason
+// counts and candidate names stay in the logs, so another node that fails for
+// the same reason leaves the Pod condition unchanged.
+func taskFailureMessage(failure error) string {
+	fit, ok := failure.(*FitErrors)
+	if !ok {
+		return failure.Error()
 	}
-	return prefix + " " + strings.Join(messages, " ")
+	var constraints []string
+	for category := range fit.failureCategories() {
+		switch category.Reason {
+		case "InsufficientResources":
+			if category.ResourceName == "" {
+				constraints = append(constraints, "resource requests")
+			} else {
+				constraints = append(constraints, string(category.ResourceName)+" request")
+			}
+		case "NodeAffinity":
+			constraints = append(constraints, "node affinity")
+		case "TaintToleration":
+			constraints = append(constraints, "taint tolerations")
+		case "PodAffinity", "InterPodAffinity":
+			constraints = append(constraints, "Pod affinity constraints")
+		default:
+			constraints = append(constraints, "scheduling predicates")
+		}
+	}
+	sort.Strings(constraints)
+	last := len(constraints) - 1
+	list := constraints[last]
+	if last > 0 {
+		list = strings.Join(constraints[:last], ", ") + " and " + list
+	}
+	return "No eligible node satisfies this Pod's " + list + "."
 }
 
 // Clone snapshots mutable node errors before another candidate reuses them.
@@ -260,8 +307,9 @@ func (f *FitErrors) CoversNodes(nodes []*NodeInfo) bool {
 	return true
 }
 
-// SchedulingBlockers uses predicate identities and resource dimensions, never trial node names.
-func (f *FitErrors) SchedulingBlockers(id TaskID, domain string) []SchedulingBlocker {
+// failureCategories classifies node rejections by predicate identity and
+// resource dimension, never by trial node name.
+func (f *FitErrors) failureCategories() map[SchedulingBlocker]struct{} {
 	keys := make(map[SchedulingBlocker]struct{})
 	if f != nil {
 		for _, node := range f.nodes {
@@ -269,8 +317,10 @@ func (f *FitErrors) SchedulingBlockers(id TaskID, domain string) []SchedulingBlo
 				if status == nil {
 					continue
 				}
-				key := SchedulingBlocker{Scope: MemberScope, Reason: "PredicateRejected", TaskID: id, HyperNodeName: domain}
+				key := SchedulingBlocker{Scope: MemberScope, Reason: "PredicateRejected"}
 				switch status.Plugin {
+				case "predicates-resource-fit", "NodeResourcesFit":
+					key.Reason = "InsufficientResources"
 				case "NodeAffinity", "TaintToleration", "InterPodAffinity":
 					key.Reason = status.Plugin
 				}
@@ -287,10 +337,17 @@ func (f *FitErrors) SchedulingBlockers(id TaskID, domain string) []SchedulingBlo
 		}
 	}
 	if len(keys) == 0 {
-		keys[SchedulingBlocker{Scope: MemberScope, Reason: "PredicateRejected", TaskID: id, HyperNodeName: domain}] = struct{}{}
+		keys[SchedulingBlocker{Scope: MemberScope, Reason: "PredicateRejected"}] = struct{}{}
 	}
-	result := make([]SchedulingBlocker, 0, len(keys))
-	for key := range keys {
+	return keys
+}
+
+// SchedulingBlockers uses predicate identities and resource dimensions, never trial node names.
+func (f *FitErrors) SchedulingBlockers(id TaskID, domain string) []SchedulingBlocker {
+	categories := f.failureCategories()
+	result := make([]SchedulingBlocker, 0, len(categories))
+	for key := range categories {
+		key.TaskID, key.HyperNodeName = id, domain
 		result = append(result, key)
 	}
 	return result

@@ -89,6 +89,7 @@ func (backfill *Action) Execute(ssn *framework.Session) {
 
 		predicateNodes, fitErrors := ph.PredicateNodes(task, ssn.NodeList, predicateFunc, backfill.enablePredicateErrorCache, ssn.NodesInShard)
 		if len(predicateNodes) == 0 {
+			klog.V(4).InfoS("Task has no feasible node in backfill", "task", klog.KRef(task.Namespace, task.Name), "fitErrors", fitErrors)
 			job.NodesFitErrors[task.UID] = fitErrors
 			job.RecordPendingTaskFailure(task.UID, api.PodReasonUnschedulable, fitErrors)
 			if fitErrors != nil && ssn.RejectionTrackingEnabled() {

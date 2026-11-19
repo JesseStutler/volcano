@@ -18,6 +18,8 @@ package allocate
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
+	"volcano.sh/apis/pkg/apis/scheduling"
 
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/framework"
@@ -48,6 +50,7 @@ func (d *candidateDiagnostics) recordFailure(task *api.TaskInfo, fit *api.FitErr
 	if fit == nil {
 		return
 	}
+	klog.V(4).InfoS("Task has no feasible node in candidate", "task", klog.KRef(task.Namespace, task.Name), "hyperNode", domain, "fitErrors", fit)
 	d.taskFailures[task.UID] = api.PendingTaskDiagnostic{Kind: api.PendingTaskFailure, Reason: api.PodReasonUnschedulable, Failure: fit.Clone()}
 	if domain == framework.ClusterTopHyperNode {
 		domain = ""
@@ -158,6 +161,9 @@ func (d *candidateDiagnostics) apply(ssn *framework.Session, job *api.JobInfo) {
 	job.GroupDiagnostic = &api.GroupSchedulingDiagnostic{}
 	if !ssn.JobReady(job) && !ssn.JobPipelined(job) {
 		for blocker := range d.blockers {
+			// The PodGroup message leaves candidate HyperNode names out. Keep them here.
+			klog.V(4).InfoS("Group scheduling blocker", "job", klog.KRef(job.Namespace, job.Name), "scope", blocker.Scope,
+				"reason", blocker.Reason, "resource", blocker.ResourceName, "task", blocker.TaskID, "hyperNode", blocker.HyperNodeName)
 			job.GroupDiagnostic.Blockers = append(job.GroupDiagnostic.Blockers, blocker)
 		}
 	}
@@ -240,5 +246,37 @@ func (d *candidateDiagnostics) recordError(err error) {
 	d.err = err
 	for _, id := range d.trialPlacementTaskIDs {
 		d.taskFailures[id] = api.PendingTaskDiagnostic{Kind: api.PendingTaskFailure, Reason: api.PodReasonSchedulerError, Failure: err}
+	}
+}
+
+func establishedDomain(ssn *framework.Session, placement string, topology *scheduling.NetworkTopologySpec) string {
+	if placement == "" || topology == nil || topology.Mode != scheduling.HardNetworkTopologyMode || topology.HighestTierAllowed == nil {
+		return ""
+	}
+	name, err := ssn.HyperNodes.HighestAllowedHyperNode(*topology.HighestTierAllowed, placement)
+	if err != nil || name == framework.ClusterTopHyperNode {
+		return ""
+	}
+	return name
+}
+
+// Ancestors are ordered finest first, so overlapping Job and SubJob
+// constraints report the narrower established scope.
+func (d *candidateDiagnostics) markEstablishedDomain(ssn *framework.Session, jobDomain, subJobDomain string) {
+	if d == nil || (jobDomain == "" && subJobDomain == "") {
+		return
+	}
+	for blocker := range d.blockers {
+		if blocker.PlacementDomain != "" {
+			continue
+		}
+		for _, name := range ssn.HyperNodeIndex().Ancestors(blocker.HyperNodeName) {
+			if name == jobDomain || name == subJobDomain {
+				delete(d.blockers, blocker)
+				blocker.PlacementDomain = name
+				d.blockers[blocker] = struct{}{}
+				break
+			}
+		}
 	}
 }

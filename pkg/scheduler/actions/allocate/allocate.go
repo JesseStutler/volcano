@@ -467,6 +467,15 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 	alloc.recorder.SnapshotSubJobStatus(job, jobWorksheet)
 
+	// Capture established constraints before trials can move the placement.
+	jobDomain := establishedDomain(ssn, job.AllocatedHyperNode, job.NetworkTopology)
+	subJobDomains := make(map[api.SubJobID]string)
+	for id := range jobWorksheet.subJobWorksheets {
+		if subJob := job.SubJobs[id]; subJob != nil {
+			subJobDomains[id] = establishedDomain(ssn, subJob.AllocatedHyperNode, subJob.NetworkTopology)
+		}
+	}
+
 	failedDiagnostics := newCandidateDiagnostics()
 	var failedCandidateRejections []unschedulable.Rejection
 	hyperNodeGradients, gradientStats := ssn.HyperNodeGradientForJobFn(job, hyperNodeToAllocate, api.PurposeAllocate)
@@ -480,6 +489,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 		taskQueues = append(taskQueues, worksheet.tasks)
 	}
 	failedDiagnostics.screening(ssn, gradientStats, resourceStats, job.GetMinResources(), taskQueues...)
+	failedDiagnostics.markEstablishedDomain(ssn, jobDomain, "")
 	if len(hyperNodeGradients) == 0 {
 		klog.V(3).InfoS("No hyperNode gradient for job", "job", job.UID, "fitError", screeningSummary)
 		for _, worksheet := range jobWorksheet.subJobWorksheets {
@@ -513,6 +523,7 @@ func (alloc *Action) allocateForJob(job *api.JobInfo, jobWorksheet *JobWorksheet
 
 					stmt, allocationScore, subJobDiagnostics := alloc.allocateForSubJob(subJob, subJobWorksheet, hyperNode)
 
+					subJobDiagnostics.markEstablishedDomain(ssn, jobDomain, subJobDomains[subJob.UID])
 					diagnostics.merge(subJobDiagnostics)
 					if stmt != nil && len(stmt.Operations()) > 0 {
 						stmtList = append(stmtList, stmt)

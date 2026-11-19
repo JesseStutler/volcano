@@ -323,7 +323,7 @@ func getSearchRootForGradient(
 		return hyperNodeAvailable, nil
 	}
 
-	hyperNodeHighestAllowed, err := getHighestAllowedHyperNode(hyperNodes, highestAllowedTier, allocatedHyperNode)
+	hyperNodeHighestAllowed, err := hyperNodes.HighestAllowedHyperNode(highestAllowedTier, allocatedHyperNode)
 	if err != nil {
 		return nil, fmt.Errorf("get highest allowed hyperNode failed: %w", err)
 	}
@@ -342,27 +342,6 @@ func getSearchRootForGradient(
 
 	return nil, fmt.Errorf("there is no intersection between hyperNodeAvailable %s and hyperNodeHighestAllowed %s",
 		hyperNodeAvailable.Name, hyperNodeHighestAllowed)
-}
-
-func getHighestAllowedHyperNode(hyperNodes api.HyperNodeInfoMap, highestAllowedTier int, allocatedHyperNode string) (string, error) {
-	var highestAllowedHyperNode string
-
-	for _, ancestor := range hyperNodes.GetAncestors(allocatedHyperNode) {
-		hni, ok := hyperNodes[ancestor]
-		if !ok {
-			return "", fmt.Errorf("allocated hyperNode %s ancestor %s not found", allocatedHyperNode, ancestor)
-		}
-		if hni.Tier() > highestAllowedTier {
-			break
-		}
-		highestAllowedHyperNode = ancestor
-	}
-
-	if highestAllowedHyperNode == "" {
-		return "", fmt.Errorf("allocated hyperNode %s tier is greater than highest allowed tier %d", allocatedHyperNode, highestAllowedTier)
-	}
-
-	return highestAllowedHyperNode, nil
 }
 
 func namespaceListerForSession(ssn *framework.Session) corelisters.NamespaceLister {

@@ -17,12 +17,14 @@ limitations under the License.
 package allocate
 
 import (
+	"sync/atomic"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
-	"sync/atomic"
-	"testing"
+
 	schedulingv1beta1 "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
 	"volcano.sh/volcano/pkg/scheduler/api"
 	"volcano.sh/volcano/pkg/scheduler/cache"
@@ -34,11 +36,12 @@ import (
 
 func TestAllocatePublishesSelectedDiagnostics(t *testing.T) {
 	for _, tc := range []struct {
-		name                                    string
-		secondFits, screenFirst, partialSuccess bool
+		name                                                    string
+		secondFits, screenFirst, partialSuccess, fixedPlacement bool
 	}{
 		{name: "failed candidate followed by successful candidate", secondFits: true},
 		{name: "affinity fails across both permitted domains"},
+		{name: "established job placement restricts affinity checks", fixedPlacement: true},
 		{name: "capacity screen plus scoped affinity failure", screenFirst: true},
 		{name: "ready group with a failed member", partialSuccess: true},
 	} {
@@ -70,6 +73,9 @@ func TestAllocatePublishesSelectedDiagnostics(t *testing.T) {
 				conf.PluginOption{Name: dryRunTestPlugin, EnabledPredicate: ptr.To(true), EnabledTaskOrder: ptr.To(true)})
 			ssn := framework.OpenSession(sc, tiers, nil)
 			defer framework.CloseSession(ssn)
+			if tc.fixedPlacement {
+				ssn.Jobs["ns/peer"].AllocatedHyperNode = "h1"
+			}
 			ssn.AddTaskOrderFn(dryRunTestPlugin, func(l, r interface{}) int {
 				a, b := l.(*api.TaskInfo).Name, r.(*api.TaskInfo).Name
 				if a < b {
@@ -111,12 +117,16 @@ func TestAllocatePublishesSelectedDiagnostics(t *testing.T) {
 			assert.Equal(t, api.PendingGangWaiting, job.PendingTaskDiagnostics["ns-task-2"].Kind)
 			if tc.screenFirst {
 				assert.Equal(t, api.PendingGangWaiting, job.PendingTaskDiagnostics["ns-task-1"].Kind)
-				assert.Contains(t, job.GroupSchedulingMessage(), "HyperNode h1 has insufficient cpu capacity")
+				assert.Contains(t, job.GroupSchedulingMessage(), "Insufficient HyperNode cpu capacity.")
 			} else {
 				assert.Equal(t, api.PendingTaskFailure, job.PendingTaskDiagnostics["ns-task-1"].Kind)
-				assert.Contains(t, job.TaskSchedulingCondition(job.Tasks["ns-task-1"]).Message, "0/2 nodes")
+				assert.Equal(t, "No eligible node satisfies this Pod's node affinity.", job.TaskSchedulingCondition(job.Tasks["ns-task-1"]).Message)
 			}
-			assert.Contains(t, job.GroupSchedulingMessage(), "Pod ns/task-1 has no node satisfying node affinity")
+			domain := "the checked HyperNodes"
+			if tc.fixedPlacement {
+				domain = "HyperNode h1"
+			}
+			assert.Contains(t, job.GroupSchedulingMessage(), "Pod ns/task-1 has no node satisfying node affinity within "+domain+".")
 			assert.NotContains(t, job.TaskSchedulingCondition(job.Tasks["ns-task-0"]).Message, "node-")
 		})
 	}

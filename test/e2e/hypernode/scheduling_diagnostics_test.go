@@ -28,6 +28,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	scheduling "volcano.sh/apis/pkg/apis/scheduling/v1beta1"
+	topologyv1alpha1 "volcano.sh/apis/pkg/apis/topology/v1alpha1"
 	e2eutil "volcano.sh/volcano/test/e2e/util"
 )
 
@@ -67,11 +68,16 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 	})
 
 	It("keeps Pod diagnostics stable across retries and replaces the blocker after Pod recreation", func() {
+		// Reserve one worker for a third rack that appears during retries.
+		Expect(updateHyperNodeMembers(ctx, topology.rackB, []string{"kwok-node-4", "kwok-node-5", "kwok-node-6"})).To(Succeed())
+		thirdRack := "diag-" + ctx.Namespace + "-rack-c"
 		pg := createTopologyPodGroup(ctx, ctx.Namespace, "gang", nil, nil, &scheduling.NetworkTopologySpec{Mode: scheduling.HardNetworkTopologyMode, HighestTierAllowed: ptr.To(1)}, 3)
 		b := createPodGroupPod(ctx, ctx.Namespace, "b", pg.Name, "")
 		c := createPodGroupPod(ctx, ctx.Namespace, "c", pg.Name, "")
 		a := createPodGroupPod(ctx, ctx.Namespace, "a", pg.Name, "no-such-node")
 		waiting := fmt.Sprintf("Waiting for PodGroup %s/%s to satisfy gang requirements.", ctx.Namespace, pg.Name)
+		// The Pod's own failure names its category, without node counts.
+		ownFailure := "No eligible node satisfies this Pod's node affinity."
 
 		// Event writes are asynchronous. Wait for each expected Event before taking
 		// the baseline so first publication is outside the steady-state window.
@@ -87,10 +93,13 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 					message = condition.Message
 				}
 			}
-			g.Expect(message).To(ContainSubstring("Pod " + ctx.Namespace + "/a "))
-			g.Expect(message).To(ContainSubstring(topology.rackA))
-			g.Expect(message).To(ContainSubstring(topology.rackB))
+			g.Expect(message).To(ContainSubstring("Pod " + ctx.Namespace + "/a has no node satisfying node affinity within the checked HyperNodes."))
+			// Candidate HyperNode names stay in the scheduler logs.
+			g.Expect(message).NotTo(ContainSubstring(topology.rackA))
+			g.Expect(message).NotTo(ContainSubstring(topology.rackB))
+			g.Expect(message).NotTo(ContainSubstring(thirdRack))
 			state["group"] = message
+			state["groupVersion"] = group.ResourceVersion
 			events, err := ctx.Kubeclient.CoreV1().Events(ctx.Namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: "reason=FailedScheduling"})
 			g.Expect(err).NotTo(HaveOccurred())
 			for _, original := range []*v1.Pod{a, b, c} {
@@ -102,7 +111,7 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 				g.Expect(condition.Reason).To(Equal(v1.PodReasonUnschedulable))
 				g.Expect(pod.Status.NominatedNodeName).To(BeEmpty())
 				if pod.Name == "a" {
-					g.Expect(condition.Message).To(ContainSubstring("node affinity"))
+					g.Expect(condition.Message).To(Equal(ownFailure))
 				} else {
 					g.Expect(condition.Message).To(Equal(waiting))
 				}
@@ -122,6 +131,7 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 		}
 		Eventually(func(g Gomega) { baseline = readDiagnostics(g) }, e2eutil.TwoMinute, time.Second).Should(Succeed())
 		groupMessage = baseline["group"]
+		createHyperNodeWithMembers(ctx, thirdRack, 1, "rack", topologyv1alpha1.MemberTypeNode, []string{"kwok-node-7"})
 		Consistently(func(g Gomega) { g.Expect(readDiagnostics(g)).To(Equal(baseline)) }, 30*time.Second, time.Second).Should(Succeed())
 
 		// Move the affinity failure to another UID, retaining the same Pod names.
@@ -152,7 +162,7 @@ var _ = Describe("HyperNode scheduling diagnostics", Ordered, Serial, Label("sch
 				cond := scheduledCondition(pod)
 				g.Expect(cond).NotTo(BeNil())
 				if name == "c" {
-					g.Expect(cond.Message).To(ContainSubstring("node affinity"))
+					g.Expect(cond.Message).To(Equal(ownFailure))
 				} else {
 					g.Expect(cond.Message).To(Equal(waiting))
 				}
