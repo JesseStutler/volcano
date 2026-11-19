@@ -994,7 +994,7 @@ func (alloc *Action) allocateResourcesForTasks(subJob *api.SubJobInfo, tasks *ut
 		alloc.queueNodes[cacheKey] = nodes
 	}
 
-	diagnostics.includeScope(tasks, hyperNode, nodes)
+	diagnostics.addPermittedNodes(tasks, hyperNode, nodes)
 	nodeNameSet := make(map[string]struct{}, len(nodes))
 	for _, n := range nodes {
 		if n != nil {

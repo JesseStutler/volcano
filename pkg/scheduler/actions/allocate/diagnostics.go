@@ -35,16 +35,17 @@ type candidateDiagnostics struct {
 	trialPlacementTaskIDs []api.TaskID
 	gangSkippedTaskIDs    []api.TaskID
 	blockers              map[api.SchedulingBlocker]struct{}
-	// Scopes share the session node slices. Each member is checked against its own permitted domains.
-	scopes map[api.TaskID]map[string][]*api.NodeInfo
-	err    error
+	// permittedNodes lists, for each member, the nodes it may use, keyed by
+	// HyperNode. The node slices are shared with the session.
+	permittedNodes map[api.TaskID]map[string][]*api.NodeInfo
+	err            error
 }
 
 func newCandidateDiagnostics() *candidateDiagnostics {
 	return &candidateDiagnostics{
-		scopes:       make(map[api.TaskID]map[string][]*api.NodeInfo),
-		taskFailures: make(map[api.TaskID]api.PendingTaskDiagnostic),
-		blockers:     make(map[api.SchedulingBlocker]struct{}),
+		permittedNodes: make(map[api.TaskID]map[string][]*api.NodeInfo),
+		taskFailures:   make(map[api.TaskID]api.PendingTaskDiagnostic),
+		blockers:       make(map[api.SchedulingBlocker]struct{}),
 	}
 }
 
@@ -110,12 +111,12 @@ func (d *candidateDiagnostics) merge(other *candidateDiagnostics) {
 	if other == nil {
 		return
 	}
-	for id, scopes := range other.scopes {
-		if d.scopes[id] == nil {
-			d.scopes[id] = make(map[string][]*api.NodeInfo)
+	for id, byHyperNode := range other.permittedNodes {
+		if d.permittedNodes[id] == nil {
+			d.permittedNodes[id] = make(map[string][]*api.NodeInfo)
 		}
-		for name, nodes := range scopes {
-			d.scopes[id][name] = nodes
+		for hyperNode, nodes := range byHyperNode {
+			d.permittedNodes[id][hyperNode] = nodes
 		}
 	}
 	d.trialPlacementTaskIDs = append(d.trialPlacementTaskIDs, other.trialPlacementTaskIDs...)
@@ -230,38 +231,48 @@ func (d *candidateDiagnostics) applyTask(job *api.JobInfo, id api.TaskID, placed
 }
 
 // recordExcludedHyperNodes records the candidate HyperNodes that were excluded
-// before any member was checked: those the gradient plugins rejected and those
-// whose resources cannot hold the minimum request.
-func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, gradientStats *api.HyperNodeGradientStats, minResourceStats *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, queues ...*util.PriorityQueue) {
+// before any member was checked. gradientStats names the HyperNodes that the
+// gradient plugins rejected, and minResourceStats those whose idle resources
+// cannot hold minimum. taskQueues hold the Pending members of the Job or SubJob
+// that these HyperNodes were candidates for.
+func (d *candidateDiagnostics) recordExcludedHyperNodes(ssn *framework.Session, gradientStats *api.HyperNodeGradientStats, minResourceStats *api.HyperNodeMinResourceFilterStats, minimum *api.Resource, taskQueues ...*util.PriorityQueue) {
 	if gradientStats != nil {
-		for name := range gradientStats.ExcludedByReason {
-			if name == framework.ClusterTopHyperNode {
+		// ExcludedByReason is keyed by the name of each rejected HyperNode.
+		for hyperNode := range gradientStats.ExcludedByReason {
+			if hyperNode == framework.ClusterTopHyperNode {
 				continue
 			}
-			for _, queue := range queues {
-				d.includeScope(queue, name, ssn.RealNodesList[name])
-			}
-			d.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", name)
+			d.addUncheckedHyperNode(ssn, hyperNode, taskQueues)
+			d.recordHyperNodeBlocker(api.BlockerPlacementRejected, "", hyperNode)
 		}
 	}
 	if minResourceStats == nil || minimum == nil {
 		return
 	}
-	for name := range minResourceStats.ExcludedByReason {
-		for _, queue := range queues {
-			d.includeScope(queue, name, ssn.RealNodesList[name])
-		}
+	for hyperNode := range minResourceStats.ExcludedByReason {
+		d.addUncheckedHyperNode(ssn, hyperNode, taskQueues)
+		// The filter reports that the HyperNode is too small, not which
+		// resource is short. Compare again to name the resource.
 		available := api.EmptyResource()
-		for _, node := range ssn.RealNodesList[name] {
+		for _, node := range ssn.RealNodesList[hyperNode] {
 			available.Add(node.FutureIdle())
 		}
-		_, dimensions := minimum.LessEqualWithResourcesName(available, api.Zero)
-		if len(dimensions) == 0 {
-			d.recordHyperNodeBlocker(api.BlockerInsufficientResources, "", name)
+		_, shortResources := minimum.LessEqualWithResourcesName(available, api.Zero)
+		if len(shortResources) == 0 {
+			d.recordHyperNodeBlocker(api.BlockerInsufficientResources, "", hyperNode)
 		}
-		for _, dimension := range dimensions {
-			d.recordHyperNodeBlocker(api.BlockerInsufficientResources, v1.ResourceName(dimension), name)
+		for _, resource := range shortResources {
+			d.recordHyperNodeBlocker(api.BlockerInsufficientResources, v1.ResourceName(resource), hyperNode)
 		}
+	}
+}
+
+// addUncheckedHyperNode keeps the nodes of an excluded HyperNode among the nodes
+// that the members may use. No member was checked there, so a failure found in
+// another HyperNode cannot become the member's own failure.
+func (d *candidateDiagnostics) addUncheckedHyperNode(ssn *framework.Session, hyperNode string, taskQueues []*util.PriorityQueue) {
+	for _, tasks := range taskQueues {
+		d.addPermittedNodes(tasks, hyperNode, ssn.RealNodesList[hyperNode])
 	}
 }
 
@@ -276,28 +287,29 @@ func (d *candidateDiagnostics) recordSkipped(job *api.JobInfo, tasks *util.Prior
 	}
 }
 
-// includeScope also covers domains rejected before an individual Pod was checked.
-// This prevents a failure in one domain from becoming a Pod-wide fit failure.
-func (d *candidateDiagnostics) includeScope(tasks *util.PriorityQueue, domain string, nodes []*api.NodeInfo) {
+// addPermittedNodes notes that the members in tasks may use the nodes of hyperNode.
+// A member reports its own failure only when its fit errors cover all the nodes
+// noted for it.
+func (d *candidateDiagnostics) addPermittedNodes(tasks *util.PriorityQueue, hyperNode string, nodes []*api.NodeInfo) {
 	remaining := tasks.Clone()
 	for !remaining.Empty() {
 		task := remaining.Pop().(*api.TaskInfo)
 		if task.SchGated {
 			continue
 		}
-		if d.scopes[task.UID] == nil {
-			d.scopes[task.UID] = make(map[string][]*api.NodeInfo)
+		if d.permittedNodes[task.UID] == nil {
+			d.permittedNodes[task.UID] = make(map[string][]*api.NodeInfo)
 		}
-		d.scopes[task.UID][domain] = nodes
+		d.permittedNodes[task.UID][hyperNode] = nodes
 	}
 }
 
 // coversTask reports whether the fit errors cover every node the member may use.
 func (d *candidateDiagnostics) coversTask(id api.TaskID, fit *api.FitErrors) bool {
-	if len(d.scopes[id]) == 0 {
+	if len(d.permittedNodes[id]) == 0 {
 		return false
 	}
-	for _, nodes := range d.scopes[id] {
+	for _, nodes := range d.permittedNodes[id] {
 		if !fit.CoversNodes(nodes) {
 			return false
 		}
