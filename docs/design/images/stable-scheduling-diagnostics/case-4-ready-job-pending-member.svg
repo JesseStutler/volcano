@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="895" viewBox="0 0 1200 895" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="920" viewBox="0 0 1200 920" role="img" aria-labelledby="title desc">
 <title id="title">B satisfies the Job minimum while A remains Pending</title>
 <desc id="desc">The Job requires one Pod and one ready SubJob. H1 is its only permitted domain. S2 first fails A affinity across all allowed nodes. S1 then places B, satisfying the Job minimum. The Job commits B, retains A own failure and reports group readiness.</desc>
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#333"/></marker></defs>
 <style>text{font-family:Arial,Helvetica,sans-serif;font-size:18px;fill:#222} .heading{font-weight:600} .code{font-family:"DejaVu Sans Mono",monospace;font-size:17px} .small{font-size:16px} .blue{fill:#315a7b} .orange{fill:#985927} .muted{fill:#596777}</style>
-<rect width="1200" height="895" fill="white"/>
+<rect width="1200" height="920" fill="white"/>
 <rect x="300" y="25" width="600" height="45" fill="#e9f0f8" stroke="#748eaa" stroke-width="1.2"/>
 <text x="600.0" y="53.5" class=" blue" text-anchor="middle">Job ns/job — requires 1 Pod and 1 ready SubJob</text>
 <rect x="190" y="115" width="820" height="370" fill="white" stroke="#748eaa" stroke-width="1.2"/>

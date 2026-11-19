@@ -187,6 +187,14 @@ type SchedulingBlocker struct {
 
 The publisher resolves the Pod name and uses the checked HyperNode name in its explanation. Candidate handling retains the Job/SubJob call context with each attempt, and logs record the parent-child search path, individual trial Nodes and rollback operations. Section 3 shows how the Job selects the records to publish.
 
+The field has three states. The examples after the table describe each one:
+
+| `GroupDiagnostic` | Meaning | PodGroup explanation |
+| --- | --- | --- |
+| `nil` | No new group conclusion in this session | Keeps the current explanation |
+| Non-empty `Blockers` | The completed attempt established why the group cannot proceed | Formats the recorded blockers |
+| `&GroupSchedulingDiagnostic{}` | A completed evaluation found the previous blockers gone | Uses actual group state: readiness or the remaining unmet gang requirements |
+
 - **No new group conclusion:** The session starts with `GroupDiagnostic == nil`. If scheduling is skipped, it remains nil. For a group that is still unready, the publisher uses the current PodGroup explanation. A later action in the same session that skips work leaves any result already recorded by an earlier action in place.
 
 - **The group cannot proceed:** The completed attempt establishes insufficient HyperNode GPU capacity and a member affinity constraint. The action stores both blockers:
@@ -377,6 +385,17 @@ The outer Job search then selects a saved placement or combines the completed fa
 
 Cases 1–3 use Job `ns/job`, which requires all three Pods A, B and C. Case 4 uses a smaller minimum. Each case starts with both diagnostic fields nil. `allocateResourcesForQueues()` writes the final records after deciding whether to commit, retain a Pipeline or roll back.
 
+The table summarizes the final result of each case. The sections below walk through them one by one.
+
+| Case | Search result | Pod A | Pod B | Pod C | `GroupDiagnostic` |
+| --- | --- | --- | --- | --- | --- |
+| 1.1 | H1 fails, H2 places A/B/C | `Binding` | `Binding` | `Binding` | Empty |
+| 1.2 | Within H1, S2 fails in H1-a and selects H1-b | `Binding` | `Binding` | `Binding` | Empty |
+| 1.3 | H1 fails in H1-a and H1-b, H2 places A/B/C | `Binding` | `Binding` | `Binding` | Empty |
+| 2 | H1 and H2 both fail. A is checked across all its permitted nodes | `PendingTaskFailure` | `PendingGangWaiting` | `PendingGangWaiting` | A's `NodeAffinity` in H1-a, H1-b, H2-a and H2-b |
+| 3 | H1 fails GPU-capacity screening. A is checked only within H2 | `PendingGangWaiting` | `PendingGangWaiting` | `PendingGangWaiting` | H1 GPU capacity, and A's `NodeAffinity` in H2 |
+| 4 | A fails across all its permitted nodes. B satisfies the Job minimum | `PendingTaskFailure` | `Binding` | — | Empty |
+
 #### Case 1: All members reach binding
 
 These three paths share the same final result, shown at the bottom of each diagram. Each assumes that all binding handoffs succeed.
@@ -533,10 +552,15 @@ For PodGroups, `gang.OnSessionClose()` constructs the condition using gang requi
 
 Replace the transaction-derived reason and whole-job fallback with `taskSchedulingCondition(job, task)` in `cache.RecordJobStatusEvent()`. **Read live state first, then the Pending record, and construct the condition after scheduling actions finish.**
 
-- **Retained Pipeline:** Build `PodScheduled=False`, reason `Unschedulable`, with `Waiting for resources to be released for this Pod.`.
-- **Retained allocation:** Build `PodScheduled=False`, reason `Schedulable`, with the PodGroup-waiting message while the allocation waits for gang readiness.
-- **Pending with a record:** A `PendingTaskFailure` supplies its reason and formatted error. `PendingGangWaiting` supplies reason `Unschedulable` and the standard PodGroup-waiting message.
-- **Pending without a record:** Return no new condition and preserve the observed explanation. Scheduling-gated Pods retain their gate condition. Tasks already handed to binding use the binding reporting path.
+| Task state | Pending record | Reason | Message |
+| --- | --- | --- | --- |
+| Retained Pipeline | — | `Unschedulable` | `Waiting for resources to be released for this Pod.` |
+| Retained allocation | — | `Schedulable` | The PodGroup-waiting message, while the allocation waits for gang readiness |
+| Pending | `PendingTaskFailure` | The record's reason | The record's formatted error |
+| Pending | `PendingGangWaiting` | `Unschedulable` | The standard PodGroup-waiting message |
+| Pending | None | — | No new condition. The observed explanation is preserved |
+
+Each row with a reason builds `PodScheduled=False`. Scheduling-gated Pods retain their gate condition. Tasks already handed to binding use the binding reporting path.
 
 The Pending branch shows how the proposed internal record becomes a Kubernetes condition. Live-state selection and gate handling precede this excerpt:
 
@@ -597,9 +621,12 @@ The Event is recorded before the status write. A failed write or an informer sna
 
 In `gang.OnSessionClose()`, replace the trial-derived counts and `FitError()` histogram with actual group readiness, configured gang requirements and `GroupDiagnostic`. Choose the group condition as follows:
 
-- **The group is ready:** Construct the `Scheduled` condition from current group state with the stable message `PodGroup satisfies its gang requirements.`. Use that message for the normal Event as well.
-- **The group is unready and has a new diagnostic:** Format its scoped blockers as described in section 3. An empty blocker list uses the actual unmet gang requirements as the explanation.
-- **The group is unready and has no new diagnostic:** Reuse its current explanation. On the first report, describe the actual unmet gang requirements.
+| Group state | `GroupDiagnostic` | Condition and message |
+| --- | --- | --- |
+| Ready | Any | The `Scheduled` condition from current group state, with the stable message `PodGroup satisfies its gang requirements.`. The normal Event uses that message as well |
+| Unready | New diagnostic with blockers | The scoped blockers, formatted as described in section 3 |
+| Unready | New diagnostic with an empty blocker list | The actual unmet gang requirements |
+| Unready | No new diagnostic | The current explanation. On the first report, the actual unmet gang requirements |
 
 For Case 3, the proposed failure construction is:
 
