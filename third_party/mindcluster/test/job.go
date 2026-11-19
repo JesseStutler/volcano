@@ -151,7 +151,6 @@ func SetFakeNPUJobErrors(fJob *api.JobInfo, msg string) {
 	if fJob == nil {
 		return
 	}
-	fJob.JobFitErrors = msg
 	if len(fJob.NodesFitErrors) == 0 {
 		fJob.NodesFitErrors = make(map[api.TaskID]*api.FitErrors, npuIndex3)
 	}
