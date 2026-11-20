@@ -223,10 +223,12 @@ func (pmpt *Action) Execute(ssn *framework.Session) {
 			if ssn.JobPipelined(preemptorJob) {
 				hasEvictions := stmt.HasEvictions()
 				stmt.Commit()
+				preemptorJob.GroupDiagnostic = &api.GroupSchedulingDiagnostic{}
 				if hasEvictions {
 					metrics.RegisterEvictionTransaction(pmpt.Name())
 				}
 			} else {
+				preemptorJob.RecordGangWaiting(stmt.PlacementTasks())
 				stmt.Discard()
 				continue
 			}
@@ -309,6 +311,8 @@ func (pmpt *Action) preempt(
 	}
 
 	if err := ssn.PrePredicateFn(preemptor); err != nil {
+		ssn.Jobs[preemptor.Job].RecordPendingTaskFailure(preemptor.UID, api.PrePredicateFailureReason(err), err)
+
 		return false, fmt.Errorf("PrePredicate for task %s/%s failed for: %v", preemptor.Namespace, preemptor.Name, err)
 	}
 

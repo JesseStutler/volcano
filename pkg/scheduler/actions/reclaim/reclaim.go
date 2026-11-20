@@ -153,6 +153,8 @@ func (ra *Action) Execute(ssn *framework.Session) {
 				}
 
 				if err := ssn.PrePredicateFn(task); err != nil {
+					ssn.Jobs[task.Job].RecordPendingTaskFailure(task.UID, api.PrePredicateFailureReason(err), err)
+
 					klog.V(3).Infof("PrePredicate failed for task %s/%s: %v", task.Namespace, task.Name, err)
 					continue
 				}
@@ -163,10 +165,12 @@ func (ra *Action) Execute(ssn *framework.Session) {
 			if ssn.JobPipelined(job) {
 				hasEvictions := stmt.HasEvictions()
 				stmt.Commit()
+				job.GroupDiagnostic = &api.GroupSchedulingDiagnostic{}
 				if hasEvictions {
 					metrics.RegisterEvictionTransaction(ra.Name())
 				}
 			} else {
+				job.RecordGangWaiting(stmt.PlacementTasks())
 				stmt.Discard()
 			}
 

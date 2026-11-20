@@ -68,6 +68,17 @@ func (s *Statement) Operations() []operation {
 	return s.operations
 }
 
+// PlacementTasks returns tasks allocated or pipelined by this statement.
+func (s *Statement) PlacementTasks() []*api.TaskInfo {
+	var tasks []*api.TaskInfo
+	for _, op := range s.operations {
+		if op.name == Allocate || op.name == Pipeline {
+			tasks = append(tasks, op.task)
+		}
+	}
+	return tasks
+}
+
 // HasEvictions returns whether the statement contains at least one eviction operation.
 func (s *Statement) HasEvictions() bool {
 	for _, op := range s.operations {
@@ -329,11 +340,15 @@ func (s *Statement) Allocate(task *api.TaskInfo, nodeInfo *api.NodeInfo) (err er
 func (s *Statement) allocate(task *api.TaskInfo) error {
 	bindContext := s.ssn.CreateBindContext(task)
 	if err := s.ssn.cache.AddBindTask(bindContext); err != nil {
+		if job := s.ssn.Jobs[task.Job]; job != nil {
+			job.RecordPendingTaskFailure(task.UID, api.PodReasonSchedulerError, err)
+		}
 		return err
 	}
 
 	if job, found := s.ssn.Jobs[task.Job]; found {
 		job.UpdateTaskStatus(task, api.Binding)
+		delete(job.PendingTaskDiagnostics, task.UID)
 	} else {
 		klog.Errorf("Failed to find Job <%s> in Session <%s> index when binding.",
 			task.Job, s.ssn.UID)
@@ -413,6 +428,9 @@ func (s *Statement) Commit() {
 			}
 		case Pipeline:
 			s.pipeline(op.task)
+			if job := s.ssn.Jobs[op.task.Job]; job != nil {
+				delete(job.PendingTaskDiagnostics, op.task.UID)
+			}
 		case Allocate:
 			err := s.allocate(op.task)
 			if err != nil {

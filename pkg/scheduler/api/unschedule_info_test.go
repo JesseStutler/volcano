@@ -66,6 +66,17 @@ func TestFitErrorsNodePluginInsufficientResourcesFailsOpenWithoutStructuredDetai
 	assert.Empty(t, dims)
 }
 
+// A retained failure is formatted more than once. Error must not cache its
+// default prefix, or it would report a stale node total after another node fails.
+func TestFitErrorsErrorIsReadOnly(t *testing.T) {
+	fitErrs := NewFitErrors()
+	fitErrs.SetNodeError("node1", errors.New(NodePodNumberExceeded))
+	assert.Equal(t, "0/1 nodes are unavailable: 1 node(s) pod number exceeded.", fitErrs.Error())
+
+	fitErrs.SetNodeError("node2", errors.New(NodePodNumberExceeded))
+	assert.Equal(t, "0/2 nodes are unavailable: 2 node(s) pod number exceeded.", fitErrs.Error())
+}
+
 func TestFitError(t *testing.T) {
 	tests := []struct {
 		task   *TaskInfo

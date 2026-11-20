@@ -129,11 +129,13 @@ func (gr *Action) Execute(ssn *framework.Session) {
 			if ssn.JobPipelined(job) {
 				hasEvictions := stmt.HasEvictions()
 				stmt.Commit()
+				job.GroupDiagnostic = &api.GroupSchedulingDiagnostic{}
 				if hasEvictions {
 					metrics.RegisterEvictionTransaction(gr.Name())
 				}
 				utils.ApplySubJobNominations(ssn, job, subJobHyperNodes)
 			} else {
+				job.RecordGangWaiting(stmt.PlacementTasks())
 				stmt.Discard()
 			}
 		}

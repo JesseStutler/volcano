@@ -6942,7 +6942,7 @@ func TestAllocateResourcesForTasksSamplingTarget(t *testing.T) {
 			job := ssn.Jobs["ns/pg1"]
 			tasks := util.NewPriorityQueue(ssn.TaskOrderFn)
 			tasks.Push(job.Tasks["ns-p1"])
-			stmt := action.allocateResourcesForTasks(job.SubJobs[job.DefaultSubJobID()], tasks, tc.hyperNode)
+			stmt, _ := action.allocateResourcesForTasks(job.SubJobs[job.DefaultSubJobID()], tasks, tc.hyperNode)
 			if stmt != nil {
 				defer stmt.Discard()
 			}

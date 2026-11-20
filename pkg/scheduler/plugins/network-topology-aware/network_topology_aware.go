@@ -708,7 +708,7 @@ func getSearchRoot(hyperNodes api.HyperNodeInfoMap, hyperNodeAvailable *api.Hype
 		return hyperNodeAvailable, nil
 	}
 
-	hyperNodeHighestAllowed, err := getHighestAllowedHyperNode(hyperNodes, highestAllowedTier, allocatedHyperNode)
+	hyperNodeHighestAllowed, err := hyperNodes.HighestAllowedHyperNode(highestAllowedTier, allocatedHyperNode)
 	if err != nil {
 		return nil, fmt.Errorf("get highest allowed hyperNode failed: %w", err)
 	}
@@ -728,28 +728,6 @@ func getSearchRoot(hyperNodes api.HyperNodeInfoMap, hyperNodeAvailable *api.Hype
 
 	return nil, fmt.Errorf("there is no intersection between hyperNodeAvailable %s and hyperNodeHighestAllowed %s",
 		hyperNodeAvailable.Name, hyperNodeHighestAllowed)
-}
-
-func getHighestAllowedHyperNode(hyperNodes api.HyperNodeInfoMap, highestAllowedTier int, allocatedHyperNode string) (string, error) {
-	var highestAllowedHyperNode string
-
-	ancestors := hyperNodes.GetAncestors(allocatedHyperNode)
-	for _, ancestor := range ancestors {
-		hni, ok := hyperNodes[ancestor]
-		if !ok {
-			return "", fmt.Errorf("allocated hyperNode %s ancestor %s not found", allocatedHyperNode, ancestor)
-		}
-		if hni.Tier() > highestAllowedTier {
-			break
-		}
-		highestAllowedHyperNode = ancestor
-	}
-
-	if highestAllowedHyperNode == "" {
-		return "", fmt.Errorf("allocated hyperNode %s tier is greater than highest allowed tier %d", allocatedHyperNode, highestAllowedTier)
-	}
-
-	return highestAllowedHyperNode, nil
 }
 
 func (nta *networkTopologyAwarePlugin) OnSessionClose(ssn *framework.Session) {

@@ -617,6 +617,28 @@ func runTaskQuotaWakeupCase(pluginName, queueName, jobName string) {
 	waitForMetricIncrease(ctx, skipMetricName, skipLabels, skipBaseline)
 	expectJobUnbound(ctx, job)
 
+	By("checking that a cache skip preserves the queue rejection on the Pending Pod")
+	tasks := e2eutil.GetTasksOfJob(ctx, job)
+	Expect(tasks).To(HaveLen(1))
+	pods := ctx.Kubeclient.CoreV1().Pods(ctx.Namespace)
+	readCondition := func(g Gomega) v1.PodCondition {
+		pod, err := pods.Get(context.TODO(), tasks[0].Name, metav1.GetOptions{})
+		g.Expect(err).NotTo(HaveOccurred())
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == v1.PodScheduled {
+				g.Expect(cond.Reason).To(Equal(v1.PodReasonUnschedulable))
+				g.Expect(cond.Message).To(ContainSubstring(fmt.Sprintf("Queue %s", queueName)))
+				return cond
+			}
+		}
+		g.Expect(false).To(BeTrue(), "expected PodScheduled condition on %s", pod.Name)
+		return v1.PodCondition{}
+	}
+	var beforeSkip v1.PodCondition
+	Eventually(func(g Gomega) { beforeSkip = readCondition(g) }, eventWakeupTimeout, 500*time.Millisecond).Should(Succeed())
+	waitForMetricIncrease(ctx, skipMetricName, skipLabels, schedulerMetricValue(ctx, skipMetricName, skipLabels))
+	Eventually(func(g Gomega) { g.Expect(readCondition(g)).To(Equal(beforeSkip)) }, eventWakeupTimeout, 500*time.Millisecond).Should(Succeed())
+
 	By("restoring Queue capability so the rejected Task fits")
 	updateQueueCPUCapability(ctx, queueName, "1")
 

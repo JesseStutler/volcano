@@ -238,6 +238,11 @@ var _ = ginkgo.Describe("Scheduling Gates E2E Test", func() {
 			if err != nil || pod.Status.Phase != corev1.PodPending {
 				return false
 			}
+			for _, cond := range pod.Status.Conditions {
+				if cond.Type == corev1.PodScheduled && cond.Reason != corev1.PodReasonSchedulingGated {
+					return false
+				}
+			}
 			return e2eutil.PodHasSchedulingGates(pod, schedulingv1beta1.QueueAllocationGateKey, otherGateName)
 		}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue(), "both gates remain and pod stays Pending")
 

@@ -1200,18 +1200,30 @@ func (sc *SchedulerCache) EventRecorder() record.EventRecorder {
 	return sc.Recorder
 }
 
-// taskUnschedulable updates pod status of pending task
+// taskUnschedulable publishes an explicit scheduler error outside the session publisher.
 func (sc *SchedulerCache) taskUnschedulable(task *schedulingapi.TaskInfo, reason, message, nominatedNodeName string) error {
-	pod := task.Pod
+	return sc.updateTaskSchedulingStatus(task, &v1.PodCondition{
+		Type: v1.PodScheduled, Status: v1.ConditionFalse, Reason: reason, Message: message,
+	}, nominatedNodeName)
+}
 
-	condition := &v1.PodCondition{
-		Type:    v1.PodScheduled,
-		Status:  v1.ConditionFalse,
-		Reason:  reason, // Add more reasons in order to distinguish more specific scenario of pending tasks
-		Message: message,
+// updateTaskSchedulingStatus writes the prepared condition and nomination when either changed.
+// A nil condition keeps the observed one, so a nomination-only update repeats its message in the Event.
+func (sc *SchedulerCache) updateTaskSchedulingStatus(task *schedulingapi.TaskInfo, condition *v1.PodCondition, nominatedNodeName string) error {
+	pod := task.Pod
+	message := ""
+	if condition != nil {
+		message = condition.Message
+	} else {
+		for _, current := range pod.Status.Conditions {
+			if current.Type == v1.PodScheduled {
+				message = current.Message
+				break
+			}
+		}
 	}
 
-	updateCond := podConditionHaveUpdate(&pod.Status, condition)
+	updateCond := condition != nil && podConditionHaveUpdate(&pod.Status, condition)
 
 	// only update pod's nominatedNodeName when nominatedNodeName is not empty
 	// consider this situation:
@@ -1791,27 +1803,24 @@ func (sc *SchedulerCache) String() string {
 
 // RecordJobStatusEvent records related events according to job status.
 func (sc *SchedulerCache) RecordJobStatusEvent(job *schedulingapi.JobInfo, updatePG bool) {
-	pgUnschedulable := job.PodGroup != nil &&
+	pgUnschedulable := job.PodGroup != nil && !job.IsReady() &&
 		(job.PodGroup.Status.Phase == scheduling.PodGroupUnknown ||
 			job.PodGroup.Status.Phase == scheduling.PodGroupPending ||
 			job.PodGroup.Status.Phase == scheduling.PodGroupInqueue)
 
-	fitErrStr := job.FitError()
-	// If pending or unschedulable, record unschedulable event.
+	// Use the same prepared condition for status and Event reporting.
 	if pgUnschedulable {
-		msg := fmt.Sprintf("%v/%v tasks in gang unschedulable: %v",
-			len(job.TaskStatusIndex[schedulingapi.Pending]),
-			len(job.Tasks),
-			fitErrStr)
-		// TODO: should we skip pod unschedulable event if pod group is unschedulable due to gates to avoid printing too many messages?
-		sc.recordPodGroupEvent(job.PodGroup, v1.EventTypeWarning, string(scheduling.PodGroupUnschedulableType), msg)
-	} else if updatePG {
-		sc.recordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupScheduled), string(scheduling.PodGroupReady))
-	}
-
-	baseErrorMessage := fitErrStr
-	if baseErrorMessage == "" {
-		baseErrorMessage = schedulingapi.AllNodeUnavailableMsg
+		message := job.GroupSchedulingMessage()
+		for i := len(job.PodGroup.Status.Conditions) - 1; i >= 0; i-- {
+			condition := job.PodGroup.Status.Conditions[i]
+			if condition.Type == scheduling.PodGroupUnschedulableType && condition.Status == v1.ConditionTrue {
+				message = condition.Message
+				break
+			}
+		}
+		sc.recordPodGroupEvent(job.PodGroup, v1.EventTypeWarning, string(scheduling.PodGroupUnschedulableType), message)
+	} else if updatePG && job.IsReady() {
+		sc.recordPodGroupEvent(job.PodGroup, v1.EventTypeNormal, string(scheduling.PodGroupScheduled), schedulingapi.GroupReadyMessage)
 	}
 	// Update podCondition for tasks Allocated and Pending before job discarded
 	for _, status := range []schedulingapi.TaskStatus{schedulingapi.Allocated, schedulingapi.Pending, schedulingapi.Pipelined} {
@@ -1830,14 +1839,9 @@ func (sc *SchedulerCache) RecordJobStatusEvent(job *schedulingapi.JobInfo, updat
 				return
 			}
 
-			reason, msg, nominatedNodeName := job.TaskSchedulingReason(taskInfo.UID)
-			if len(msg) == 0 {
-				msg = baseErrorMessage
-			}
-
-			if err := sc.taskUnschedulable(taskInfo, reason, msg, nominatedNodeName); err != nil {
-				klog.ErrorS(err, "Failed to update unschedulable task status", "task", klog.KRef(taskInfo.Namespace, taskInfo.Name),
-					"reason", reason, "message", msg)
+			condition := job.TaskSchedulingCondition(taskInfo)
+			if err := sc.updateTaskSchedulingStatus(taskInfo, condition, taskInfo.NominatedNodeName()); err != nil {
+				klog.ErrorS(err, "Failed to update task scheduling status", "task", klog.KRef(taskInfo.Namespace, taskInfo.Name))
 			}
 		})
 	}

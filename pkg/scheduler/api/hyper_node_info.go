@@ -904,6 +904,29 @@ func (hnim HyperNodeInfoMap) GetAncestors(name string) []string {
 	return ancestors
 }
 
+// HighestAllowedHyperNode returns the widest permitted domain containing an established placement.
+func (hnim HyperNodeInfoMap) HighestAllowedHyperNode(highestAllowedTier int, allocatedHyperNode string) (string, error) {
+	var highestAllowedHyperNode string
+
+	ancestors := hnim.GetAncestors(allocatedHyperNode)
+	for _, ancestor := range ancestors {
+		hni, ok := hnim[ancestor]
+		if !ok {
+			return "", fmt.Errorf("allocated hyperNode %s ancestor %s not found", allocatedHyperNode, ancestor)
+		}
+		if hni.Tier() > highestAllowedTier {
+			break
+		}
+		highestAllowedHyperNode = ancestor
+	}
+
+	if highestAllowedHyperNode == "" {
+		return "", fmt.Errorf("allocated hyperNode %s tier is greater than highest allowed tier %d", allocatedHyperNode, highestAllowedTier)
+	}
+
+	return highestAllowedHyperNode, nil
+}
+
 // GetAncestorHyperNode returns the ancestor HyperNode name at the given tier.
 func (hnim HyperNodeInfoMap) GetAncestorHyperNode(hyperNodeName string, tier int) string {
 	for _, ancestor := range hnim.GetAncestors(hyperNodeName) {
